@@ -1,0 +1,21 @@
+We know that we should expect things in a relative order
+
+Units with at least 3 PPC's
+Mechs with 3 or more PPC's
+Mechs with 3 PPC's and a small laser or LRM's
+
+
+[Optional] UNIT + CHUNK + [Optional] CHUNK...
+
+UNIT: any unit type. And if one isn't provided we just assume that it is everything
+
+CHUNK: QUANTITY + EQUIPMENT
+
+QUANTITY:
+
+EQUIPMENT: Ideally we could get this from the database... And that might be doable but not sure yet
+
+
+
+MEDIUM_LASER: [medium laser | ml]
+LARGE_LASER:  [large laser | ll]
