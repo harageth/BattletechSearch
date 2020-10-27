@@ -36,8 +36,8 @@ public class SearchController {
     return searchService.performQuery(query);
   }
 
-  @GetMapping("/readFile/{query}")
-  public List<Unit> readStuffIn(@PathVariable String query) throws IOException {
+  @GetMapping("/readFile/")
+  public List<Unit> readStuffIn() throws IOException {
     // read in file and submit to database
     unitService.persistUnits();
     //Unit mech = ReadMegaMek.ReadMTF();
