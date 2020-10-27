@@ -1,6 +1,7 @@
 package com.battletech.search.demo.services;
 
 
+import java.io.IOException;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -9,7 +10,7 @@ class SearchServiceTest {
   SearchService service;
 
   @Test
-  public void searchTest() {
+  public void searchTest() throws IOException {
     //we will need to setup the data here...
     service.performQuery("Mechs with 2 LL");
   }

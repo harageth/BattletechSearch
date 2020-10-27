@@ -1,12 +1,12 @@
 package com.battletech.search.demo.model;
 
-public enum Tech {
-  CLAN("CLAN"),
-  INNER_SPHERE("Inner Sphere");
+public enum Locomotion {
+  BIPED("BIPED"),
+  QUAD("QUAD");
 
   private String text;
 
-  Tech(String text) {
+  Locomotion(String text) {
     this.text = text;
   }
 
@@ -14,8 +14,8 @@ public enum Tech {
     return this.text;
   }
 
-  public static Tech fromString(String text) {
-    for (Tech b : Tech.values()) {
+  public static Locomotion fromString(String text) {
+    for (Locomotion b : Locomotion.values()) {
       if (b.text.equalsIgnoreCase(text)) {
         return b;
       }

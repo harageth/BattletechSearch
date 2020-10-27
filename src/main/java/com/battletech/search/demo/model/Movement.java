@@ -1,8 +1,10 @@
 package com.battletech.search.demo.model;
 
+import javax.persistence.Embeddable;
 import lombok.Data;
 
 @Data
+@Embeddable
 public class Movement {
   int walk;
   int potentialWalk;

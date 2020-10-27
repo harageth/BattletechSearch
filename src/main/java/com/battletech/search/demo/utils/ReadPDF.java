@@ -1,8 +1,8 @@
 package com.battletech.search.demo.utils;
 
 import com.battletech.search.demo.model.Location;
-import com.battletech.search.demo.model.Mech;
-import com.battletech.search.demo.model.Unit;
+import com.battletech.search.demo.entities.Mech;
+import com.battletech.search.demo.entities.Unit;
 import java.io.File;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -10,6 +10,7 @@ import org.apache.pdfbox.text.PDFTextStripperByArea;
 
 public class ReadPDF {
 
+  @Deprecated
   public void readPDF() {
     try  {
       //PDDocument document = PDDocument.load(new File("/Users/adam9500/Downloads/TrebuchetTBT-5N.pdf"));

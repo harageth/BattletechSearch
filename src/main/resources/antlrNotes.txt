@@ -11,7 +11,7 @@ UNIT: any unit type. And if one isn't provided we just assume that it is everyth
 
 CHUNK: QUANTITY + EQUIPMENT
 
-QUANTITY:
+QUANTITY: Dont forget
 
 EQUIPMENT: Ideally we could get this from the database... And that might be doable but not sure yet
 

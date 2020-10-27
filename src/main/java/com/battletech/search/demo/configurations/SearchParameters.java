@@ -3,7 +3,7 @@ package com.battletech.search.demo.configurations;
 
 import java.util.HashMap;
 import java.util.Map;
-import com.battletech.search.demo.model.Unit;
+import com.battletech.search.demo.entities.Unit;
 
 public class SearchParameters {
 
