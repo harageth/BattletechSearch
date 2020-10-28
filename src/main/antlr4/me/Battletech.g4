@@ -10,8 +10,8 @@ grammar Battletech;
  */
 
 query: line+ EOF ;
-equipmentChunk: COMPARATOR? QUANTITY EQUIPMENT* | QUANTITY COMPARATOR? EQUIPMENT*;
-line: SIZEDUNIT STOPWORD equipmentChunk* NEWLINE ;
+equipmentChunk: COMPARATOR? QUANTITY WORD* | QUANTITY COMPARATOR? WORD*;
+line: WORD? UNIT STOPWORD equipmentChunk* NEWLINE ;
 
 
 //weightclass: ULTRA LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA HEAVY ;
@@ -53,7 +53,7 @@ fragment UPPERCASE  : [A-Z] ;
 
 
 
-SIZEDUNIT: WEIGHTCLASS UNIT;
+//SIZEDUNIT: WEIGHTCLASS UNIT;
 //unit types
 UNIT: MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
 fragment MECH: M E C H ;
@@ -83,14 +83,14 @@ DIGIT: [0-9] ;
 
 //LOWERCASE | UPPERCASE | DIGIT ;
 
-WEIGHTCLASS: ULTRA [ ] LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA [ ] HEAVY ;
+/*WEIGHTCLASS: ULTRA [ ] LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA [ ] HEAVY ;
 fragment LIGHT: L I G H T ;
 fragment MEDIUM: M E D I U M ;
 fragment HEAVY: H E A V Y ;
 fragment ASSAULT: A S S A U L T ;
 fragment ULTRA: U L T R A ;
 fragment ULTRALIGHT: ULTRA LIGHT ;
-fragment ULTRAHEAVY: ULTRA HEAVY ;
+fragment ULTRAHEAVY: ULTRA HEAVY ;*/
 
 
 COMPARATOR: ATLEAST | EQUAL | LESSTHAN ;
@@ -107,9 +107,10 @@ LOGICALOPERATOR: AND | OR ;
 AND: A N D ;
 OR: O R ;
 
-
-
 /*
+fragment AOW: A G E [ ] O F [ ] W A R ;
+fragment
+
 Age of War
 Star league
 Early Succession War
@@ -123,8 +124,7 @@ Late Republic
 Dark Age
 IlClan
 */
-WEAPONSIZE: S M A L L | MEDIUM | L A R G E ;
 
 NEWLINE             : ('r'? 'n' | 'r')+ ;
-EQUIPMENT: [a-zA-Z0-9\-/]+ | WEAPONSIZE [ ]* [a-zA-Z0-9\-/]+;
+WORD: [a-zA-Z0-9\-/]+ ;
 WHITESPACE : ' ' -> skip ;

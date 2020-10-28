@@ -10,6 +10,6 @@
 # starting the application
 I'll get to this soon...
 This is the general way of doing it... I do everything through intellij ultimate which automates it all for me.
-mvn antlr4
+mvn antlr4:antlr4
 mvn compile
 mvn spring-boot:run

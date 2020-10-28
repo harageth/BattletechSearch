@@ -1,17 +1,13 @@
 package com.battletech.search.demo.antlr;
 
 import com.battletech.search.demo.entities.Equipment;
-import com.battletech.search.demo.entities.EquipmentSlang;
 import com.battletech.search.demo.entities.MechEquipment;
 import com.battletech.search.demo.model.EquipmentDecorator;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.WeightClass;
-import com.battletech.search.demo.repositories.EquipmentRepository;
-import com.battletech.search.demo.repositories.EquipmentSlangRepository;
 import com.battletech.search.demo.utils.UnitBuilder;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import me.BattletechParser.EquipmentChunkContext;
 import me.BattletechParser.LineContext;
 import me.BattletechParser.QueryContext;
@@ -20,15 +16,8 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
-@Service
 public class TestVisitor implements BattletechVisitor {
-  @Autowired
-  EquipmentRepository equipRepo;
-  @Autowired
-  EquipmentSlangRepository slangRepo;
 
   @Override
   public Object visitQuery(QueryContext ctx) {
@@ -46,9 +35,8 @@ public class TestVisitor implements BattletechVisitor {
 
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
-
-    if(ctx.WEIGHTCLASS().getSymbol() != null && !ctx.WEIGHTCLASS().getText().contains("missing")) {
-      String weightClass = ctx.WEIGHTCLASS().getText();
+    if(ctx.WORD().getSymbol() != null && !ctx.WORD().getText().contains("missing")) {
+      String weightClass = ctx.WORD().getText();
       unit.setWeightClass(WeightClass.fromString(weightClass));
     }
     List<MechEquipment> decorators = new LinkedList<MechEquipment>();
@@ -56,7 +44,7 @@ public class TestVisitor implements BattletechVisitor {
     for(EquipmentChunkContext node : equipment) {
       // validate equipment type
       String equip = "";
-      for(TerminalNode equipNode: node.EQUIPMENT()) {
+      for(TerminalNode equipNode: node.WORD()) {
         if(equip.isEmpty()) {
           equip = equipNode.getText();
         }else {
