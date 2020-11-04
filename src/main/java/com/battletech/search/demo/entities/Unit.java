@@ -6,13 +6,16 @@ import com.battletech.search.demo.model.Tech;
 import com.battletech.search.demo.model.WeightClass;
 import java.util.List;
 import java.util.UUID;
+import javax.persistence.CollectionTable;
+import javax.persistence.ElementCollection;
 import javax.persistence.Embedded;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
-import javax.persistence.ManyToMany;
+import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
 import lombok.Data;
 
@@ -29,6 +32,7 @@ public class Unit implements Searchable {
 
     @Enumerated(EnumType.STRING)
     Tech tech;
+
     int rulesLevel;
 
     @Embedded
@@ -42,13 +46,18 @@ public class Unit implements Searchable {
     @Enumerated(EnumType.STRING)
     public WeightClass weightClass;// should be an ENUM
 
-    //@ElementCollection(fetch = FetchType.EAGER)
-    //@CollectionTable(name="equipment", joinColumns = @JoinColumn(name="equipment_id"))
-    // this needs to be a one to many or many to one? whichever. Or I could migrate it to a collection table
-    @OneToMany
-    List<MechEquipment> mechEquipment;
 
-    public void setMechEquipment(List<MechEquipment> mechEquipment) {
+    //@ElementCollection(fetch = FetchType.EAGER)
+    //@CollectionTable(name="unit_equipment", joinColumns = @JoinColumn(name="mech_id"))
+    @OneToMany
+    List<UnitEquipment> mechEquipment;
+
+    public void setMechEquipment(List<UnitEquipment> mechEquipment) {
+      mechEquipment.forEach(equip -> {
+        if(equip.getEquipment().getTech() == null) {
+          equip.getEquipment().setTech(this.tech);
+        }
+      });
       if(this.mechEquipment == null) {
         this.mechEquipment = mechEquipment;
       }else {
@@ -83,7 +92,7 @@ public class Unit implements Searchable {
 
     public String getQuery() {
         StringBuilder builder = new StringBuilder();
-        for(MechEquipment e : mechEquipment) {
+        for(UnitEquipment e : mechEquipment) {
           builder.append(e.getQuery());
         }
 

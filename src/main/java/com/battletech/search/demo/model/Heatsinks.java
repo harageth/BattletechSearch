@@ -2,13 +2,16 @@ package com.battletech.search.demo.model;
 
 import javax.persistence.Embeddable;
 import lombok.Data;
+import org.springframework.lang.Nullable;
 
 @Data
 @Embeddable
 public class Heatsinks {
+
   Tech techType;
   HeatsinkType type;
-  int quantity;
+  @com.sun.istack.Nullable
+  int heatsinkQuantity; // maybe heatsinks should be equipment like everything else...
 
   public enum HeatsinkType {
     SINGLE("SINGLE"),
