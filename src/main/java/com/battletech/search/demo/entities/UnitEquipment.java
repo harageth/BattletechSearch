@@ -15,24 +15,28 @@ import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import lombok.Data;
 
-@Entity
 @Data
-public class MechEquipment implements Searchable {
+@Entity
+public class UnitEquipment implements Searchable {
   @Id
   @GeneratedValue
   UUID id;
 
   @Enumerated(EnumType.STRING)
   Location location;
-  int tonnage; // might only be relevant for armor
+  double tonnage; // might only be relevant for armor
 
   @ManyToOne
   Equipment equipment;
-  // probably an equipment ENUM
-  // not sure what else needs to be here...
-  public MechEquipment() { }
 
-  public MechEquipment(Equipment equipment, String location) {
+  boolean omniPod;
+  boolean rearFacing;
+  boolean turretEquipped;
+  //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
+
+  public UnitEquipment() { }
+
+  public UnitEquipment(Equipment equipment, String location) {
     this.equipment = equipment;
     this.location = Location.fromString(location);
   }

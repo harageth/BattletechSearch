@@ -1,7 +1,7 @@
 package com.battletech.search.demo.antlr;
 
 import com.battletech.search.demo.entities.Equipment;
-import com.battletech.search.demo.entities.MechEquipment;
+import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.model.EquipmentDecorator;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.WeightClass;
@@ -35,11 +35,11 @@ public class TestVisitor implements BattletechVisitor {
 
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
-    if(ctx.WORD().getSymbol() != null && !ctx.WORD().getText().contains("missing")) {
+    if(ctx.WORD() != null && ctx.WORD().getSymbol() != null && !ctx.WORD().getText().contains("missing")) {
       String weightClass = ctx.WORD().getText();
       unit.setWeightClass(WeightClass.fromString(weightClass));
     }
-    List<MechEquipment> decorators = new LinkedList<MechEquipment>();
+    List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 
     for(EquipmentChunkContext node : equipment) {
       // validate equipment type
@@ -51,7 +51,7 @@ public class TestVisitor implements BattletechVisitor {
           equip = equip + " " + equipNode.getText();
         }
       }
-      EquipmentDecorator decorator = new EquipmentDecorator(new MechEquipment());
+      EquipmentDecorator decorator = new EquipmentDecorator(new UnitEquipment());
 
       decorator.setEquipment(new Equipment(equip));
       if(node.COMPARATOR() == null) {

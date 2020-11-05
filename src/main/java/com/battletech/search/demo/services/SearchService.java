@@ -3,7 +3,7 @@ package com.battletech.search.demo.services;
 import com.battletech.search.demo.antlr.TestVisitor;
 import com.battletech.search.demo.entities.Equipment;
 import com.battletech.search.demo.entities.EquipmentSlang;
-import com.battletech.search.demo.entities.MechEquipment;
+import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.search.QuerySegment;// I think this needs to go away
 import com.battletech.search.demo.repositories.EquipmentRepository;
@@ -52,8 +52,9 @@ public class SearchService {
      */
     BattletechVisitor visitor = new TestVisitor();
     Unit unit = (Unit)visitor.visitLine(parser.line());
-    for(MechEquipment equip : unit.getMechEquipment()) {
-      List<Equipment> validatedEquip = equipRepo.findByName(equip.getEquipment().getName());
+    for(UnitEquipment equip : unit.getMechEquipment()) {
+      List<Equipment> validatedEquip = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
+          null);
       if (validatedEquip.size() > 1) {
         throw new RuntimeException("Ambiguous equipment");
       } else if (validatedEquip.size() == 0) {
@@ -65,6 +66,8 @@ public class SearchService {
           validatedEquip.add(value.get().getEquipment());
         }
         equip.setEquipment(value.get().getEquipment());
+      }else {
+        equip.setEquipment(validatedEquip.get(0));
       }
     }
     /*

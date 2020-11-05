@@ -1,6 +1,7 @@
 package com.battletech.search.demo.model;
 
 public enum Tech {
+  MIXED_TECH("Mixed Tech"),
   CLAN("CLAN"),
   INNER_SPHERE("Inner Sphere");
 

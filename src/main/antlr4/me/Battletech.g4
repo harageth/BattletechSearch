@@ -55,7 +55,7 @@ fragment UPPERCASE  : [A-Z] ;
 
 //SIZEDUNIT: WEIGHTCLASS UNIT;
 //unit types
-UNIT: MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
+UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
 fragment MECH: M E C H ;
 fragment VEHICLE: V E H I C L E | V E E ;
 fragment VTOL: V T O L | H E L I C O P T E R | H E L O ;
@@ -63,6 +63,7 @@ fragment HOVERCRAFT: H O V E R C R A F T | H O V E R T A N K;
 fragment WHEELED: W H E E L E D ;
 fragment TRACKED: T R A C K E D ;
 fragment TANK: HOVERCRAFT | WHEELED | TRACKED ;
+fragment GENERICUNIT: U N I T ;
 
 
 // quantity values

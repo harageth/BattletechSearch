@@ -1,21 +1,21 @@
 package com.battletech.search.demo.model;
 
 import com.battletech.search.demo.entities.Equipment;
-import com.battletech.search.demo.entities.MechEquipment;
+import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.model.search.Comparison;
 import lombok.Data;
 
 @Data
-public class EquipmentDecorator extends MechEquipment {
-  MechEquipment decoratedEquipment;
+public class EquipmentDecorator extends UnitEquipment {
+  UnitEquipment decoratedEquipment;
   Comparison comparison;
   int quantity;
 
-  public EquipmentDecorator(MechEquipment decoratedEquipment) {
+  public EquipmentDecorator(UnitEquipment decoratedEquipment) {
     this.decoratedEquipment = decoratedEquipment;
   }
 
-  public EquipmentDecorator(MechEquipment decoratedEquipment, Comparison comparitor, int quantity) {
+  public EquipmentDecorator(UnitEquipment decoratedEquipment, Comparison comparitor, int quantity) {
     this.decoratedEquipment = decoratedEquipment;
     this.comparison = comparitor;
     this.quantity = quantity;
@@ -52,7 +52,7 @@ public class EquipmentDecorator extends MechEquipment {
   @Override
   public String getQuery() {
     StringBuilder builder = new StringBuilder(
-        "SELECT unit_id FROM mech_equipment JOIN unit_mech_equipment ON mech_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '"
+        "SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '"
     );
     builder.append(decoratedEquipment.getEquipment().getId());
     builder.append("' GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");

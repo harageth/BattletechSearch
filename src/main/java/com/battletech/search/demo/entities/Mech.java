@@ -31,7 +31,7 @@ public class Mech extends Unit {
     Heatsinks heatsinks = new Heatsinks();
     heatsinks.setTechType(this.tech);
     String[] split = heatsinkInput.split(" ");
-    heatsinks.setQuantity(Integer.parseInt(split[0]));
+    heatsinks.setHeatsinkQuantity(Integer.parseInt(split[0]));
     heatsinks.setType(HeatsinkType.fromString(split[1]));
     this.heatsinks = heatsinks;
   }
