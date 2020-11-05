@@ -43,6 +43,7 @@ public class UnitService {
               if(equip.getEquipment().getTech() == null) {
                 equip.getEquipment().setTech(unit.getTech());
               }
+              equip.getEquipment().setName(equip.getEquipment().getName().toLowerCase().replaceAll(" ", ""));
               List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
                   equip.getEquipment().getTech());
               if(exists.isEmpty()) {
@@ -75,6 +76,7 @@ public class UnitService {
               if(equip.getEquipment().getTech() == null) {
                 equip.getEquipment().setTech(unit.getTech());
               }
+              equip.getEquipment().setName(equip.getEquipment().getName().toLowerCase().replaceAll(" ", ""));
               List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
                   equip.getEquipment().getTech());
               if(exists.isEmpty()) {

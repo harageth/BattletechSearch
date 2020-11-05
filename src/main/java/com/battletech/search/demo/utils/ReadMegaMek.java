@@ -415,10 +415,10 @@ public class ReadMegaMek {
   }
 
   public static Tech getTechType(String equipment) {
-    if(equipment.startsWith("IS")) {
+    if(equipment.toLowerCase().startsWith("is")) {
       return Tech.INNER_SPHERE;
 
-    }else if(equipment.startsWith("CL")) {
+    }else if(equipment.toLowerCase().startsWith("cl")) {
       return Tech.CLAN;
     }
 
