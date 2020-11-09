@@ -50,12 +50,15 @@ public class SearchService {
     /*
     From here I need to pull data out of the parser somehow
      */
-    BattletechVisitor visitor = new TestVisitor();
+    BattletechVisitor visitor = new TestVisitor(lexer.getVocabulary(), slangRepo);
     Unit unit = (Unit)visitor.visitLine(parser.line());
     for(UnitEquipment equip : unit.getMechEquipment()) {
       List<Equipment> validatedEquip = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
-          null);
+          equip.getEquipment().getTech());
       if (validatedEquip.size() > 1) {
+        for(Equipment valid : validatedEquip) {
+
+        }
         throw new RuntimeException("Ambiguous equipment");
       } else if (validatedEquip.size() == 0) {
         Optional<EquipmentSlang> value = slangRepo

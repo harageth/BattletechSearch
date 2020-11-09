@@ -11,9 +11,9 @@ grammar Battletech;
 
 query: line+ EOF ;
 equipmentChunk: COMPARATOR? QUANTITY WORD* | QUANTITY COMPARATOR? WORD*;
-line: WORD? UNIT STOPWORD equipmentChunk* NEWLINE ;
+line: WORD? unit STOPWORD equipmentChunk* NEWLINE ;
 
-
+unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
 //weightclass: ULTRA LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA HEAVY ;
 
 
@@ -55,15 +55,15 @@ fragment UPPERCASE  : [A-Z] ;
 
 //SIZEDUNIT: WEIGHTCLASS UNIT;
 //unit types
-UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
-fragment MECH: M E C H ;
-fragment VEHICLE: V E H I C L E | V E E ;
-fragment VTOL: V T O L | H E L I C O P T E R | H E L O ;
-fragment HOVERCRAFT: H O V E R C R A F T | H O V E R T A N K;
-fragment WHEELED: W H E E L E D ;
-fragment TRACKED: T R A C K E D ;
-fragment TANK: HOVERCRAFT | WHEELED | TRACKED ;
-fragment GENERICUNIT: U N I T ;
+//UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
+MECH: M E C H [s]* ;
+VEHICLE: V E H I C L E [s]* | V E E [s]* ;
+VTOL: V T O L [s]* | H E L I C O P T E R [s]* | H E L O [s]* ;
+HOVERCRAFT: H O V E R C R A F T [s]* | H O V E R T A N K [s]* ;
+WHEELED: W H E E L E D [s]* ;
+TRACKED: T R A C K E D [s]* ;
+TANK: HOVERCRAFT [s]* | WHEELED [s]* | TRACKED [s]* ;
+GENERICUNIT: U N I T [s]* ;
 
 
 // quantity values

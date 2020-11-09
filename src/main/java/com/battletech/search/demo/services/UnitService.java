@@ -1,9 +1,11 @@
 package com.battletech.search.demo.services;
 
 import com.battletech.search.demo.entities.Equipment;
+import com.battletech.search.demo.entities.EquipmentSlang;
 import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.repositories.EquipmentRepository;
+import com.battletech.search.demo.repositories.EquipmentSlangRepository;
 import com.battletech.search.demo.repositories.MechEquipmentRepository;
 import com.battletech.search.demo.repositories.UnitRepository;
 import com.battletech.search.demo.utils.ReadMegaMek;
@@ -26,6 +28,9 @@ public class UnitService {
 
   @Autowired
   MechEquipmentRepository mechEquipRepo;
+
+  @Autowired
+  EquipmentSlangRepository slangRepo;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;

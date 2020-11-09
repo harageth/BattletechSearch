@@ -10,9 +10,11 @@ import lombok.Data;
 @Entity
 @Data
 public class EquipmentSlang {
-
+  @Id
+  @GeneratedValue
+  UUID id;
   @ManyToOne
   Equipment equipment;
-  @Id
+
   String slang;
 }

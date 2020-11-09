@@ -8,4 +8,5 @@ import org.springframework.data.repository.CrudRepository;
 
 public interface EquipmentRepository extends CrudRepository<Equipment, UUID> {
   public List<Equipment> findByNameAndTech(String name, Tech tech);
+  public List<Equipment> findByName(String name);
 }

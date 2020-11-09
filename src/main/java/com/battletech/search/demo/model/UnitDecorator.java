@@ -12,8 +12,10 @@ import lombok.Data;
 @Data
 public class UnitDecorator extends Unit {
   Unit decoratedUnit;
+  String decoratedUnitType;
 
   public UnitDecorator() { }
+  public UnitDecorator(String decoratedUnitType) { this.decoratedUnitType = decoratedUnitType; }
   public UnitDecorator(Unit decoratedUnit) {
     this.decoratedUnit = decoratedUnit;
   }
@@ -36,17 +38,17 @@ public class UnitDecorator extends Unit {
   @Override
   public String getQuery() {
     StringBuilder builder = new StringBuilder("SELECT name, designation FROM unit WHERE ");
-
+    Class<? extends Unit> value = decoratedUnit.getClass();
     if(decoratedUnit.getClass().isInstance(Unit.class)) {
       // do nothing
-    }else if(decoratedUnit.getClass().isInstance(Vtol.class)) {
+    }else if(decoratedUnit.getClass().equals(Vtol.class)) {
       builder.append("dtype = 'Vtol' AND ");
-    }else if(decoratedUnit.getClass().isInstance(Tank.class)) {
+    }else if(decoratedUnit.getClass().equals(Tank.class)) {
       builder.append("dtype = 'Tank' AND ");
-    }else if(decoratedUnit.getClass().isInstance(Mech.class)) {
+    }else if(decoratedUnit.getClass().equals(Mech.class)) {
       builder.append("dtype = 'Mech' AND ");
-    }else if(decoratedUnit.getClass().isInstance(Vehicle.class)) {
-      builder.append("(dtype = 'Tank' OR dtype = 'Vtol')");
+    }else if(decoratedUnit.getClass().equals(Vehicle.class)) {
+      builder.append("(dtype = 'Tank' OR dtype = 'Vtol') AND ");
     }
 
     if(decoratedUnit.weightClass != null) {

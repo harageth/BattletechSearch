@@ -21,13 +21,6 @@ public class EquipmentDecorator extends UnitEquipment {
     this.quantity = quantity;
   }
 
-  public void setEquipment(Equipment equipment) {
-    decoratedEquipment.setEquipment(equipment);
-  }
-  public Equipment getEquipment() {
-    return decoratedEquipment.getEquipment();
-  }
-
   // this should actually be in a builder maybe
   public void buildComparison(String quantity, String comparison) {
     if(quantity.equalsIgnoreCase("multiple")) {
@@ -51,10 +44,18 @@ public class EquipmentDecorator extends UnitEquipment {
 
   @Override
   public String getQuery() {
-    StringBuilder builder = new StringBuilder(
-        "SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '"
-    );
-    builder.append(decoratedEquipment.getEquipment().getId());
+    String query = "";
+    if(decoratedEquipment != null){
+      query = decoratedEquipment.getQuery();
+    }
+    StringBuilder builder = new StringBuilder("");
+    if(!query.isEmpty()) {
+      builder.append(
+          query
+              + " UNION ");
+    }
+    builder.append("SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '");
+    builder.append(this.getEquipment().getId());
     builder.append("' GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");
     builder.append(comparison.getText() + " ");
     builder.append(quantity);
