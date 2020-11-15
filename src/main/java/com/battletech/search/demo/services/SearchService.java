@@ -50,7 +50,7 @@ public class SearchService {
     /*
     From here I need to pull data out of the parser somehow
      */
-    BattletechVisitor visitor = new TestVisitor(lexer.getVocabulary(), slangRepo);
+    BattletechVisitor visitor = new TestVisitor(lexer.getVocabulary(), slangRepo, equipRepo);
     Unit unit = (Unit)visitor.visitLine(parser.line());
     for(UnitEquipment equip : unit.getMechEquipment()) {
       List<Equipment> validatedEquip = equipRepo.findByNameAndTech(equip.getEquipment().getName(),

@@ -45,8 +45,9 @@ public class SearchController {
   @GetMapping("/readFile/")
   public List<Unit> readStuffIn() throws IOException {
     // read in file and submit to database
-    unitService.persistVehicles();
-    unitService.persistMechs();
+    unitService.PDFTest();
+    //unitService.persistVehicles();
+    //unitService.persistMechs();
     //Unit mech = ReadMegaMek.ReadMTF();
     //return Collections.singletonList(mech);
     return null;

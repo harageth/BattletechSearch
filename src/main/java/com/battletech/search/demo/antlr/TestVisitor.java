@@ -6,6 +6,7 @@ import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.model.EquipmentDecorator;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.WeightClass;
+import com.battletech.search.demo.repositories.EquipmentRepository;
 import com.battletech.search.demo.repositories.EquipmentSlangRepository;
 import com.battletech.search.demo.utils.UnitBuilder;
 import java.util.LinkedList;
@@ -26,10 +27,12 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 public class TestVisitor implements BattletechVisitor {
   Vocabulary vocab;
   EquipmentSlangRepository slangRepo;
+  EquipmentRepository equipRepo;
 
-  public TestVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo) {
+  public TestVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
     this.vocab = vocab;
     this.slangRepo = slangRepo;
+    this.equipRepo = equipRepo;
   }
 
   @Override
@@ -63,7 +66,6 @@ public class TestVisitor implements BattletechVisitor {
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 
     for(EquipmentChunkContext node : equipment) {
-      // validate equipment type
       String equip = "";
       for(TerminalNode equipNode: node.WORD()) {
         if(equip.isEmpty()) {
@@ -75,17 +77,18 @@ public class TestVisitor implements BattletechVisitor {
       equip = equip.toLowerCase();
       boolean first = true;
       EquipmentDecorator realDecorator = new EquipmentDecorator(null);
-      for(EquipmentSlang slang : slangRepo.findAllBySlang(equip)){
+      // validate equipment type
+      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(equip)) {
         if(first) {
           first = false;
         }else {
           EquipmentDecorator decorator = new EquipmentDecorator(realDecorator);
           realDecorator = decorator;
         }
-        realDecorator.setEquipment(slang.getEquipment());
-        //decorator.setEquipment(slang.getEquipment());
+        realDecorator.setEquipment(thing);
         if(node.COMPARATOR() == null) {
           realDecorator.buildComparison(node.QUANTITY().getText(), null);
+          // need to fix buildComparison before this will properly work
           //decorator.buildComparison(vocab.getSymbolicName(node.QUANTITY().getSymbol().getType()), null);
         }else {
           realDecorator.buildComparison(node.QUANTITY().getText(),
@@ -98,8 +101,6 @@ public class TestVisitor implements BattletechVisitor {
       decorators.add(realDecorator);
     }
     unit.setMechEquipment(decorators);
-    // Create a UnitBuilder to build off of the unit type and build with the list of equipment.
-
 
     return unit;
   }
