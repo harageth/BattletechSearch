@@ -5,6 +5,7 @@ import me.BattletechListener;
 import me.BattletechParser.EquipmentChunkContext;
 import me.BattletechParser.LineContext;
 import me.BattletechParser.QueryContext;
+import me.BattletechParser.UnitContext;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -41,6 +42,16 @@ public class TestListener implements BattletechListener {
 
   @Override
   public void exitLine(LineContext ctx) {
+
+  }
+
+  @Override
+  public void enterUnit(UnitContext ctx) {
+
+  }
+
+  @Override
+  public void exitUnit(UnitContext ctx) {
 
   }
 

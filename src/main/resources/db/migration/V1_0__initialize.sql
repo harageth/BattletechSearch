@@ -59,6 +59,7 @@ ALTER TABLE equipment OWNER TO adam9500;
 --
 
 CREATE TABLE equipment_slang (
+    id uuid NOT NULL,
     slang character varying(255) NOT NULL,
     equipment_id uuid
 );
@@ -142,7 +143,7 @@ ALTER TABLE ONLY equipment
 --
 
 ALTER TABLE ONLY equipment_slang
-    ADD CONSTRAINT equipment_slang_pkey PRIMARY KEY (slang);
+    ADD CONSTRAINT equipment_slang_pkey PRIMARY KEY (id);
 
 
 
