@@ -1,24 +1,19 @@
 package com.battletech.search.demo.model.search;
 
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * This class should contain the information needed to string along QuerySegments.
  * Each one should contain quantity, item its searching for, and comparison type
  */
 public class QuerySegment {
-  //instead store havings and where segments that get to be combined together
+  String sqlQuery;
 
-  int quantity;
-  String queryItem;
-  Comparison comparison;
+  Map<String, Object> parameters;
 
-  /*
-  SELECT mech.id, COUNT(equipmentName) AS equipmentName FROM mechs JOIN equipment ON mechs.id = equipment.id WHERE mechs.thing = thing... AND equipment.name = name GROUP BY mech.id, equipment.name HAVING equipmentName COMPARATOR quantity
-  Lets see if we can simplify through subqueries
-  SELECT COUNT(equipmentName) AS equipmentName FROM equipment WHERE equipment.name = name (OPTIONAL AND location = location)
-
-   */
-
-
+  public void mergeQuerySegment(QuerySegment segment) {
+    this.sqlQuery = this.sqlQuery + " " + segment.sqlQuery;
+    this.parameters.putAll(segment.parameters);
+  }
 }

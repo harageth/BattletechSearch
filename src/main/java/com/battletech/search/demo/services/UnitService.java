@@ -9,6 +9,7 @@ import com.battletech.search.demo.repositories.EquipmentSlangRepository;
 import com.battletech.search.demo.repositories.MechEquipmentRepository;
 import com.battletech.search.demo.repositories.UnitRepository;
 import com.battletech.search.demo.utils.ReadMegaMek;
+import com.battletech.search.demo.utils.ReadPDF;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -107,6 +108,11 @@ public class UnitService {
 
     //return mech;
     //return;
+  }
+
+  public void PDFTest() {
+    ReadPDF pdf = new ReadPDF();
+    pdf.readPDF();
   }
 
   public void findUnit() {

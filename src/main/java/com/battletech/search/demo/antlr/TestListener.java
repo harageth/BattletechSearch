@@ -2,12 +2,15 @@ package com.battletech.search.demo.antlr;
 
 import com.battletech.search.demo.entities.Unit;
 import me.BattletechListener;
+import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
 import me.BattletechParser.LineContext;
+import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
 import me.BattletechParser.UnitContext;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class TestListener implements BattletechListener {
@@ -38,6 +41,9 @@ public class TestListener implements BattletechListener {
   @Override
   public void enterLine(LineContext ctx) {
 
+    for(ParseTree child: ctx.children) {
+
+    }
   }
 
   @Override
@@ -52,6 +58,26 @@ public class TestListener implements BattletechListener {
 
   @Override
   public void exitUnit(UnitContext ctx) {
+
+  }
+
+  @Override
+  public void enterComparator(ComparatorContext ctx) {
+
+  }
+
+  @Override
+  public void exitComparator(ComparatorContext ctx) {
+
+  }
+
+  @Override
+  public void enterLogicaloperator(LogicaloperatorContext ctx) {
+
+  }
+
+  @Override
+  public void exitLogicaloperator(LogicaloperatorContext ctx) {
 
   }
 

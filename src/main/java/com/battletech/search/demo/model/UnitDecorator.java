@@ -6,6 +6,7 @@ import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.entities.Vehicle;
 import com.battletech.search.demo.entities.Vtol;
+import com.battletech.search.demo.model.search.LogicalOperator;
 import java.util.List;
 import lombok.Data;
 
@@ -58,6 +59,12 @@ public class UnitDecorator extends Unit {
     for(UnitEquipment equip : decoratedUnit.getMechEquipment()) {
       String query = equip.getQuery();
       builder.append(query);
+      LogicalOperator operator = ((EquipmentDecorator)equip).getLogicOperator();
+      if(operator!=null) {
+        builder.append(") ");
+        builder.append(operator.toString());
+        builder.append(" id IN (");
+      }
     }
     builder.append(") ORDER BY name");
     return builder.toString();
