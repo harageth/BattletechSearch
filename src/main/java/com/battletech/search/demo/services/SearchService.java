@@ -52,7 +52,7 @@ public class SearchService {
      */
     BattletechVisitor visitor = new TestVisitor(lexer.getVocabulary(), slangRepo, equipRepo);
     Unit unit = (Unit)visitor.visitLine(parser.line());
-    for(UnitEquipment equip : unit.getMechEquipment()) {
+    /*for(UnitEquipment equip : unit.getMechEquipment()) {
       List<Equipment> validatedEquip = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
           equip.getEquipment().getTech());
       if (validatedEquip.size() > 1) {
@@ -72,7 +72,7 @@ public class SearchService {
       }else {
         equip.setEquipment(validatedEquip.get(0));
       }
-    }
+    }*/
     /*
     Unit mech = new Mech();
     mech.setEra("Dark Age");

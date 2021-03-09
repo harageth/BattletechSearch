@@ -7,6 +7,7 @@ import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.entities.Vehicle;
 import com.battletech.search.demo.entities.Vtol;
 import com.battletech.search.demo.model.search.LogicalOperator;
+import java.util.Iterator;
 import java.util.List;
 import lombok.Data;
 
@@ -55,18 +56,21 @@ public class UnitDecorator extends Unit {
     if(decoratedUnit.weightClass != null) {
       builder.append("weight_class = '" +decoratedUnit.getWeightClass().toString() + "' AND ");
     }
-    builder.append(" id IN (");
-    for(UnitEquipment equip : decoratedUnit.getMechEquipment()) {
+    builder.append(" (id IN (");
+    Iterator<UnitEquipment> iter = decoratedUnit.getMechEquipment().iterator();
+    while(iter.hasNext()) {
+      UnitEquipment equip = iter.next();
+
       String query = equip.getQuery();
       builder.append(query);
       LogicalOperator operator = ((EquipmentDecorator)equip).getLogicOperator();
-      if(operator!=null) {
+      if(operator!=null && iter.hasNext()) {
         builder.append(") ");
         builder.append(operator.toString());
         builder.append(" id IN (");
       }
     }
-    builder.append(") ORDER BY name");
+    builder.append(")) ORDER BY name");
     return builder.toString();
 
   }

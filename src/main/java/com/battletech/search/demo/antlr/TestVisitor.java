@@ -6,6 +6,7 @@ import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.model.EquipmentDecorator;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.WeightClass;
+import com.battletech.search.demo.model.search.FailedParseException;
 import com.battletech.search.demo.model.search.LogicalOperator;
 import com.battletech.search.demo.repositories.EquipmentRepository;
 import com.battletech.search.demo.repositories.EquipmentSlangRepository;
@@ -20,6 +21,7 @@ import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
 import me.BattletechParser.UnitContext;
 import me.BattletechVisitor;
+import org.antlr.v4.runtime.InputMismatchException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.ErrorNode;
@@ -105,7 +107,11 @@ public class TestVisitor implements BattletechVisitor {
         }
 
       }
-      decorators.add(realDecorator);
+      if(realDecorator.getEquipment() != null) {
+        decorators.add(realDecorator);
+      }else {
+        throw new FailedParseException("Unable to parse: " + equip);
+      }
     }
     unit.setMechEquipment(decorators);
 
