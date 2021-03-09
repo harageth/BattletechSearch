@@ -8,14 +8,14 @@ grammar Battletech;
  Mechs with mutliple Large Lasers
  Units with at least 3 PPC's
  */
-
+//mechs with 4 medium lasers
 query: line+ EOF ;
-equipmentChunk: COMPARATOR? QUANTITY WORD* | QUANTITY COMPARATOR? WORD*;
+equipmentChunk: comparator? QUANTITY WORD* logicaloperator? | QUANTITY comparator? WORD* logicaloperator?;
 line: WORD? unit STOPWORD equipmentChunk* NEWLINE ;
-
 unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
+comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
+logicaloperator: AND | OR ;
 //weightclass: ULTRA LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA HEAVY ;
-
 
 
 /*
@@ -26,18 +26,14 @@ unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAF
 fragment M          : ('M'|'m') ;
 fragment E          : ('E'|'e') ;
 fragment C          : ('C'|'c') ;
-fragment H          : ('H'|'h') ;
 fragment V          : ('V'|'v') ;
 fragment I          : ('I'|'i') ;
 fragment L          : ('L'|'l') ;
 fragment O          : ('O'|'o') ;
-fragment T          : ('T'|'t') ;
-fragment N          : ('N'|'n') ;
 fragment P          : ('P'|'p') ;
 fragment R          : ('R'|'r') ;
 fragment U          : ('U'|'u') ;
 fragment W          : ('W'|'w') ;
-fragment A          : ('A'|'a') ;
 fragment D          : ('D'|'d') ;
 fragment K          : ('K'|'k') ;
 fragment F          : ('F'|'f') ;
@@ -47,6 +43,10 @@ fragment S          : ('S'|'s') ;
 fragment X          : ('X'|'x') ;
 fragment Q          : ('Q'|'q') ;
 fragment B          : ('B'|'b') ;
+fragment T          : ('T'|'t') ;
+fragment H          : ('H'|'h') ;
+fragment A          : ('A'|'a') ;
+fragment N          : ('N'|'n') ;
 
 fragment LOWERCASE  : [a-z] ;
 fragment UPPERCASE  : [A-Z] ;
@@ -63,7 +63,7 @@ HOVERCRAFT: H O V E R C R A F T [s]* | H O V E R T A N K [s]* ;
 WHEELED: W H E E L E D [s]* ;
 TRACKED: T R A C K E D [s]* ;
 TANK: HOVERCRAFT [s]* | WHEELED [s]* | TRACKED [s]* ;
-GENERICUNIT: U N I T [s]* ;
+GENERICUNIT: U N I T S* ;
 
 
 // quantity values
@@ -94,17 +94,30 @@ fragment ULTRALIGHT: ULTRA LIGHT ;
 fragment ULTRAHEAVY: ULTRA HEAVY ;*/
 
 
-COMPARATOR: ATLEAST | EQUAL | LESSTHAN ;
+// Mechs with less than 4 medium lasers
+// mechs with fewer than 4 medium lasers
+// mechs with 4 or less medium lasers
+// mechs with 4 or fewer medium lasers
+
+
 ATLEAST: A T [ ] L E A S T ;
+NOMORE: N O  [ ] M O R E | N O [ ] M O R E [ ] THAN | A T [ ] M O S T ;
 EQUAL: E Q U A L | [=] | E X A C T L Y ;
-LESSTHAN: L E S S [ ] T H A N | [<] ;
+LESSTHANCOMPARATOR: LESSTHAN |  FEWERTHAN ;
+GREATERTHANCOMPARATOR: GREATERTHAN ;
+fragment FEWERTHAN: FEWER [ ] THAN | OR [ ] FEWER ;
+fragment LESSTHAN: LESS [ ] THAN | OR [ ] LESS ;
+fragment GREATERTHAN: GREATER [ ] THAN ;
+fragment LESS: L E S S ;
+fragment FEWER: F E W E R ;
+fragment GREATER: G R E A T E R ;
+fragment THAN: T H A N ;
 
 
 STOPWORD: WITH ;
 WITH : W I T H | A ;
 
 
-LOGICALOPERATOR: AND | OR ;
 AND: A N D ;
 OR: O R ;
 

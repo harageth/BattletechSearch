@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.battletech.search</groupId>
-	<artifactId>demo</artifactId>
+	<artifactId>battletechSearch</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
-	<description>Demo project for Spring Boot</description>
+	<name>battletechSearch</name>
+	<description>Micro search engine for Battletech</description>
 
 	<properties>
 		<java.version>12</java.version>

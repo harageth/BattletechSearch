@@ -6,17 +6,22 @@ import com.battletech.search.demo.entities.UnitEquipment;
 import com.battletech.search.demo.model.EquipmentDecorator;
 import com.battletech.search.demo.entities.Unit;
 import com.battletech.search.demo.model.WeightClass;
+import com.battletech.search.demo.model.search.FailedParseException;
+import com.battletech.search.demo.model.search.LogicalOperator;
 import com.battletech.search.demo.repositories.EquipmentRepository;
 import com.battletech.search.demo.repositories.EquipmentSlangRepository;
 import com.battletech.search.demo.utils.UnitBuilder;
 import java.util.LinkedList;
 import java.util.List;
 import me.BattletechLexer;
+import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
 import me.BattletechParser.LineContext;
+import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
 import me.BattletechParser.UnitContext;
 import me.BattletechVisitor;
+import org.antlr.v4.runtime.InputMismatchException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.ErrorNode;
@@ -47,13 +52,8 @@ public class TestVisitor implements BattletechVisitor {
 
   @Override
   public Object visitLine(LineContext ctx) {
-    List<ParseTree> val = ctx.unit().children;
-    Unit unit = null;
-    for(ParseTree thing : val) {
-      Token temp = (Token)thing.getPayload(); // should be a token
-      unit = UnitBuilder.buildUnit(vocab.getSymbolicName(temp.getType()));
-      //thing.getSourceInterval()
-    }
+    Unit unit = (Unit)visitUnit(ctx.unit());
+
     //ctx.unit()
     //String unitType = vocab.getSymbolicName(ctx.unit().get().getType());
     //Unit unit = UnitBuilder.buildUnit(ctx.unit().getText());
@@ -74,9 +74,15 @@ public class TestVisitor implements BattletechVisitor {
           equip = equip + " " + equipNode.getText();
         }
       }
+      Object logicObject = visitLogicaloperator(node.logicaloperator());
+
+
       equip = equip.toLowerCase();
       boolean first = true;
       EquipmentDecorator realDecorator = new EquipmentDecorator(null);
+      if(logicObject != null) {
+        realDecorator.setOperator((LogicalOperator) logicObject);
+      }
       // validate equipment type
       for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(equip)) {
         if(first) {
@@ -86,19 +92,26 @@ public class TestVisitor implements BattletechVisitor {
           realDecorator = decorator;
         }
         realDecorator.setEquipment(thing);
-        if(node.COMPARATOR() == null) {
-          realDecorator.buildComparison(node.QUANTITY().getText(), null);
+        String comparator =(String) this.visitComparator(node.comparator());
+        if(comparator == null || comparator.isEmpty()) {
+          //realDecorator.buildComparison(node.QUANTITY().getText(), null);
           // need to fix buildComparison before this will properly work
-          //decorator.buildComparison(vocab.getSymbolicName(node.QUANTITY().getSymbol().getType()), null);
+          // node.QUANTITY().getSymbol().getType()
+          realDecorator.buildComparison(node.QUANTITY().getText(), null);
         }else {
+          //realDecorator.buildComparison(node.QUANTITY().getText(),
+          //    node.COMPARATOR().getSymbol().getText());
+          // node.QUANTITY().getSymbol().getType()
           realDecorator.buildComparison(node.QUANTITY().getText(),
-              node.COMPARATOR().getSymbol().getText());
-          //decorator.buildComparison(vocab.getSymbolicName(node.QUANTITY().getSymbol().getType()),
-          //    vocab.getSymbolicName(node.COMPARATOR().getSymbol().getType()));
+              comparator);
         }
 
       }
-      decorators.add(realDecorator);
+      if(realDecorator.getEquipment() != null) {
+        decorators.add(realDecorator);
+      }else {
+        throw new FailedParseException("Unable to parse: " + equip);
+      }
     }
     unit.setMechEquipment(decorators);
 
@@ -107,6 +120,39 @@ public class TestVisitor implements BattletechVisitor {
 
   @Override
   public Object visitUnit(UnitContext ctx) {
+    List<ParseTree> children = ctx.children;
+    Unit unit = null;
+    for(ParseTree childToken : children) {
+      Token temp = (Token)childToken.getPayload(); // should be a token
+      unit = UnitBuilder.buildUnit(vocab.getSymbolicName(temp.getType()));
+    } // shouldn't have multiple units provided in a parse
+    return unit;
+  }
+
+  @Override
+  public Object visitComparator(ComparatorContext ctx) {
+    if(ctx == null) {
+      return null;
+    }
+    List<ParseTree> value = ctx.children;
+    String comparator = "";
+    for(ParseTree val : value){
+      Token temp = (Token)val.getPayload(); // should be a token
+      comparator = vocab.getSymbolicName(temp.getType());
+    }
+    return comparator;
+  }
+
+  @Override
+  public Object visitLogicaloperator(LogicaloperatorContext ctx) {
+    if(ctx == null) {
+      return null;
+    }else if(ctx.AND() != null) {
+      return LogicalOperator.AND;
+    }else if(ctx.OR() != null) {
+      return LogicalOperator.OR;
+    }
+
     return null;
   }
 
