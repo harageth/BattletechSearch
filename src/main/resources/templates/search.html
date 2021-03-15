@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<html>
+<style>
+  .center {
+    text-align: center;
+  }
+  .table {
+    margin-left:auto;
+    margin-right:auto;
+    border-collapse: collapse;
+  }
+</style>
+<header class="center">Battletech-Search</header>
+<body class="center">
+  <form class="center" action="/search/">
+    <input style="width:500px" type="text" id="query" name="query"><br><br>
+    <input type="submit" value="Search">
+  </form>
+
+
+  <table th:object="${form}" class="table">
+    <thead>
+      <tr>
+        <th> Mech </th>
+        <th> Designation </th>
+        <th> Sarna </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="unit, itemStat : *{units}">
+        <td th:text="*{units[__${itemStat.index}__].name}" />
+        <td th:text="*{units[__${itemStat.index}__].designation}" />
+        <td><a th:href="*{units[__${itemStat.index}__].link}" />Sarna Link</a> </td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+
+</html>
