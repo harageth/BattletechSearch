@@ -1,16 +1,23 @@
 <!DOCTYPE html>
 <html>
-<style>
-  .center {
-    text-align: center;
-  }
-</style>
-<header class="center">Battletech-Search</header>
+<link rel="stylesheet" href="main.css">
 <body>
-  <form class="center" action="/search/">
-    <input style="width:500px" type="text" id="query" name="query"><br><br>
-    <input type="submit" value="Search">
-  </form>
+	<header>
+		<div class="logo"></div>
+	</header>
+  	<main>
+  		<aside>
+			<p>Here is an example query:</p>
+			<code>light units with at most 2 mediumlaser and at least 1 srm6</code>
+  		</aside>
+  		<form action="/search/">
+	    	<input type="text" id="query" name="query">
+	    	<input type="submit" value="Search">
+	  	</form>
+	</main>
+	<footer>
+		<small>Note: All logos and branding are owned and copyrighted by Catalyst Games. It is only used here for demo purposes.</small>
+	</footer>
 </body>
 
 </html>
