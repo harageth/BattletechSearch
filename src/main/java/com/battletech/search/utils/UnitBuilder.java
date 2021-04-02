@@ -11,6 +11,8 @@ public class UnitBuilder {
   public static Unit buildUnit(String unitType) {
     UnitDecorator unit = new UnitDecorator();
 
+
+    // TODO: need to add different types of tanks too
     if(unitType.equalsIgnoreCase("mech")) {
       unit.setDecoratedUnit(new Mech());
     }else if(unitType.equalsIgnoreCase("vee") | unitType.equalsIgnoreCase("vehicle")) {

@@ -117,8 +117,15 @@ public class TestVisitor implements BattletechVisitor {
 
   @Override
   public Object visitUnit(UnitContext ctx) {
+    if(ctx == null) {
+      return UnitBuilder.buildUnit("genericunit");
+    }
     List<ParseTree> children = ctx.children;
     Unit unit = null;
+    //if nothing is provided we should assume everything
+    if(children == null) {
+      return UnitBuilder.buildUnit("genericunit");
+    }
     for(ParseTree childToken : children) {
       Token temp = (Token)childToken.getPayload(); // should be a token
       unit = UnitBuilder.buildUnit(vocab.getSymbolicName(temp.getType()));
