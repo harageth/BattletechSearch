@@ -11,7 +11,7 @@ grammar Battletech;
 //mechs with 4 medium lasers
 query: line+ EOF ;
 equipmentChunk: comparator? QUANTITY WORD* logicaloperator? | QUANTITY comparator? WORD* logicaloperator?;
-line: WORD? unit STOPWORD equipmentChunk* NEWLINE ;
+line: equipmentChunk+ | (WORD? unit? STOPWORD equipmentChunk* NEWLINE);
 unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
 logicaloperator: AND | OR ;
@@ -69,7 +69,7 @@ GENERICUNIT: U N I T S* ;
 // quantity values
 QUANTITY: DIGIT | NUMBER | MULTIPLE ;
 MULTIPLE: M U L T I P L E ;
-ONE: O N E | S I N G L E ; // SINGLE?
+ONE: O N E | S I N G L E | A; // SINGLE?
 TWO: T W O | D O U B L E ; // DOUBLE?
 THREE: T H R E E | T R I P L E T | T R I P L E;
 FOUR: F O U R ;
@@ -115,7 +115,7 @@ fragment THAN: T H A N ;
 
 
 STOPWORD: WITH ;
-WITH : W I T H | A ;
+WITH : W I T H ;
 
 
 AND: A N D ;
