@@ -2,6 +2,7 @@ package com.battletech.search.web;
 
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.dto.MechDTO;
+import com.battletech.search.model.dto.QueryDTO;
 import com.battletech.search.services.EquipmentService;
 import com.battletech.search.services.SearchService;
 import com.battletech.search.services.UnitService;
@@ -40,9 +41,14 @@ public class SearchController {
   @GetMapping("/search/")
   public ModelAndView search(@RequestParam("query") String query) throws IOException {
     ModelAndView modelAndView = new ModelAndView("search");
-    List<Map<String, Object>> results = searchService.performQuery(query);
+    QueryDTO results = searchService.performQuery(query);
     MechDTO dto = new MechDTO();
-    for(Map<String, Object> value: results) {
+
+    if(!results.getErrors().isEmpty()) {
+      modelAndView.addObject("errors", results.getErrors());
+    }
+
+    for(Map<String, Object> value: results.getResultSet()) {
       dto.addUnit(value.get("name").toString(), value.get("designation").toString());
     }
 

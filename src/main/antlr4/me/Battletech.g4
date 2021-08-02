@@ -10,8 +10,9 @@ grammar Battletech;
  */
 //mechs with 4 medium lasers
 query: line+ EOF ;
-equipmentChunk: comparator? QUANTITY WORD* logicaloperator? | QUANTITY comparator? WORD* logicaloperator?;
-line: equipmentChunk+ | (WORD? unit? STOPWORD equipmentChunk* NEWLINE);
+equipmentChunk: comparator? QUANTITY WORD* logicaloperator? | QUANTITY comparator? WORD* logicaloperator? ;
+line: equipmentChunkWrapper | (WORD? unit STOPWORD equipmentChunk* NEWLINE);
+equipmentChunkWrapper: equipmentChunk+ ;
 unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
 logicaloperator: AND | OR ;
@@ -57,7 +58,7 @@ fragment UPPERCASE  : [A-Z] ;
 //unit types
 //UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
 MECH: M E C H [s]* ;
-VEHICLE: V E H I C L E [s]* | V E E [s]* ;
+VEHICLE: V E H I C L E S* | V E E [s]* ;
 VTOL: V T O L [s]* | H E L I C O P T E R [s]* | H E L O [s]* ;
 HOVERCRAFT: H O V E R C R A F T [s]* | H O V E R T A N K [s]* ;
 WHEELED: W H E E L E D [s]* ;
@@ -100,7 +101,7 @@ fragment ULTRAHEAVY: ULTRA HEAVY ;*/
 // mechs with 4 or fewer medium lasers
 
 
-ATLEAST: A T [ ] L E A S T ;
+ATLEAST: A T [ ] L E A S T | ORMORE;
 NOMORE: N O  [ ] M O R E | N O [ ] M O R E [ ] THAN | A T [ ] M O S T ;
 EQUAL: E Q U A L | [=] | E X A C T L Y ;
 LESSTHANCOMPARATOR: LESSTHAN |  FEWERTHAN ;
@@ -108,6 +109,7 @@ GREATERTHANCOMPARATOR: GREATERTHAN ;
 fragment FEWERTHAN: FEWER [ ] THAN | OR [ ] FEWER ;
 fragment LESSTHAN: LESS [ ] THAN | OR [ ] LESS ;
 fragment GREATERTHAN: GREATER [ ] THAN ;
+fragment ORMORE: OR [ ] M O R E;
 fragment LESS: L E S S ;
 fragment FEWER: F E W E R ;
 fragment GREATER: G R E A T E R ;

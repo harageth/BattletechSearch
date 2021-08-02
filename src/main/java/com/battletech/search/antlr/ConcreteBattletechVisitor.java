@@ -4,6 +4,7 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.entities.Unit;
+import com.battletech.search.model.ParserHolder;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
@@ -14,11 +15,11 @@ import java.util.LinkedList;
 import java.util.List;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
+import me.BattletechParser.EquipmentChunkWrapperContext;
 import me.BattletechParser.LineContext;
 import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
 import me.BattletechParser.UnitContext;
-import me.BattletechVisitor;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.ErrorNode;
@@ -26,12 +27,14 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
-public class TestVisitor implements BattletechVisitor {
+public class ConcreteBattletechVisitor implements me.BattletechVisitor {
   Vocabulary vocab;
   EquipmentSlangRepository slangRepo;
   EquipmentRepository equipRepo;
 
-  public TestVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
+  boolean defaultUnit = false;
+
+  public ConcreteBattletechVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
     this.vocab = vocab;
     this.slangRepo = slangRepo;
     this.equipRepo = equipRepo;
@@ -50,15 +53,22 @@ public class TestVisitor implements BattletechVisitor {
   @Override
   public Object visitLine(LineContext ctx) {
     Unit unit = (Unit)visitUnit(ctx.unit());
-
+    ParserHolder holder = new ParserHolder();
+    holder.setUnit(unit);
     //ctx.unit()
     //String unitType = vocab.getSymbolicName(ctx.unit().get().getType());
     //Unit unit = UnitBuilder.buildUnit(ctx.unit().getText());
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
     if(ctx.WORD() != null && ctx.WORD().getSymbol() != null && !ctx.WORD().getText().contains("missing")) {
-      String weightClass = ctx.WORD().getText();
-      unit.setWeightClass(WeightClass.fromString(weightClass));
+      String weight = ctx.WORD().getText();
+      WeightClass weightClass = WeightClass.fromString(ctx.WORD().getText());
+      if(weightClass == null) {
+        // set error
+        holder.addError("Unable to parse provided Weight: "+ weight);
+      }else {
+        unit.setWeightClass(weightClass);
+      }
     }
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 
@@ -107,12 +117,23 @@ public class TestVisitor implements BattletechVisitor {
       if(realDecorator.getEquipment() != null) {
         decorators.add(realDecorator);
       }else {
-        throw new FailedParseException("Unable to parse: " + equip);
+        holder.addError("Unable to parse equipment: " + equip);
+        //throw new FailedParseException();
       }
     }
     unit.setMechEquipment(decorators);
 
-    return unit;
+    // no unit provided, no equipment provided and parser errors
+    if(defaultUnit && unit.getMechEquipment().isEmpty() && !holder.getErrorMessages().isEmpty()) {
+      // what should we do here?
+    }
+    holder.setDefaultUnit(defaultUnit);
+    return holder;
+  }
+
+  @java.lang.Override
+  public java.lang.Object visitEquipmentChunkWrapper(EquipmentChunkWrapperContext ctx) {
+    return null;
   }
 
   @Override
@@ -124,12 +145,14 @@ public class TestVisitor implements BattletechVisitor {
     Unit unit = null;
     //if nothing is provided we should assume everything
     if(children == null) {
+      defaultUnit = true;
       return UnitBuilder.buildUnit("genericunit");
     }
     for(ParseTree childToken : children) {
       Token temp = (Token)childToken.getPayload(); // should be a token
       unit = UnitBuilder.buildUnit(vocab.getSymbolicName(temp.getType()));
     } // shouldn't have multiple units provided in a parse
+
     return unit;
   }
 

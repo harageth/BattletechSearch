@@ -6,6 +6,7 @@
         <setting name="validation-enabled" value="true" />
         <setting name="provider-name" value="Hibernate" />
         <datasource-mapping>
+          <factory-entry name="BattletechSearch" />
           <factory-entry name="entityManagerFactory" />
         </datasource-mapping>
         <naming-strategy-map />
@@ -35,11 +36,10 @@
       <sourceFolder url="file://$MODULE_DIR$/target/generated-sources/antlr4" isTestSource="false" generated="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="12" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter-data-jpa:2.2.0.M2" level="project" />
     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter-aop:2.2.0.M2" level="project" />
-    <orderEntry type="library" name="Maven: org.springframework:spring-aop:5.2.0.M1" level="project" />
     <orderEntry type="library" name="Maven: org.aspectj:aspectjweaver:1.9.3" level="project" />
     <orderEntry type="library" name="Maven: jakarta.activation:jakarta.activation-api:1.2.1" level="project" />
     <orderEntry type="library" name="Maven: jakarta.persistence:jakarta.persistence-api:2.2.2" level="project" />
@@ -61,10 +61,7 @@
     <orderEntry type="library" name="Maven: org.springframework.data:spring-data-jpa:2.2.0.M3" level="project" />
     <orderEntry type="library" name="Maven: org.springframework.data:spring-data-commons:2.2.0.M3" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-orm:5.2.0.M1" level="project" />
-    <orderEntry type="library" name="Maven: org.springframework:spring-context:5.2.0.M1" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-tx:5.2.0.M1" level="project" />
-    <orderEntry type="library" name="Maven: org.springframework:spring-beans:5.2.0.M1" level="project" />
-    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.26" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-aspects:5.2.0.M1" level="project" />
     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter-jdbc:2.2.0.M2" level="project" />
     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter:2.2.0.M2" level="project" />
@@ -123,7 +120,6 @@
     <orderEntry type="library" name="Maven: org.hibernate.validator:hibernate-validator:6.0.16.Final" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-web:5.2.0.M1" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-webmvc:5.2.0.M1" level="project" />
-    <orderEntry type="library" name="Maven: org.springframework:spring-expression:5.2.0.M1" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.junit.jupiter:junit-jupiter:5.4.2" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.junit.jupiter:junit-jupiter-api:5.4.2" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.apiguardian:apiguardian-api:1.0.0" level="project" />
@@ -134,5 +130,14 @@
     <orderEntry type="library" scope="TEST" name="Maven: org.junit.platform:junit-platform-engine:1.4.2" level="project" />
     <orderEntry type="library" name="Maven: org.antlr:antlr4-runtime:4.7" level="project" />
     <orderEntry type="library" name="Maven: org.flywaydb:flyway-core:5.2.4" level="project" />
+    <orderEntry type="library" name="Maven: org.thymeleaf:thymeleaf-spring5:3.0.11.RELEASE" level="project" />
+    <orderEntry type="library" name="Maven: org.thymeleaf:thymeleaf:3.0.11.RELEASE" level="project" />
+    <orderEntry type="library" name="Maven: org.attoparser:attoparser:2.0.5.RELEASE" level="project" />
+    <orderEntry type="library" name="Maven: org.unbescape:unbescape:1.1.6.RELEASE" level="project" />
+    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.26" level="project" />
+    <orderEntry type="library" name="Maven: org.springframework:spring-context:5.2.0.M1" level="project" />
+    <orderEntry type="library" name="Maven: org.springframework:spring-aop:5.2.0.M1" level="project" />
+    <orderEntry type="library" name="Maven: org.springframework:spring-beans:5.2.0.M1" level="project" />
+    <orderEntry type="library" name="Maven: org.springframework:spring-expression:5.2.0.M1" level="project" />
   </component>
 </module>

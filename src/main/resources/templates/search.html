@@ -15,6 +15,12 @@
             <input type="submit" value="Search">
         </form>
 
+      <div th:if="${errors != null}">
+        <div th:each="value : *{errors}">
+          <div th:text="${value}"/>
+        </div>
+      </div>
+
         <table th:object="${form}" class="table">
             <thead>
                 <tr>
