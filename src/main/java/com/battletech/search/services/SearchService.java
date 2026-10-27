@@ -1,18 +1,12 @@
 package com.battletech.search.services;
 
-import com.battletech.search.antlr.TestVisitor;
+import com.battletech.search.antlr.QueryParser;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.search.QuerySegment;// I think this needs to go away
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import me.BattletechLexer;
-import me.BattletechParser;
-import me.BattletechVisitor;
 import org.antlr.v4.runtime.*;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,14 +34,7 @@ public class SearchService {
 
     get a context from the parser and pass it into the visitor
      */
-    InputStream stream = new ByteArrayInputStream(query.getBytes(StandardCharsets.UTF_8));
-    BattletechLexer lexer = new BattletechLexer(CharStreams.fromStream(stream, StandardCharsets.UTF_8));
-    BattletechParser parser = new BattletechParser(new CommonTokenStream(lexer));
-    /*
-    From here I need to pull data out of the parser somehow
-     */
-    BattletechVisitor visitor = new TestVisitor(lexer.getVocabulary(), slangRepo, equipRepo);
-    Unit unit = (Unit)visitor.visitLine(parser.line());
+    Unit unit = QueryParser.parse(query, slangRepo, equipRepo);
     /*for(UnitEquipment equip : unit.getMechEquipment()) {
       List<Equipment> validatedEquip = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
           equip.getEquipment().getTech());

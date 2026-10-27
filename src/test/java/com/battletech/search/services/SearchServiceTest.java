@@ -105,18 +105,41 @@ class SearchServiceTest {
         .hasMessage("Unable to parse: nonexistentgun");
   }
 
-  // Known bug: a quantity without a comparator ("2 ppc") doesn't parse, so the visitor sees an empty chunk.
   @Test
-  void knownBugQuantityWithoutComparatorFails() {
-    assertThatThrownBy(() -> search("units with 2 ppc"))
-        .isInstanceOf(FailedParseException.class)
-        .hasMessage("Unable to parse: ");
+  void quantityWithoutComparatorMeansExactly() throws IOException {
+    assertThat(search("mechs with 4 largelaser")).isEqualTo(search("mechs with exactly 4 largelaser"));
+    assertThat(search("units with 2 ppc")).isNotEmpty();
   }
 
-  // Known bug: the grammar accepts number words but buildComparison only handles digits.
   @Test
-  void knownBugNumberWordsFail() {
-    assertThatThrownBy(() -> search("mechs with at least four ppc"))
-        .isInstanceOf(NumberFormatException.class);
+  void numberWordsMatchDigits() throws IOException {
+    assertThat(search("mechs with at least four ppc")).isEqualTo(search("mechs with at least 4 ppc"));
+  }
+
+  @Test
+  void orFewerIncludesTheQuantity() throws IOException {
+    assertThat(search("heavy mechs with 1 or fewer ppc"))
+        .containsExactlyInAnyOrderElementsOf(search("heavy mechs with at most 1 ppc"));
+    assertThat(search("mechs with 4 or more ppc")).isEqualTo(search("mechs with at least 4 ppc"));
+  }
+
+  @Test
+  void chunksWithoutOperatorAreAnded() throws IOException {
+    assertThat(search("mechs with at least 4 ppc at least 2 mediumlaser"))
+        .isEqualTo(search("mechs with at least 4 ppc and at least 2 mediumlaser"));
+  }
+
+  @Test
+  void motiveTypesAreNotSupportedYet() {
+    assertThatThrownBy(() -> search("tanks with at least 2 lrm20"))
+        .isInstanceOf(FailedParseException.class)
+        .hasMessage("Searching by motive type (tracked) isn't supported yet");
+  }
+
+  @Test
+  void syntaxErrorsFail() {
+    assertThatThrownBy(() -> search("mechs with"))
+        .isInstanceOf(FailedParseException.class)
+        .hasMessageStartingWith("Unable to parse query");
   }
 }

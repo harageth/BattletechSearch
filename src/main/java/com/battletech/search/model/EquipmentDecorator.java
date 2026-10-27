@@ -3,6 +3,7 @@ package com.battletech.search.model;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.search.Comparison;
 import com.battletech.search.model.search.LogicalOperator;
+import com.battletech.search.model.search.QuantityConverter;
 import lombok.Data;
 
 @Data
@@ -38,12 +39,12 @@ public class EquipmentDecorator extends UnitEquipment {
       this.quantity = 1;
       this.comparison = Comparison.GREATER_THAN;
     }else if(comparison == null) {
-      this.quantity = Integer.parseInt(quantity);
+      this.quantity = QuantityConverter.toInt(quantity);
       this.comparison = Comparison.EQUAL;
     }else if(!comparison.isEmpty()) {
       //ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE
       // build it into one of the comparisons and translate
-      this.quantity = Integer.parseInt(quantity);
+      this.quantity = QuantityConverter.toInt(quantity);
       if(comparison.equalsIgnoreCase("ATLEAST")) {
         this.comparison = Comparison.EQUAL_OR_GREATER;
       }else if(comparison.equalsIgnoreCase("NOMORE")) {
@@ -78,6 +79,8 @@ public class EquipmentDecorator extends UnitEquipment {
       // throw exception
     }*/
 
+    // Each matching equipment row (e.g. IS and Clan variants) is counted separately and the
+    // results are UNIONed, so "at least 3" means at least 3 of a single variant.
     String query = "";
     if(decoratedEquipment != null){
       query = decoratedEquipment.getQuery();
