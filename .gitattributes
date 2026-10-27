@@ -1,0 +1,12 @@
+# Store text with LF in git; check out with the platform default
+* text=auto
+
+# Shell scripts must stay LF so they run on macOS/Linux
+mvnw text eol=lf
+*.sh text eol=lf
+
+# Windows scripts need CRLF
+*.cmd text eol=crlf
+
+*.pdf binary
+*.jar binary

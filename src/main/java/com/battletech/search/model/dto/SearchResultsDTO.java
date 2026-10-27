@@ -6,11 +6,11 @@ import com.battletech.search.entities.Unit;
 import java.util.LinkedList;
 import java.util.List;
 
-public class MechDTO {
+public class SearchResultsDTO {
   public List<UnitDTO> units;
   public List<String> link;
 
-  public MechDTO() {
+  public SearchResultsDTO() {
     units = new LinkedList();
     link = new LinkedList();
   }

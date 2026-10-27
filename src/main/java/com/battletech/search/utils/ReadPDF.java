@@ -11,14 +11,13 @@ import java.io.File;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class ReadPDF {
 
   public void readPDF(String path) {
-    try  {
-      PDDocument document = PDDocument.load(new File(path));
-      //document.getClass();
-
+    try (PDDocument document = PDDocument.load(new File(path))) {
       if (!document.isEncrypted()) {
 
         PDFTextStripperByArea stripper = new PDFTextStripperByArea();
@@ -31,7 +30,6 @@ public class ReadPDF {
             tStripper.setStartPage(i);
             tStripper.setEndPage(i);
             String pdfFileInText = tStripper.getText(document);
-            //System.out.println("Text:" + st);
 
             // split by whitespace
             String lines[] = pdfFileInText.split("\\r?\\n");
@@ -39,19 +37,16 @@ public class ReadPDF {
             try {
               convertToUnit(lines);
             }catch(Exception e) {
-              System.out.println("Failed to convert into unit");
+              log.warn("Failed to convert page {} of {} into a unit", i, path, e);
             }
           }
         }
-        //for (String line : lines) {
-        //  System.out.println(line);
-        //}
       } else {
-        System.out.println("The file is encrypted");
+        log.warn("{} is encrypted, skipping", path);
       }
 
     } catch(Exception e) {
-      System.out.println(e);
+      log.error("Unable to read {}", path, e);
     }
 
   }
@@ -187,7 +182,7 @@ public class ReadPDF {
     }
     newUnit.setMovement(move);
 
-    System.out.println("newUnit: "+newUnit);
+    log.debug("newUnit: {}", newUnit);
   }
 
 

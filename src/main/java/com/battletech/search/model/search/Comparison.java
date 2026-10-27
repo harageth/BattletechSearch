@@ -25,13 +25,4 @@ public enum Comparison {
     }
     return null;
   }
-
-  public static Comparison buildComparison(String input) {
-    if(input.equalsIgnoreCase("multiple")) {
-      // quantity = 1;
-      return Comparison.GREATER_THAN;
-    }
-
-    return null;
-  }
 }

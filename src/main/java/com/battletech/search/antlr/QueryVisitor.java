@@ -27,12 +27,12 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
-public class TestVisitor implements BattletechVisitor {
+public class QueryVisitor implements BattletechVisitor {
   Vocabulary vocab;
   EquipmentSlangRepository slangRepo;
   EquipmentRepository equipRepo;
 
-  public TestVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
+  public QueryVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
     this.vocab = vocab;
     this.slangRepo = slangRepo;
     this.equipRepo = equipRepo;
@@ -52,9 +52,6 @@ public class TestVisitor implements BattletechVisitor {
   public Object visitLine(LineContext ctx) {
     Unit unit = (Unit)visitUnit(ctx.unit());
 
-    //ctx.unit()
-    //String unitType = vocab.getSymbolicName(ctx.unit().get().getType());
-    //Unit unit = UnitBuilder.buildUnit(ctx.unit().getText());
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
     if(!ctx.WORD().isEmpty()) {
@@ -91,20 +88,12 @@ public class TestVisitor implements BattletechVisitor {
           realDecorator = decorator;
         }
         realDecorator.setEquipment(thing);
-        String comparator =(String) this.visitComparator(node.comparator());
+        String comparator = (String) this.visitComparator(node.comparator());
         if(comparator == null || comparator.isEmpty()) {
-          //realDecorator.buildComparison(node.QUANTITY().getText(), null);
-          // need to fix buildComparison before this will properly work
-          // node.QUANTITY().getSymbol().getType()
           realDecorator.buildComparison(node.QUANTITY().getText(), null);
         }else {
-          //realDecorator.buildComparison(node.QUANTITY().getText(),
-          //    node.COMPARATOR().getSymbol().getText());
-          // node.QUANTITY().getSymbol().getType()
-          realDecorator.buildComparison(node.QUANTITY().getText(),
-              comparator);
+          realDecorator.buildComparison(node.QUANTITY().getText(), comparator);
         }
-
       }
       if(realDecorator.getEquipment() != null) {
         decorators.add(realDecorator);
