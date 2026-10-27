@@ -25,6 +25,13 @@ public class QuantityConverter {
 
   public static int toInt(String quantity) {
     Integer value = NUMBER_WORDS.get(quantity.toLowerCase());
-    return value != null ? value : Integer.parseInt(quantity);
+    if (value != null) {
+      return value;
+    }
+    try {
+      return Integer.parseInt(quantity);
+    } catch (NumberFormatException e) {
+      throw new FailedParseException("Quantity is out of range: " + quantity);
+    }
   }
 }
