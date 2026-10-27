@@ -24,7 +24,7 @@ Maven does not need to be installed; use the included wrapper (`./mvnw`, or `mvn
    The ANTLR grammar is compiled automatically during the build, and Flyway creates the schema and loads the unit data on first start.
 1. Open http://localhost:8080/
 
-To run the tests (requires the database to be running): `./mvnw verify`
+To run the tests: `./mvnw verify`. Docker must be running, but `docker compose` doesn't need to be: the tests start their own throwaway Postgres via Testcontainers and load the baseline data into it.
 
 ## Configuration
 All settings have defaults matching `docker-compose.yml` and can be overridden with environment variables:
