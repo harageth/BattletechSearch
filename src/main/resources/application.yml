@@ -1,10 +1,15 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/battletechSearch
-    username: adam9500
-    password: admin
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/battletechSearch}
+    username: ${DB_USER:battletech}
+    password: ${DB_PASSWORD:battletech}
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: none
-      dialect: org.hibernate.dialect.PostgreSQLDialect
+
+battletech:
+  import:
+    # Point these at a local MegaMek checkout (data/mechfiles/...) to re-import units via /readFile/
+    mechs-path: ${MEGAMEK_MECHS_PATH:}
+    vehicles-path: ${MEGAMEK_VEHICLES_PATH:}
+    pdf-path: ${RECOGNITION_GUIDE_PDF:}

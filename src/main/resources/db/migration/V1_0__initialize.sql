@@ -52,7 +52,6 @@ CREATE TABLE equipment (
 );
 
 
-ALTER TABLE equipment OWNER TO adam9500;
 
 --
 -- Name: equipment_slang; Type: TABLE; Schema: public; Owner: adam9500
@@ -65,7 +64,6 @@ CREATE TABLE equipment_slang (
 );
 
 
-ALTER TABLE equipment_slang OWNER TO adam9500;
 
 --
 -- Name: unit; Type: TABLE; Schema: public; Owner: adam9500
@@ -99,7 +97,6 @@ CREATE TABLE unit (
 );
 
 
-ALTER TABLE unit OWNER TO adam9500;
 
 --
 -- Name: unit_equipment; Type: TABLE; Schema: public; Owner: adam9500
@@ -116,7 +113,6 @@ CREATE TABLE unit_equipment (
 );
 
 
-ALTER TABLE unit_equipment OWNER TO adam9500;
 
 --
 -- Name: unit_mech_equipment; Type: TABLE; Schema: public; Owner: adam9500
@@ -128,7 +124,6 @@ CREATE TABLE unit_mech_equipment (
 );
 
 
-ALTER TABLE unit_mech_equipment OWNER TO adam9500;
 
 --
 -- Name: equipment_pkey; Type: CONSTRAINT; Schema: public; Owner: adam9500
@@ -208,10 +203,6 @@ ALTER TABLE ONLY unit_mech_equipment
 -- Name: public; Type: ACL; Schema: -; Owner: postgres
 --
 
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
-REVOKE ALL ON SCHEMA public FROM postgres;
-GRANT ALL ON SCHEMA public TO postgres;
-GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
 --

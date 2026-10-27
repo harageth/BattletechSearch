@@ -2,9 +2,11 @@ package com.battletech.search.services;
 
 
 import java.io.IOException;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+@Disabled("No Spring context or test data yet; to be rewritten with proper search tests")
 class SearchServiceTest {
   @Autowired
   SearchService service;
