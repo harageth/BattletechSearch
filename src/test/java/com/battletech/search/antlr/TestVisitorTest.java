@@ -23,10 +23,6 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import java.util.List;
 import java.util.UUID;
-import me.BattletechLexer;
-import me.BattletechParser;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,10 +50,7 @@ class TestVisitorTest {
   }
 
   private UnitDecorator parse(String query) {
-    BattletechLexer lexer = new BattletechLexer(CharStreams.fromString(query));
-    BattletechParser parser = new BattletechParser(new CommonTokenStream(lexer));
-    TestVisitor visitor = new TestVisitor(lexer.getVocabulary(), mock(EquipmentSlangRepository.class), equipRepo);
-    return (UnitDecorator) visitor.visitLine(parser.line());
+    return (UnitDecorator) QueryParser.parse(query, mock(EquipmentSlangRepository.class), equipRepo);
   }
 
   private static EquipmentDecorator chunk(Unit unit, int index) {
@@ -94,17 +87,33 @@ class TestVisitorTest {
     assertThat(parse("with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
   }
 
-  // Known gap: UnitBuilder doesn't map wheeled/tracked/hovercraft, so they search all units.
   @Test
-  void knownGapTankSubtypesSearchAllUnits() {
-    assertThat(parse("wheeled with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
-    assertThat(parse("hovercraft with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
+  void unitTypesAreCaseInsensitiveAndPlural() {
+    assertThat(parse("MECHS with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Mech.class);
+    assertThat(parse("Units with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
+  }
+
+  // Motive type isn't stored for vehicles yet, so searching by it is rejected rather than guessed
+  @Test
+  void motiveTypesAreNotSupportedYet() {
+    assertThatThrownBy(() -> parse("tracked with at least 1 ppc"))
+        .isInstanceOf(FailedParseException.class)
+        .hasMessage("Searching by motive type (tracked) isn't supported yet");
+    // "tank" is a synonym for tracked
+    assertThatThrownBy(() -> parse("tanks with at least 1 ppc"))
+        .hasMessage("Searching by motive type (tracked) isn't supported yet");
+    assertThatThrownBy(() -> parse("wheeled with at least 1 ppc"))
+        .hasMessage("Searching by motive type (wheeled) isn't supported yet");
+    assertThatThrownBy(() -> parse("hovertanks with at least 1 ppc"))
+        .hasMessage("Searching by motive type (hovercraft) isn't supported yet");
   }
 
   @Test
   void weightClasses() {
     assertThat(parse("assault mechs with at least 1 ppc").getDecoratedUnit().getWeightClass())
         .isEqualTo(WeightClass.ASSAULT);
+    assertThat(parse("ultra light mechs with at least 1 ppc").getDecoratedUnit().getWeightClass())
+        .isEqualTo(WeightClass.ULTRA_LIGHT);
     assertThat(parse("mechs with at least 1 ppc").getDecoratedUnit().getWeightClass()).isNull();
   }
 
@@ -163,23 +172,65 @@ class TestVisitorTest {
         .hasMessage("Unable to parse: nonexistentgun");
   }
 
-  // Known bug: without a comparator the parser recovers into an empty equipment chunk.
   @Test
-  void knownBugQuantityWithoutComparator() {
-    assertThatThrownBy(() -> parse("mechs with 2 ppc"))
+  void quantityWithoutComparatorMeansExactly() {
+    EquipmentDecorator chunk = chunk(parse("mechs with 2 ppc"), 0);
+    assertThat(chunk.getComparison()).isEqualTo(Comparison.EQUAL);
+    assertThat(chunk.getQuantity()).isEqualTo(2);
+    assertThat(chunk.getEquipment().getName()).isEqualTo("ppc");
+  }
+
+  @Test
+  void quantityBeforeComparator() {
+    EquipmentDecorator chunk = chunk(parse("mechs with 3 or fewer ppc"), 0);
+    assertThat(chunk.getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
+    assertThat(chunk.getQuantity()).isEqualTo(3);
+    assertThat(chunk(parse("mechs with 3 or less ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
+    assertThat(chunk(parse("mechs with 3 or more ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+  }
+
+  @Test
+  void numberWords() {
+    assertThat(chunk(parse("mechs with at least four ppc"), 0).getQuantity()).isEqualTo(4);
+    assertThat(chunk(parse("mechs with at least Ten ppc"), 0).getQuantity()).isEqualTo(10);
+    assertThat(chunk(parse("mechs with a ppc"), 0).getQuantity()).isEqualTo(1);
+    assertThat(chunk(parse("mechs with double ppc"), 0).getQuantity()).isEqualTo(2);
+  }
+
+  @Test
+  void multiDigitQuantity() {
+    EquipmentDecorator chunk = chunk(parse("mechs with at least 10 ppc"), 0);
+    assertThat(chunk.getQuantity()).isEqualTo(10);
+    assertThat(chunk.getEquipment().getName()).isEqualTo("ppc");
+  }
+
+  @Test
+  void chunksWithoutOperator() {
+    UnitDecorator unit = parse("mechs with at least 2 ppc at least 1 srm6");
+    assertThat(unit.getMechEquipment()).hasSize(2);
+    assertThat(chunk(unit, 0).getLogicOperator()).isNull();
+  }
+
+  @Test
+  void whitespaceAndTrailingNewline() {
+    assertThat(chunk(parse("mechs\twith  at least 2 ppc\r\n"), 0).getQuantity()).isEqualTo(2);
+  }
+
+  @Test
+  void singleLetterWordsAreNotNewlines() {
+    // the old NEWLINE rule matched the letters r and n
+    assertThat(chunk(parse("mechs with at least 2 n"), 0).getEquipment().getName()).isEqualTo("n");
+  }
+
+  @Test
+  void syntaxErrorsFailTheQuery() {
+    assertThatThrownBy(() -> parse("mechs with"))
         .isInstanceOf(FailedParseException.class)
-        .hasMessage("Unable to parse: ");
-  }
-
-  // Known bug: number words lex as QUANTITY but aren't converted to integers.
-  @Test
-  void knownBugNumberWords() {
-    assertThatThrownBy(() -> parse("mechs with at least four ppc")).isInstanceOf(NumberFormatException.class);
-  }
-
-  // Known bug: multi-digit numbers lex as WORD, so "10" is read as part of the equipment name.
-  @Test
-  void knownBugMultiDigitQuantity() {
-    assertThatThrownBy(() -> parse("mechs with at least 10 ppc")).isInstanceOf(RuntimeException.class);
+        .hasMessageStartingWith("Unable to parse query at position");
+    assertThatThrownBy(() -> parse("mechs with at least 2 ppc with"))
+        .isInstanceOf(FailedParseException.class);
+    assertThatThrownBy(() -> parse("mechs with at least 2 ppc's"))
+        .isInstanceOf(FailedParseException.class);
+    assertThatThrownBy(() -> parse("")).isInstanceOf(FailedParseException.class);
   }
 }

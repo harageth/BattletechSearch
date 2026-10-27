@@ -2,6 +2,7 @@ package com.battletech.search.web;
 
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.dto.MechDTO;
+import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.services.EquipmentService;
 import com.battletech.search.services.SearchService;
 import com.battletech.search.services.UnitService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 
 @Slf4j
@@ -40,10 +42,15 @@ public class SearchController {
   @GetMapping("/search/")
   public ModelAndView search(@RequestParam("query") String query) throws IOException {
     ModelAndView modelAndView = new ModelAndView("search");
-    List<Map<String, Object>> results = searchService.performQuery(query);
+    modelAndView.addObject("query", query);
     MechDTO dto = new MechDTO();
-    for(Map<String, Object> value: results) {
-      dto.addUnit(value.get("name").toString(), value.get("designation").toString());
+    try {
+      List<Map<String, Object>> results = searchService.performQuery(query);
+      for(Map<String, Object> value: results) {
+        dto.addUnit(value.get("name").toString(), value.get("designation").toString());
+      }
+    } catch (FailedParseException e) {
+      modelAndView.addObject("error", e.getMessage());
     }
 
     modelAndView.addObject("form", dto);
@@ -51,6 +58,7 @@ public class SearchController {
   }
 
   @GetMapping("/readFile/")
+  @ResponseBody
   public List<Unit> readStuffIn() throws IOException {
     // read in file and submit to database
     unitService.PDFTest();
@@ -62,6 +70,7 @@ public class SearchController {
   }
 
   @PostMapping("/addSlang/{equipName}")
+  @ResponseBody
   public void addSlang(@PathVariable String equipName, @RequestBody List<String>slangTerms) {
     equipService.addSlangToEquipment(equipName, slangTerms);
   }

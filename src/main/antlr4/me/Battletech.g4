@@ -9,10 +9,10 @@ grammar Battletech;
  Units with at least 3 PPC's
  */
 //mechs with 4 medium lasers
-query: line+ EOF ;
-equipmentChunk: comparator? QUANTITY WORD* logicaloperator? | QUANTITY comparator? WORD* logicaloperator?;
-line: equipmentChunk+ | (WORD? unit? STOPWORD equipmentChunk* NEWLINE);
-unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
+query: line NEWLINE? EOF ;
+equipmentChunk: comparator? QUANTITY WORD+ logicaloperator? | QUANTITY comparator WORD+ logicaloperator? ;
+line: equipmentChunk+ | (WORD* unit? STOPWORD equipmentChunk+) ;
+unit: GENERICUNIT | MECH | VEHICLE | VTOL | WHEELED | TRACKED | HOVERCRAFT ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
 logicaloperator: AND | OR ;
 //weightclass: ULTRA LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA HEAVY ;
@@ -56,31 +56,30 @@ fragment UPPERCASE  : [A-Z] ;
 //SIZEDUNIT: WEIGHTCLASS UNIT;
 //unit types
 //UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
-MECH: M E C H [s]* ;
-VEHICLE: V E H I C L E [s]* | V E E [s]* ;
-VTOL: V T O L [s]* | H E L I C O P T E R [s]* | H E L O [s]* ;
-HOVERCRAFT: H O V E R C R A F T [s]* | H O V E R T A N K [s]* ;
-WHEELED: W H E E L E D [s]* ;
-TRACKED: T R A C K E D [s]* ;
-TANK: HOVERCRAFT [s]* | WHEELED [s]* | TRACKED [s]* ;
+MECH: M E C H S* ;
+VEHICLE: V E H I C L E S* | V E E S* ;
+VTOL: V T O L S* | H E L I C O P T E R S* | H E L O S* ;
+HOVERCRAFT: H O V E R C R A F T S* | H O V E R T A N K S* ;
+WHEELED: W H E E L E D S* ;
+TRACKED: T R A C K E D S* | T A N K S* ;
 GENERICUNIT: U N I T S* ;
 
 
 // quantity values
 QUANTITY: DIGIT | NUMBER | MULTIPLE ;
-MULTIPLE: M U L T I P L E ;
-ONE: O N E | S I N G L E | A; // SINGLE?
-TWO: T W O | D O U B L E ; // DOUBLE?
-THREE: T H R E E | T R I P L E T | T R I P L E;
-FOUR: F O U R ;
-FIVE: F I V E ;
-SIX: S I X ;
-SEVEN:  S E V E N ;
-EIGHT: E I G H T ;
-NINE: N I N E ;
-TEN: T E N ;
-NUMBER: ONE | TWO | THREE | FOUR | FIVE | SIX | SEVEN | EIGHT | NINE | TEN ;
-DIGIT: [0-9] ;
+fragment MULTIPLE: M U L T I P L E ;
+fragment ONE: O N E | S I N G L E | A; // SINGLE?
+fragment TWO: T W O | D O U B L E ; // DOUBLE?
+fragment THREE: T H R E E | T R I P L E T | T R I P L E;
+fragment FOUR: F O U R ;
+fragment FIVE: F I V E ;
+fragment SIX: S I X ;
+fragment SEVEN:  S E V E N ;
+fragment EIGHT: E I G H T ;
+fragment NINE: N I N E ;
+fragment TEN: T E N ;
+fragment NUMBER: ONE | TWO | THREE | FOUR | FIVE | SIX | SEVEN | EIGHT | NINE | TEN ;
+fragment DIGIT: [0-9]+ ;
 
 //LOWERCASE | UPPERCASE | DIGIT ;
 
@@ -100,13 +99,13 @@ fragment ULTRAHEAVY: ULTRA HEAVY ;*/
 // mechs with 4 or fewer medium lasers
 
 
-ATLEAST: A T [ ] L E A S T ;
-NOMORE: N O  [ ] M O R E | N O [ ] M O R E [ ] THAN | A T [ ] M O S T ;
+ATLEAST: A T [ ] L E A S T | O R [ ] M O R E ;
+NOMORE: N O [ ] M O R E | N O [ ] M O R E [ ] THAN | A T [ ] M O S T | O R [ ] FEWER | O R [ ] LESS ;
 EQUAL: E Q U A L | [=] | E X A C T L Y ;
 LESSTHANCOMPARATOR: LESSTHAN |  FEWERTHAN ;
 GREATERTHANCOMPARATOR: GREATERTHAN ;
-fragment FEWERTHAN: FEWER [ ] THAN | OR [ ] FEWER ;
-fragment LESSTHAN: LESS [ ] THAN | OR [ ] LESS ;
+fragment FEWERTHAN: FEWER [ ] THAN ;
+fragment LESSTHAN: LESS [ ] THAN ;
 fragment GREATERTHAN: GREATER [ ] THAN ;
 fragment LESS: L E S S ;
 fragment FEWER: F E W E R ;
@@ -139,6 +138,6 @@ Dark Age
 IlClan
 */
 
-NEWLINE             : ('r'? 'n' | 'r')+ ;
+NEWLINE             : ('\r'? '\n' | '\r')+ ;
 WORD: [a-zA-Z0-9\-/]+ ;
-WHITESPACE : ' ' -> skip ;
+WHITESPACE : [ \t]+ -> skip ;

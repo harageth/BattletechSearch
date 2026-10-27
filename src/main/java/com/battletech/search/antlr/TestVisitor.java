@@ -12,6 +12,7 @@ import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.UnitBuilder;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
 import me.BattletechParser.LineContext;
@@ -39,7 +40,7 @@ public class TestVisitor implements BattletechVisitor {
 
   @Override
   public Object visitQuery(QueryContext ctx) {
-    return null;
+    return visitLine(ctx.line());
   }
 
   @Override
@@ -56,8 +57,9 @@ public class TestVisitor implements BattletechVisitor {
     //Unit unit = UnitBuilder.buildUnit(ctx.unit().getText());
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
-    if(ctx.WORD() != null && ctx.WORD().getSymbol() != null && !ctx.WORD().getText().contains("missing")) {
-      String weightClass = ctx.WORD().getText();
+    if(!ctx.WORD().isEmpty()) {
+      // weight classes can be more than one word, e.g. "ultra light"
+      String weightClass = ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" "));
       unit.setWeightClass(WeightClass.fromString(weightClass));
     }
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();

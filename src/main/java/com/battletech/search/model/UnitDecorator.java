@@ -67,10 +67,11 @@ public class UnitDecorator extends Unit {
 
         String query = equip.getQuery();
         builder.append(query);
-        LogicalOperator operator = ((EquipmentDecorator) equip).getLogicOperator();
-        if (operator != null && iter.hasNext()) {
+        if (iter.hasNext()) {
+          // chunks without an explicit "and"/"or" between them are ANDed
+          LogicalOperator operator = ((EquipmentDecorator) equip).getLogicOperator();
           builder.append(") ");
-          builder.append(operator.toString());
+          builder.append(operator != null ? operator.toString() : LogicalOperator.AND.toString());
           builder.append(" id IN (");
         }
       }
