@@ -1,6 +1,6 @@
 package com.battletech.search.model;
 
-import javax.persistence.Embeddable;
+import jakarta.persistence.Embeddable;
 import lombok.Data;
 
 @Data
@@ -9,7 +9,6 @@ public class Heatsinks {
 
   Tech techType;
   HeatsinkType type;
-  @com.sun.istack.Nullable
   int heatsinkQuantity; // maybe heatsinks should be equipment like everything else...
 
   public enum HeatsinkType {

@@ -14,10 +14,9 @@ import org.apache.pdfbox.text.PDFTextStripperByArea;
 
 public class ReadPDF {
 
-  public void readPDF() {
+  public void readPDF(String path) {
     try  {
-      //PDDocument document = PDDocument.load(new File("/Users/adam9500/Downloads/TrebuchetTBT-5N.pdf"));
-      PDDocument document = PDDocument.load(new File("/Users/adam9500/Downloads/Recognition_Guide_7.pdf"));
+      PDDocument document = PDDocument.load(new File(path));
       //document.getClass();
 
       if (!document.isEncrypted()) {

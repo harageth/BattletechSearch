@@ -4,10 +4,10 @@ import com.battletech.search.model.Heatsinks;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.Movement;
-import javax.persistence.Embedded;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.Data;
 
 @Entity

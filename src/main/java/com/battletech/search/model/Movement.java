@@ -1,6 +1,6 @@
 package com.battletech.search.model;
 
-import javax.persistence.Embeddable;
+import jakarta.persistence.Embeddable;
 import lombok.Data;
 
 @Data

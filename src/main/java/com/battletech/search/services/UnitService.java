@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -35,9 +36,17 @@ public class UnitService {
   @Autowired
   private JdbcTemplate jdbcTemplate;
 
+  @Value("${battletech.import.mechs-path}")
+  String mechsPath;
+
+  @Value("${battletech.import.vehicles-path}")
+  String vehiclesPath;
+
+  @Value("${battletech.import.pdf-path}")
+  String pdfPath;
+
   public void persistVehicles() throws IOException {
-    String basePath = "/Users/adam9500/workspace/megamek/megamek/data/mechfiles/vehicles";
-    Files.walk(Paths.get(basePath))
+    Files.walk(Paths.get(vehiclesPath))
         .filter(Files::isRegularFile)
         .forEach(name -> {
           Unit unit = null;
@@ -68,9 +77,7 @@ public class UnitService {
   }
 
   public void persistMechs() throws IOException {
-    String basePath = "/Users/adam9500/workspace/megamek/megamek/data/mechfiles/mechs";
-
-    Files.walk(Paths.get(basePath))
+    Files.walk(Paths.get(mechsPath))
         .filter(Files::isRegularFile)
         .forEach(name -> {
           Unit unit = null;
@@ -111,7 +118,7 @@ public class UnitService {
 
   public void PDFTest() {
     ReadPDF pdf = new ReadPDF();
-    pdf.readPDF();
+    pdf.readPDF(pdfPath);
   }
 
   public void findUnit() {
