@@ -106,6 +106,10 @@ public class QueryVisitor implements BattletechVisitor {
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
+      if(tech == null) {
+        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20
+        tech = EquipmentNames.techOf(lookup);
+      }
       // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
       List<Equipment> found = equipRepo.findAllByNameInOrSlang(
           EquipmentNames.equivalentNames(EquipmentNames.canonical(lookup)), lookup);

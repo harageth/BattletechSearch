@@ -174,6 +174,9 @@ class UnitServiceImportTest {
     assertThat(search("mechs with exactly 4 clan er medium laser")).contains("Black Knight BL-6-RR");
     assertThat(search("mechs with at least 1 is er medium laser")).doesNotContain("Black Knight BL-6-RR");
     assertThat(search("mechs with exactly 2 inner sphere large laser")).contains("Black Knight BL-6-RR");
+    // MegaMek names with the tech built in filter like "clan" / "is"
+    assertThat(search("mechs with exactly 4 clermediumlaser")).contains("Black Knight BL-6-RR");
+    assertThat(search("mechs with at least 1 isermediumlaser")).doesNotContain("Black Knight BL-6-RR");
     // both techs in one request
     assertThat(search("mechs with exactly 4 clan er medium laser and exactly 2 is large laser"))
         .contains("Black Knight BL-6-RR");

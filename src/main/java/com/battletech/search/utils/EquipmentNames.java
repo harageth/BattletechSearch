@@ -12,7 +12,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.battletech.search.model.Tech;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,10 +33,16 @@ public final class EquipmentNames {
   // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret.
   // Annotations that name a different item, like "(Vehicle)" or "(B-Pods)", are kept.
   private static final Pattern MOUNTING = Pattern.compile("\\s*\\((r|os|i-os|ios|st)\\)", Pattern.CASE_INSENSITIVE);
-  // "Gauss Rifle Ammo [Clan]": the tech is stored separately
-  private static final Pattern TECH_SUFFIX = Pattern.compile("\\s*[\\[(](is|clan)[\\])]$", Pattern.CASE_INSENSITIVE);
+  // "Gauss Rifle Ammo [Clan]", "Ammo LRM-20 (Clan) Artemis-capable": a tech tag. The name drops it
+  // (tech is stored separately) and techOf reads it.
+  private static final Pattern TECH_SUFFIX = Pattern.compile("\\s*[\\[(](is|clan)[\\])]", Pattern.CASE_INSENSITIVE);
 
-  private record AliasTable(Map<String, String> aliases, Map<String, Set<String>> equivalents) {
+  /**
+   * @param prefixTech lookup keys that only exist with a tech prefix ("isac20", "cllrm20") -> that
+   *     tech; keys that are also a name on their own (e.g. "claw") aren't in it
+   */
+  private record AliasTable(Map<String, String> aliases, Map<String, Set<String>> equivalents,
+      Map<String, Tech> prefixTech) {
   }
 
   private static final AliasTable GENERATED = loadAliases("/megamek/equipment-aliases.tsv");
@@ -53,7 +61,20 @@ public final class EquipmentNames {
   }
 
   public static String normalize(String name) {
-    return MOUNTING.matcher(name).replaceAll("").toLowerCase().replaceAll("\\s", "");
+    return TECH_SUFFIX.matcher(MOUNTING.matcher(name).replaceAll("")).replaceAll("").toLowerCase().replaceAll("\\s", "");
+  }
+
+  /**
+   * The tech a name itself says, or null: a tag ("Gauss Rifle Ammo [Clan]") or a prefix that the
+   * name needs ("ISAC20", "cllrm20", as typed in a search). A name that merely starts with those
+   * letters ("Claw") says nothing.
+   */
+  public static Tech techOf(String name) {
+    Matcher tag = TECH_SUFFIX.matcher(name);
+    if (tag.find()) {
+      return tag.group(1).equalsIgnoreCase("clan") ? Tech.CLAN : Tech.INNER_SPHERE;
+    }
+    return GENERATED.prefixTech().get(key(MOUNTING.matcher(name).replaceAll("")));
   }
 
   /** The normalized MegaMek display name for any of its names, or just the normalized name. */
@@ -66,6 +87,12 @@ public final class EquipmentNames {
       canonical = ALIASES.get(key(stripTechPrefix(unmounted)));
     }
     return canonical != null ? canonical : normalize(name);
+  }
+
+  /** Whether the alias table knows this name (or it's a known display name). */
+  public static boolean isKnown(String name) {
+    String unmounted = MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("");
+    return ALIASES.containsKey(key(unmounted)) || ALIASES.containsKey(key(stripTechPrefix(unmounted)));
   }
 
   /**
@@ -97,10 +124,13 @@ public final class EquipmentNames {
     // lookup key -> display names, and stored spelling -> display names
     Map<String, Set<String>> candidates = new HashMap<>();
     Map<String, Set<String>> spellings = new HashMap<>();
+    // prefixed key -> techs of its prefix, and keys that also occur without a prefix
+    Map<String, Set<Tech>> prefixedKeys = new HashMap<>();
+    Set<String> plainKeys = new HashSet<>();
     try (InputStream in = EquipmentNames.class.getResourceAsStream(resource)) {
       if (in == null) {
         log.warn("No equipment alias table at {}", resource);
-        return new AliasTable(Map.of(), Map.of());
+        return new AliasTable(Map.of(), Map.of(), Map.of());
       }
       BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
       String line;
@@ -119,6 +149,11 @@ public final class EquipmentNames {
           // (often the same key; the candidate set ignores the repeat)
           for (String key : List.of(key(stripped), key(clean))) {
             candidates.computeIfAbsent(key, k -> new HashSet<>()).add(display);
+          }
+          plainKeys.add(key(stripped));
+          if (!stripped.equals(clean)) {
+            prefixedKeys.computeIfAbsent(key(clean), k -> new HashSet<>())
+                .add(clean.startsWith("IS") ? Tech.INNER_SPHERE : Tech.CLAN);
           }
           // how an importer without this table would have stored it, prefix stripped
           spellings.computeIfAbsent(normalize(stripped), k -> new HashSet<>()).add(display);
@@ -143,7 +178,13 @@ public final class EquipmentNames {
         equivalents.computeIfAbsent(displays.iterator().next(), k -> new LinkedHashSet<>()).add(spelling);
       }
     });
+    Map<String, Tech> prefixTech = new HashMap<>();
+    prefixedKeys.forEach((key, techs) -> {
+      if (techs.size() == 1 && !plainKeys.contains(key)) {
+        prefixTech.put(key, techs.iterator().next());
+      }
+    });
     log.debug("Loaded {} equipment aliases, skipped {} ambiguous ones", aliases.size(), ambiguous);
-    return new AliasTable(aliases, equivalents);
+    return new AliasTable(aliases, equivalents, prefixTech);
   }
 }

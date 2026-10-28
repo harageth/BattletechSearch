@@ -2,6 +2,7 @@ package com.battletech.search.utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.battletech.search.model.Tech;
 import org.junit.jupiter.api.Test;
 
 class EquipmentNamesTest {
@@ -53,6 +54,29 @@ class EquipmentNamesTest {
     assertThat(EquipmentNames.canonical("isac20")).isEqualTo("ac/20");
     assertThat(EquipmentNames.canonical("cllrm20")).isEqualTo("lrm20");
     assertThat(EquipmentNames.canonical("islbxac10")).isEqualTo("lb10-xac");
+  }
+
+  @Test
+  void readsTheTechANameCarries() {
+    assertThat(EquipmentNames.techOf("Gauss Rifle Ammo [Clan]")).isEqualTo(Tech.CLAN);
+    assertThat(EquipmentNames.techOf("Anti-Missile System Ammo [IS]")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(EquipmentNames.techOf("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo(Tech.CLAN);
+    // MegaMek prefixes, also lowercased the way searches arrive
+    assertThat(EquipmentNames.techOf("ISAC20")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(EquipmentNames.techOf("isac20")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(EquipmentNames.techOf("cllrm20")).isEqualTo(Tech.CLAN);
+    assertThat(EquipmentNames.techOf("Clan Gauss Ammo")).isEqualTo(Tech.CLAN);
+    // no tech of their own
+    assertThat(EquipmentNames.techOf("ac/20")).isNull();
+    assertThat(EquipmentNames.techOf("Gauss Rifle Ammo")).isNull();
+    assertThat(EquipmentNames.techOf("lrm20")).isNull();
+  }
+
+  @Test
+  void tagsAreDroppedFromTheName() {
+    // the tech goes in its own column
+    assertThat(EquipmentNames.normalize("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo("ammolrm-20artemis-capable");
+    assertThat(EquipmentNames.canonical("Gauss Rifle Ammo [Clan]")).isEqualTo(EquipmentNames.canonical("Gauss Rifle Ammo"));
   }
 
   @Test

@@ -2,6 +2,7 @@ package com.battletech.search.services;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.EquipmentSlang;
+import com.battletech.search.model.Tech;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
@@ -22,6 +23,11 @@ public class EquipmentService {
 
     // the equipment by its canonical name; slang terms as typed, normalized like search words
     List<Equipment> equips = equipRepo.findByNameIn(EquipmentNames.equivalentNames(EquipmentNames.canonical(equipmentPattern)));
+    // "Gauss Rifle Ammo [Clan]" / "CLLRM20" name one tech; the slang only goes on that one
+    Tech tech = EquipmentNames.techOf(equipmentPattern);
+    if(tech != null) {
+      equips = equips.stream().filter(equip -> equip.getTech() == tech).toList();
+    }
 
     for(Equipment equip : equips) {
       for(String slang: slangTerms) {
