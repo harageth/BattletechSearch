@@ -1,17 +1,20 @@
 package com.battletech.search.model;
 
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.Data;
 
 @Data
 @Embeddable
 public class Heatsinks {
 
+  @Enumerated(EnumType.STRING)
   Tech techType;
+  @Enumerated(EnumType.STRING)
   HeatsinkType type;
   int heatsinkQuantity; // maybe heatsinks should be equipment like everything else...
 
-  // stored by ordinal (heatsinks.type is an integer column), so only add new values at the end
   public enum HeatsinkType {
     SINGLE("SINGLE"),
     DOUBLE("DOUBLE"),

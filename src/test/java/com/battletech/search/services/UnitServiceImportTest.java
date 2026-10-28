@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -229,6 +230,19 @@ class UnitServiceImportTest {
         + " JOIN equipment e ON e.id = ue.equipment_id JOIN unit_mech_equipment ume ON ume.mech_equipment_id = ue.id"
         + " JOIN unit u ON u.id = ume.unit_id WHERE u.name = 'Perseus' AND e.name = 'communicationsequipment'",
         Double.class)).isEqualTo(3.0);
+  }
+
+  @Test
+  void heatSinksAreStoredByName() throws IOException {
+    // V3_4 turned the baseline's ordinals into names: 1 = DOUBLE, 2 = INNER_SPHERE
+    assertThat(count("SELECT count(*) FROM unit WHERE dtype = 'Mech' AND megamek_uuid IS NULL"
+        + " AND type = 'DOUBLE' AND tech_type = 'INNER_SPHERE'")).isEqualTo(1557);
+    assertThat(count("SELECT count(*) FROM unit WHERE type ~ '^[0-9]+$' OR tech_type ~ '^[0-9]+$'")).isZero();
+
+    importMechs();
+    // the Atlas AS7-D has 20 single heat sinks
+    assertThat(jdbcTemplate.queryForList("SELECT type, tech_type, heatsink_quantity FROM unit WHERE megamek_uuid = '"
+        + ATLAS + "'")).containsExactly(Map.of("type", "SINGLE", "tech_type", "INNER_SPHERE", "heatsink_quantity", 20));
   }
 
   @Test
