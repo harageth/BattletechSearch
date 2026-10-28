@@ -66,7 +66,7 @@ class UnitServiceImportTest {
 
   @Test
   void importsMechsWithTheirIds() throws IOException {
-    assertThat(importMechs()).isEqualTo(new ImportResult(9, 0, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(9, 0, 0, 2));
 
     Unit atlas = unitRepo.findByMegamekUuid(ATLAS).orElseThrow();
     assertThat(atlas.getName()).isEqualTo("Atlas");
@@ -83,7 +83,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).isEqualTo(new ImportResult(0, 9, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(0, 9, 0, 2));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind
@@ -189,14 +189,23 @@ class UnitServiceImportTest {
     importMechs();
     entityManager.flush();
 
-    // the Hybrid Rifleman has one Clan ER medium laser (left arm) and one IS one (rear, center torso)
-    String rifleman = "Hybrid Rifleman RFL-3N (Sneede II)";
-    assertThat(search("mechs with exactly 2 er medium laser")).contains(rifleman);
-    assertThat(search("mechs with exactly 1 clan er medium laser")).contains(rifleman);
-    assertThat(search("mechs with exactly 1 is er medium laser")).contains(rifleman);
-    assertThat(search("mechs with exactly 1 er medium laser")).doesNotContain(rifleman);
-    assertThat(search("mechs with exactly 1 clan er medium laser and exactly 1 is er medium laser")).contains(rifleman);
-    assertThat(search("mechs with 1 clan artemis v lrm 20")).contains(rifleman);
+    // the Thresher (Edward) has IS ER medium lasers in both arms and a Clan one in the left torso
+    String thresher = "Thresher (Edward)";
+    assertThat(search("mechs with exactly 3 er medium laser")).contains(thresher);
+    assertThat(search("mechs with exactly 1 clan er medium laser")).contains(thresher);
+    assertThat(search("mechs with exactly 2 is er medium laser")).contains(thresher);
+    assertThat(search("mechs with exactly 1 er medium laser")).doesNotContain(thresher);
+    assertThat(search("mechs with exactly 1 clan er medium laser and exactly 2 is er medium laser")).contains(thresher);
+    // the Viking IIC's two LRM 20s have Artemis V
+    assertThat(search("mechs with 2 clan artemis v lrm 20")).contains("Viking IIC Viking IIC prime");
+  }
+
+  @Test
+  void onlyImportsUnitsInTheMasterUnitList() throws IOException {
+    // the Goliath GOL-1M and the Hybrid Rifleman (Sneede II) have no MUL id
+    assertThat(importMechs().failed()).isEqualTo(2);
+    assertThat(search("units with at least 1 er medium laser")).doesNotContain("Hybrid Rifleman RFL-3N (Sneede II)");
+    assertThat(count("SELECT count(*) FROM unit WHERE megamek_uuid IS NOT NULL AND mul_id IS NULL")).isZero();
   }
 
   @Test

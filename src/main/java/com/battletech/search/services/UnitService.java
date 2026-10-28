@@ -64,7 +64,8 @@ public class UnitService {
   /**
    * Reads every file with the extension under the directory and saves its unit, each in its own
    * transaction. A unit whose MegaMek uuid is already stored is updated in place; anything else is
-   * added. A file that fails to import is logged and skipped.
+   * added. A file that fails to import is logged and skipped; so is a unit without a MUL id, which
+   * counts as failed.
    */
   ImportResult persistUnits(String directory, String extension, UnitReader reader) throws IOException {
     if (directory == null || directory.isBlank()) {
@@ -78,6 +79,12 @@ public class UnitService {
           if (unit == null) {
             // the reader already logged why it skipped this file
             counts[2]++;
+            return;
+          }
+          if (unit.getMulId() == null) {
+            // only units in the Master Unit List, the official list
+            counts[3]++;
+            log.warn("Unable to import {}: it has no MUL id", file);
             return;
           }
           boolean updated = transaction.execute(status -> save(unit));
