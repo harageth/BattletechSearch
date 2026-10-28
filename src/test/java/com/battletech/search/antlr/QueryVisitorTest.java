@@ -2,8 +2,9 @@ package com.battletech.search.antlr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -25,6 +26,7 @@ import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,11 +42,18 @@ class QueryVisitorTest {
   @BeforeEach
   void setUp() {
     equipRepo = mock(EquipmentRepository.class);
-    // Every non-empty equipment name resolves to a single matching row by default, like the real data
-    when(equipRepo.findAllByNameOrSlang(anyString(), anyString())).thenAnswer(invocation -> {
-      String name = invocation.getArgument(0);
+    // Every non-empty equipment name resolves to a single matching row by default, like the real data.
+    // The first name looked up is the canonical one.
+    when(equipRepo.findAllByNameInOrSlang(anyCollection(), anyString())).thenAnswer(invocation -> {
+      Collection<String> names = invocation.getArgument(0);
+      String name = names.iterator().next();
       return name.isEmpty() ? List.of() : List.of(equipment(name, Tech.INNER_SPHERE));
     });
+  }
+
+  // a lookup that includes this canonical name
+  private static Collection<String> named(String name) {
+    return argThat(names -> names != null && names.contains(name));
   }
 
   private static Equipment equipment(String name, Tech tech) {
@@ -180,7 +189,7 @@ class QueryVisitorTest {
   void techIsOptional() {
     Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
     Equipment clanPpc = equipment("ppc", Tech.CLAN);
-    when(equipRepo.findAllByNameOrSlang(eq("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
+    when(equipRepo.findAllByNameInOrSlang(named("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
 
     // without a tech, IS and Clan PPCs are counted together in one group
     String query = chunk(parse("mechs with at least 4 ppc"), 0).getQuery();
@@ -200,7 +209,7 @@ class QueryVisitorTest {
   @Test
   void equipmentNotMadeInATechMatchesNoUnits() {
     // only an IS plasma rifle exists, so "clan plasma rifle" finds no units rather than failing to parse
-    when(equipRepo.findAllByNameOrSlang(eq("plasmarifle"), anyString()))
+    when(equipRepo.findAllByNameInOrSlang(named("plasmarifle"), anyString()))
         .thenReturn(List.of(equipment("plasmarifle", Tech.INNER_SPHERE)));
 
     EquipmentDecorator clan = chunk(parse("mechs with at least 1 clan plasma rifle"), 0);
@@ -252,7 +261,7 @@ class QueryVisitorTest {
 
   @Test
   void unknownEquipmentIsReportedAsTyped() {
-    when(equipRepo.findAllByNameOrSlang(eq("mediumlazer"), anyString())).thenReturn(List.of());
+    when(equipRepo.findAllByNameInOrSlang(named("mediumlazer"), anyString())).thenReturn(List.of());
     assertThatThrownBy(() -> parse("mechs with at least 2 Medium Lazer"))
         .hasMessage("Unable to parse: medium lazer");
   }
@@ -261,7 +270,7 @@ class QueryVisitorTest {
   void equipmentMatchingSeveralRowsIsChained() {
     Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
     Equipment clanPpc = equipment("ppc", Tech.CLAN);
-    when(equipRepo.findAllByNameOrSlang(eq("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
+    when(equipRepo.findAllByNameInOrSlang(named("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
 
     EquipmentDecorator outer = chunk(parse("mechs with at least 2 ppc"), 0);
     assertThat(outer.getEquipment()).isSameAs(clanPpc);
@@ -275,7 +284,7 @@ class QueryVisitorTest {
 
   @Test
   void unknownEquipmentThrows() {
-    when(equipRepo.findAllByNameOrSlang(eq("nonexistentgun"), anyString())).thenReturn(List.of());
+    when(equipRepo.findAllByNameInOrSlang(named("nonexistentgun"), anyString())).thenReturn(List.of());
     assertThatThrownBy(() -> parse("mechs with at least 2 nonexistentgun"))
         .isInstanceOf(FailedParseException.class)
         .hasMessage("Unable to parse: nonexistentgun");

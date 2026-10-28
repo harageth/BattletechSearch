@@ -57,7 +57,8 @@ class SearchServiceTest {
   void atLeast() throws IOException {
     assertThat(search("mechs with at least 4 ppc"))
         .containsExactlyInAnyOrder("Annihilator ANH-1E", "Awesome AWS-9Q (Klatt)", "Awesome AWS-9Q");
-    assertThat(search("mechs with at least 2 ppc")).hasSize(52);
+    // includes mechs whose PPCs the baseline stores as "particlecannon" (e.g. Devastator DVS-2)
+    assertThat(search("mechs with at least 2 ppc")).hasSize(66);
   }
 
   @Test
@@ -70,7 +71,7 @@ class SearchServiceTest {
             "Awesome AWS-9Q (Klatt)",
             "Awesome AWS-9Q",
             "Titan TI-1Ar");
-    assertThat(search("heavy mechs with less than 2 ppc")).hasSize(25);
+    assertThat(search("heavy mechs with less than 2 ppc")).hasSize(36);
   }
 
   @Test
@@ -118,6 +119,17 @@ class SearchServiceTest {
     assertThat(search("mechs with exactly 4 large laser")).isEqualTo(largeLasers);
     assertThat(search("mechs with exactly 4 Large Laser")).isEqualTo(largeLasers);
     assertThat(search("mechs with at least 2 ER Large Laser")).isEqualTo(search("mechs with at least 2 erlargelaser"));
+  }
+
+  @Test
+  void findsEquipmentStoredUnderOlderSpellings() throws IOException {
+    // the baseline stores the Blackjack BJ-1's AC/2s as "autocannon/2" and others as "ac/2"
+    assertThat(search("mechs with at least 2 ppc")).contains("Devastator DVS-2");
+    assertThat(search("mechs with exactly 2 ac 2")).contains("Blackjack BJ-1");
+    assertThat(search("mechs with exactly 2 autocannon 2")).isEqualTo(search("mechs with exactly 2 ac 2"));
+    // "lbxac10" and "lb10-xac", "mg" and "machinegun" are both in the baseline too
+    assertThat(search("units with at least 1 lb 10-x ac")).containsAll(search("units with at least 1 lbxac10"));
+    assertThat(search("units with at least 1 machine gun")).containsAll(search("units with at least 1 mg"));
   }
 
   @Test

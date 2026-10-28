@@ -42,6 +42,30 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void stripsTechSuffixesBeforeTheLookup() {
+    assertThat(EquipmentNames.canonical("Gauss Rifle Ammo [Clan]")).isEqualTo("gaussrifleammo");
+    assertThat(EquipmentNames.canonical("Anti-Missile System Ammo [IS]")).isEqualTo(EquipmentNames.canonical("IS Ammo AMS"));
+  }
+
+  @Test
+  void mapsLowercasedPrefixedNames() {
+    // search lowercases before the lookup, where the case-sensitive prefix check can't help
+    assertThat(EquipmentNames.canonical("isac20")).isEqualTo("ac/20");
+    assertThat(EquipmentNames.canonical("cllrm20")).isEqualTo("lrm20");
+    assertThat(EquipmentNames.canonical("islbxac10")).isEqualTo("lb10-xac");
+  }
+
+  @Test
+  void listsOlderSpellingsOfACanonicalName() {
+    assertThat(EquipmentNames.equivalentNames("ac/2")).first().isEqualTo("ac/2");
+    assertThat(EquipmentNames.equivalentNames("ac/2")).contains("autocannon/2", "ac2");
+    assertThat(EquipmentNames.equivalentNames("lb10-xac")).contains("lbxac10");
+    assertThat(EquipmentNames.equivalentNames("machinegun")).contains("mg");
+    // unknown names are just themselves
+    assertThat(EquipmentNames.equivalentNames("nonexistentgun")).containsExactly("nonexistentgun");
+  }
+
+  @Test
   void mapsWhatPeopleType() {
     assertThat(EquipmentNames.canonical("ac 20")).isEqualTo("ac/20");
     assertThat(EquipmentNames.canonical("lb 10-x ac")).isEqualTo("lb10-xac");
