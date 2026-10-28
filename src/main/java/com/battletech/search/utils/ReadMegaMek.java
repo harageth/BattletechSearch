@@ -20,7 +20,9 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class ReadMegaMek {
 
   public static Unit ReadVehicleBlk(File filePath) throws IOException {
@@ -41,8 +43,7 @@ public class ReadMegaMek {
       // not sure exactly how I want to support locomotion type
       value.get("motion_type").get(0);
     } else {
-      System.out.println("Don't support unit type: " + type);
-      System.out.println("Unable to import: " + value.get("Name").get(0));
+      log.info("Skipping {}: unsupported unit type {}", filePath, type);
       return null;
     }
     vee.setName(value.get("name").get(0));

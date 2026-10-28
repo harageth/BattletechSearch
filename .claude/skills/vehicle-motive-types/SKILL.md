@@ -23,7 +23,7 @@ When it's decided, record the answer in this file and delete this section.
 - `utils/UnitBuilder.java` throws `FailedParseException` for tracked/wheeled/hovercraft. The controller shows that message on the search page.
 - `utils/ReadMegaMek.java` `ReadVehicleBlk` reads `motion_type` from the `.blk` file and discards it.
 - No motive column exists in the `unit` table. All 917 `Tank` rows come from the Flyway baseline dump (`V2_0__baselineData.sql`). That file is a `pg_dump` of a database originally filled by `UnitService.persistVehicles()`, and every fresh database (including Testcontainers) loads units only from it.
-- The importer can't currently be run from the app: `/readFile/` in `web/SearchController.java` only calls `unitService.PDFTest()`, and the `persistVehicles()` / `persistMechs()` calls are commented out. Re-enable one deliberately (and set `MEGAMEK_VEHICLES_PATH`) to re-import.
+- The importer can't currently be run from the app: `/readFile/` in `web/SearchController.java` only calls `unitService.importRecognitionGuide()`, and the `persistVehicles()` / `persistMechs()` calls are commented out. Re-enable one deliberately (and set `MEGAMEK_VEHICLES_PATH`) to re-import.
 - `entities/Vehicle.java` is **not** an `@Entity` or `@MappedSuperclass`, so a field added there won't be persisted. Put it on `Tank`, or make `Vehicle` a `@MappedSuperclass`. Single-table inheritance stores it in `unit` either way.
 
 ## Implementation outline
@@ -33,7 +33,7 @@ When it's decided, record the answer in this file and delete this section.
 3. **Schema:** add a new migration `V3_x__vehicle_motive_system.sql` that adds a nullable `motive_system varchar(255)` column. Never edit V1/V2; they're already applied.
 4. **Backfill existing rows:** unit ids are random UUIDs, so match on `name` + `designation`. Either re-run the vehicle import against a MegaMek checkout (`MEGAMEK_VEHICLES_PATH`) and generate `UPDATE` statements into the V3 migration, or ship the backfill as a separate data migration. The baseline must stay reproducible from Flyway alone.
 5. **Search:** replace the throw in `UnitBuilder` with real unit types, and have `UnitDecorator.getQuery` add `motive_system = ...`. Build SQL from enum values only, never from user text.
-6. **Tests:** replace `motiveTypesAreNotSupportedYet` in `TestVisitorTest` and `SearchServiceTest` with real expectations, plus one for the "tank" decision.
+6. **Tests:** replace `motiveTypesAreNotSupportedYet` in `QueryVisitorTest` and `SearchServiceTest` with real expectations, plus one for the "tank" decision.
 
 ## Verification
 

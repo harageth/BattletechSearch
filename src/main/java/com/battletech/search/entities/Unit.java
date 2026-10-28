@@ -86,6 +86,8 @@ public class Unit implements Searchable {
       }
     }
 
+    // Planned era search, not wired up yet: UnitDecorator.getQuery builds the real search SQL and
+    // doesn't call this. The table is now "unit", not "mechs".
     public String getQuery() {
         StringBuilder builder = new StringBuilder();
         for(UnitEquipment e : mechEquipment) {

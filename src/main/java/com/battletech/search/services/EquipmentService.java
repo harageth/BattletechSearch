@@ -5,15 +5,13 @@ import com.battletech.search.entities.EquipmentSlang;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
+import org.springframework.stereotype.Service;
 
-@Controller
+@Service
 public class EquipmentService {
-  EquipmentSlangRepository slangRepo;
-  EquipmentRepository equipRepo;
+  private final EquipmentSlangRepository slangRepo;
+  private final EquipmentRepository equipRepo;
 
-  @Autowired
   EquipmentService(EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
     this.slangRepo = slangRepo;
     this.equipRepo = equipRepo;

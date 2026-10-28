@@ -1,7 +1,7 @@
 package com.battletech.search.web;
 
 import com.battletech.search.entities.Unit;
-import com.battletech.search.model.dto.MechDTO;
+import com.battletech.search.model.dto.SearchResultsDTO;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.services.EquipmentService;
 import com.battletech.search.services.SearchService;
@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,14 +24,11 @@ import org.springframework.web.servlet.ModelAndView;
 @Controller
 @RequestMapping("/")
 public class SearchController {
-  SearchService searchService;
-  UnitService unitService;
-  EquipmentService equipService;
+  private final SearchService searchService;
+  private final UnitService unitService;
+  private final EquipmentService equipService;
 
-
-  @Autowired
   public SearchController(SearchService searchService, UnitService unitService, EquipmentService equipService) {
-    //initialize any class level things here
     this.searchService = searchService;
     this.unitService = unitService;
     this.equipService = equipService;
@@ -43,7 +39,7 @@ public class SearchController {
   public ModelAndView search(@RequestParam("query") String query) throws IOException {
     ModelAndView modelAndView = new ModelAndView("search");
     modelAndView.addObject("query", query);
-    MechDTO dto = new MechDTO();
+    SearchResultsDTO dto = new SearchResultsDTO();
     try {
       List<Map<String, Object>> results = searchService.performQuery(query);
       for(Map<String, Object> value: results) {
@@ -61,11 +57,9 @@ public class SearchController {
   @ResponseBody
   public List<Unit> readStuffIn() throws IOException {
     // read in file and submit to database
-    unitService.PDFTest();
+    unitService.importRecognitionGuide();
     //unitService.persistVehicles();
     //unitService.persistMechs();
-    //Unit mech = ReadMegaMek.ReadMTF();
-    //return Collections.singletonList(mech);
     return null;
   }
 
@@ -74,6 +68,4 @@ public class SearchController {
   public void addSlang(@PathVariable String equipName, @RequestBody List<String>slangTerms) {
     equipService.addSlangToEquipment(equipName, slangTerms);
   }
-
-
 }

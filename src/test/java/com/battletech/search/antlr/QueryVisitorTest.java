@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * Parses queries the same way SearchService does, with a mocked equipment lookup, and checks
  * the unit/equipment structure the visitor builds. No database needed.
  */
-class TestVisitorTest {
+class QueryVisitorTest {
   EquipmentRepository equipRepo;
 
   @BeforeEach
@@ -223,14 +223,26 @@ class TestVisitorTest {
   }
 
   @Test
-  void syntaxErrorsFailTheQuery() {
+  void syntaxErrorsExplainWhatIsWrong() {
+    String example = " Try something like 'mechs with at least 2 ppc'.";
     assertThatThrownBy(() -> parse("mechs with"))
         .isInstanceOf(FailedParseException.class)
-        .hasMessageStartingWith("Unable to parse query at position");
+        .hasMessage("Unable to parse query: expected a quantity like '2' or 'at least 2' after 'with'." + example);
+    assertThatThrownBy(() -> parse("mechs with at least 2"))
+        .hasMessage("Unable to parse query: expected an equipment name after '2'." + example);
+    assertThatThrownBy(() -> parse("mechs with 2"))
+        .hasMessage("Unable to parse query: expected an equipment name after '2'." + example);
+    assertThatThrownBy(() -> parse("mechs with 2 or fewer"))
+        .hasMessage("Unable to parse query: expected an equipment name after 'or fewer'." + example);
+    assertThatThrownBy(() -> parse("mechs with at least ppc"))
+        .hasMessage("Unable to parse query: expected a quantity like '2' or 'at least 2' before 'ppc' (character 21)." + example);
+    assertThatThrownBy(() -> parse("mechs at least 2 ppc"))
+        .hasMessage("Unable to parse query: expected 'with' before 'at least' (character 7)." + example);
     assertThatThrownBy(() -> parse("mechs with at least 2 ppc with"))
-        .isInstanceOf(FailedParseException.class);
+        .hasMessage("Unable to parse query: didn't expect 'with' (character 27)." + example);
     assertThatThrownBy(() -> parse("mechs with at least 2 ppc's"))
-        .isInstanceOf(FailedParseException.class);
-    assertThatThrownBy(() -> parse("")).isInstanceOf(FailedParseException.class);
+        .hasMessage("Unable to parse query: can't use ''' (character 26). Use letters, numbers, '-' and '/'.");
+    assertThatThrownBy(() -> parse(""))
+        .hasMessage("Unable to parse query: the query is empty." + example);
   }
 }

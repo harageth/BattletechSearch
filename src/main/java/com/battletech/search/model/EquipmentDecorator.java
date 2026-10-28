@@ -61,24 +61,6 @@ public class EquipmentDecorator extends UnitEquipment {
 
   @Override
   public String getQuery() {
-    /*Annotation[] debug = this.getClass().getSuperclass().getAnnotations();
-    List<Annotation> ann = Arrays.stream(this.getClass().getSuperclass().getAnnotations())
-        .filter(annotation -> annotation.getClass().equals(Entity.class)).collect(Collectors.toList());
-    String tableName = "";
-    if(ann!=null) {
-      tableName = ((Entity) ann.get(0)).name();
-    }else {
-      // throw exception
-    }*/
-    /*Annotation ann2 = Arrays.stream(this.getEquipment().getClass().getAnnotations())
-        .filter(annotation -> annotation.equals(Entity.class)).collect(Collectors.toList()).get(0);
-    String tableName2 = "";
-    if(ann2!=null) {
-      tableName2 = ((Entity) ann2).name();
-    }else {
-      // throw exception
-    }*/
-
     // Each matching equipment row (e.g. IS and Clan variants) is counted separately and the
     // results are UNIONed, so "at least 3" means at least 3 of a single variant.
     String query = "";
@@ -96,15 +78,7 @@ public class EquipmentDecorator extends UnitEquipment {
     builder.append("' GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");
     builder.append(comparison.getText() + " ");
     builder.append(quantity);
-    /*if(location != null) {
-
-    }*/
-    /*
-    SELECT unit_id FROM equipment JOIN unit_equipment ON equipment.id = unit_equipment.equipment_id WHERE equipment = 'ER Large Laser'
-    GROUP BY unit_equipment.unit_id HAVING COUNT(*) > 2
-     */
-    // if location not null then add location
-    // we should have a comparison and a quantity though.
+    // TODO: if location not null then add location
     return builder.toString();
   }
 
