@@ -69,8 +69,8 @@ All of these were checked against the code. The "Data:" lines are from the basel
 15. ~~A dead line in `convertToEquipment`.~~ **Fixed:** it now lowercases the equipment name, which `readBlkAllParameters` no longer does (bug 17).
 17. ~~Vehicle names and models are lowercased.~~ **Fixed:** `readBlkAllParameters` keeps values in their original case and only lowercases tag names. The baseline data is still lowercase (e.g. `packrat lrpv pkr-t5 (ml)`) until it's regenerated. `SearchServiceTest` pins some of those names.
 
-### Recognition guide (`ReadPDF`)
-16. **Unfinished and saves nothing.** `convertToUnit` builds a `Mech` and only logs it.
+### Recognition guide (`ReadPDF`): experimental, parked
+16. **Experimental; don't work on it.** The user decided on 2026-10-27 to leave `ReadPDF` as an experimental importer for now. It's unfinished and saves nothing: `convertToUnit` builds a `Mech` and only logs it. Known gaps, for if it's ever picked up:
     - It mixes label-based parsing (`Type:`, `Tonnage:`) with line-number parsing (`i == 1` is the name...).
     - It reads only the first weapon line after the weapons header, and `parseEquipment` throws away what it parses.
     - It skips the first 15 pages based on a hard-coded number.
@@ -84,7 +84,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - ~~Make import idempotent.~~ Done (bug 1).
 2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 1-7, 10, 11, 15, 17 and 18, and mech ammo and equipment (8). Motive type (12) is done too. Remaining: support vehicles (13), vehicle stats (14), quad/LAM locations (19), armor, then regenerating the data.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
-4. **`ReadPDF`**: finish it or delete it, separately.
+4. **`ReadPDF`**: experimental and parked (bug 16). Don't include it in importer work unless the user asks.
 
 ## Regenerating data
 

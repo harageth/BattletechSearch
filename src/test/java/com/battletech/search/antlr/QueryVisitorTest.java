@@ -157,6 +157,47 @@ class QueryVisitorTest {
         .isEqualTo("mediumlaser");
   }
 
+  private static List<String> names(UnitDecorator unit) {
+    return unit.getMechEquipment().stream().map(equip -> equip.getEquipment().getName()).toList();
+  }
+
+  @Test
+  void equipmentNamesCanEndInANumber() {
+    EquipmentDecorator lrm = chunk(parse("mechs with at least 2 lrm 20"), 0);
+    assertThat(lrm.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(lrm.getQuantity()).isEqualTo(2);
+    assertThat(lrm.getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+
+    assertThat(names(parse("mechs with 2 lrm 20"))).containsExactly("lrm20");
+    assertThat(names(parse("mechs with 2 Streak SRM 6"))).containsExactly("streaksrm6");
+    assertThat(chunk(parse("mechs with 4 or more ac 20"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(names(parse("mechs with 4 or more ac 20"))).containsExactly("ac20");
+  }
+
+  @Test
+  void aNumberBeforeAWordStartsTheNextChunk() {
+    // "3" is followed by a name, so it's the next chunk's quantity, not part of "ppc"
+    UnitDecorator unit = parse("mechs with 2 ppc 3 srm6");
+    assertThat(names(unit)).containsExactly("ppc", "srm6");
+    assertThat(chunk(unit, 1).getQuantity()).isEqualTo(3);
+
+    UnitDecorator both = parse("mechs with 2 lrm 20 3 srm 6");
+    assertThat(names(both)).containsExactly("lrm20", "srm6");
+    assertThat(chunk(both, 0).getQuantity()).isEqualTo(2);
+    assertThat(chunk(both, 1).getQuantity()).isEqualTo(3);
+  }
+
+  @Test
+  void numberedNamesWithOperatorsAndComparators() {
+    UnitDecorator unit = parse("mechs with at least 2 lrm 20 and at most 1 srm 6 or 2 ac 10");
+    assertThat(names(unit)).containsExactly("lrm20", "srm6", "ac10");
+    assertThat(chunk(unit, 0).getLogicOperator()).isEqualTo(LogicalOperator.AND);
+    assertThat(chunk(unit, 1).getLogicOperator()).isEqualTo(LogicalOperator.OR);
+    assertThat(chunk(unit, 1).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
+
+    assertThat(names(parse("mechs with at least 2 lrm 20 at least 1 ppc"))).containsExactly("lrm20", "ppc");
+  }
+
   @Test
   void unknownEquipmentIsReportedAsTyped() {
     when(equipRepo.findAllBySlangOrEquipmentName("mediumlazer")).thenReturn(List.of());

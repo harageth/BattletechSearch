@@ -10,7 +10,10 @@ grammar Battletech;
  */
 //mechs with 4 medium lasers
 query: line NEWLINE? EOF ;
-equipmentChunk: comparator? QUANTITY WORD+ logicaloperator? | QUANTITY comparator WORD+ logicaloperator? ;
+equipmentChunk: comparator? QUANTITY equipmentName logicaloperator? | QUANTITY comparator equipmentName logicaloperator? ;
+// "lrm 20", "streak srm 6": a name can end in one number. A number followed by another word starts
+// the next chunk instead, so "2 ppc 3 srm6" is still two chunks
+equipmentName: WORD+ QUANTITY? ;
 line: equipmentChunk+ | (WORD* unit? STOPWORD equipmentChunk+) ;
 unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;

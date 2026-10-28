@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
+import me.BattletechParser.EquipmentNameContext;
 import me.BattletechParser.LineContext;
 import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
@@ -49,6 +50,12 @@ public class QueryVisitor implements BattletechVisitor {
     return null;
   }
 
+  /** The name as typed, words separated by spaces ("lrm 20"); normalized before the lookup. */
+  @Override
+  public Object visitEquipmentName(EquipmentNameContext ctx) {
+    return ctx.children.stream().map(ParseTree::getText).collect(Collectors.joining(" "));
+  }
+
   @Override
   public Object visitLine(LineContext ctx) {
     Unit unit = (Unit)visitUnit(ctx.unit());
@@ -63,18 +70,9 @@ public class QueryVisitor implements BattletechVisitor {
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 
     for(EquipmentChunkContext node : equipment) {
-      String equip = "";
-      for(TerminalNode equipNode: node.WORD()) {
-        if(equip.isEmpty()) {
-          equip = equipNode.getText();
-        }else {
-          equip = equip + " " + equipNode.getText();
-        }
-      }
+      String equip = ((String) visitEquipmentName(node.equipmentName())).toLowerCase();
       Object logicObject = visitLogicaloperator(node.logicaloperator());
 
-
-      equip = equip.toLowerCase();
       boolean first = true;
       EquipmentDecorator realDecorator = new EquipmentDecorator(null);
       if(logicObject != null) {

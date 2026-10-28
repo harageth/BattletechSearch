@@ -121,6 +121,17 @@ class SearchServiceTest {
   }
 
   @Test
+  void equipmentNamesCanEndInANumber() throws IOException {
+    List<String> lrm20 = search("units with at least 2 lrm20");
+    assertThat(lrm20).isNotEmpty();
+    assertThat(search("units with at least 2 lrm 20")).isEqualTo(lrm20);
+    assertThat(search("units with at least 2 LRM 20")).isEqualTo(lrm20);
+    assertThat(search("mechs with exactly 2 srm 6")).isEqualTo(search("mechs with exactly 2 srm6"));
+    assertThat(search("mechs with at least 2 lrm 20 and at least 2 srm 6"))
+        .isEqualTo(search("mechs with at least 2 lrm20 and at least 2 srm6"));
+  }
+
+  @Test
   void numberWordsMatchDigits() throws IOException {
     assertThat(search("mechs with at least four ppc")).isEqualTo(search("mechs with at least 4 ppc"));
   }
