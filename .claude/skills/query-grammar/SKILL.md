@@ -25,7 +25,7 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 - `NEWLINE` used to be `[\r\n]`-ish letters and matched the words `r` and `n`. It's now `('\r'? '\n' | '\r')+`. Test single-letter input when touching it.
 - Case-insensitivity comes from the letter fragments (`M : ('M'|'m')`). Plurals come from a trailing `S*`.
 - `QUANTITY` includes `a`, so `a` can't be used as an equipment word.
-- `tank` is currently a synonym for `tracked`. See the `vehicle-motive-types` skill before changing that.
+- `tank` means every ground vehicle (dtype `Tank`, not VTOLs). `tracked` / `wheeled` / `hovercraft` are motive types; see the `vehicle-motive-types` skill.
 - `QueryVisitor`'s `slangRepo` is passed in but unused; slang is resolved inside `findAllBySlangOrEquipmentName`.
 - Unit and weight class SQL is built from enums. Equipment is matched by id after a repository lookup. Keep user text out of the SQL string.
 

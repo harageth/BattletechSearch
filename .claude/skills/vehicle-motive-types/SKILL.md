@@ -1,25 +1,20 @@
 ---
 name: vehicle-motive-types
-description: Use when importing vehicle motive systems (tracked, wheeled, hover, ...) from MegaMek, adding motive type to the unit table, or making "tank", "tracked", "wheeled" or "hovercraft" searches return results. Contains an unresolved product decision about what "tank" means that must be settled with the user first.
+description: Use when importing vehicle motive systems (tracked, wheeled, hover, ...) from MegaMek, adding motive type to the unit table, or making "tank", "tracked", "wheeled" or "hovercraft" searches return results. "tank" means every ground vehicle (decided).
 ---
 
 # Vehicle motive types
 
 Searching by motive type was designed in but never finished. Queries like `tracked with at least 2 lrm20` parse, then fail on purpose with "Searching by motive type (tracked) isn't supported yet", because the data to answer them doesn't exist.
 
-## Open question: resolve with the user before implementing
+## Decided: "tank" means every ground vehicle
 
-**What does "tank" mean?** The user hasn't decided. Ask them before changing search behavior.
-
-- **A. Synonym for tracked.** This is what the grammar does today: `TRACKED: T R A C K E D S* | T A N K S* ;` in `src/main/antlr4/me/Battletech.g4`.
-- **B. All ground vehicles.** Every `Tank` row (dtype `Tank`) of any motive type except VTOL. This needs `tank` back as its own lexer token (e.g. `TANK: T A N K S* ;`, listed in the `unit` rule) that `UnitBuilder` maps to `new Tank()`. Remove `T A N K S*` from `TRACKED`.
-
-When it's decided, record the answer in this file and delete this section.
+The user decided on 2026-10-27 that `tank` means **every ground vehicle**: every `Tank` row (dtype `Tank`) of any motive type, but not VTOLs. `tracked`, `wheeled` and `hover` narrow it down. This is implemented: `TANK: T A N K S* ;` is its own token, and `UnitBuilder` maps it to `new Tank()`. Tests: `QueryVisitorTest.tanksAreAllGroundVehicles`, `SearchServiceTest.tanksAreVehiclesExceptVtols`.
 
 ## Current state
 
-- `model/MotiveSystem.java` enum: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE. It isn't used anywhere yet.
-- Grammar unit tokens: `TRACKED` (also matches "tank"), `WHEELED`, `HOVERCRAFT` (also matches "hovertank"), all plural- and case-insensitive.
+- `model/MotiveSystem.java` enum: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE. It isn't used anywhere yet. MegaMek also has WiGE, Submarine, Naval, Aerodyne, Rail and Hydrofoil (see the importers skill for counts).
+- Grammar unit tokens: `TANK`, `TRACKED`, `WHEELED`, `HOVERCRAFT` (also matches "hovertank"), all plural- and case-insensitive.
 - `utils/UnitBuilder.java` throws `FailedParseException` for tracked/wheeled/hovercraft. The controller shows that message on the search page.
 - `utils/ReadMegaMek.java` `ReadVehicleBlk` reads `motion_type` from the `.blk` file and discards it.
 - No motive column exists in the `unit` table. All 917 `Tank` rows come from the Flyway baseline dump (`V2_0__baselineData.sql`). That file is a `pg_dump` of a database originally filled by `UnitService.persistVehicles()`, and every fresh database (including Testcontainers) loads units only from it.
@@ -33,7 +28,7 @@ When it's decided, record the answer in this file and delete this section.
 3. **Schema:** add a new migration `V3_x__vehicle_motive_system.sql` that adds a nullable `motive_system varchar(255)` column. Never edit V1/V2; they're already applied.
 4. **Backfill existing rows:** unit ids are random UUIDs, so match on `name` + `designation`. Either re-run the vehicle import against a MegaMek checkout (`MEGAMEK_VEHICLES_PATH`) and generate `UPDATE` statements into the V3 migration, or ship the backfill as a separate data migration. The baseline must stay reproducible from Flyway alone.
 5. **Search:** replace the throw in `UnitBuilder` with real unit types, and have `UnitDecorator.getQuery` add `motive_system = ...`. Build SQL from enum values only, never from user text.
-6. **Tests:** replace `motiveTypesAreNotSupportedYet` in `QueryVisitorTest` and `SearchServiceTest` with real expectations, plus one for the "tank" decision.
+6. **Tests:** replace `motiveTypesAreNotSupportedYet` in `QueryVisitorTest` and `SearchServiceTest` with real expectations. The "tank" tests already exist.
 
 ## Verification
 

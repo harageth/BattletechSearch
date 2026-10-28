@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Mech;
+import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
@@ -93,14 +94,17 @@ class QueryVisitorTest {
     assertThat(parse("Units with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
   }
 
+  @Test
+  void tanksAreAllGroundVehicles() {
+    assertThat(parse("tanks with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Tank.class);
+    assertThat(parse("Tank with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Tank.class);
+  }
+
   // Motive type isn't stored for vehicles yet, so searching by it is rejected rather than guessed
   @Test
   void motiveTypesAreNotSupportedYet() {
     assertThatThrownBy(() -> parse("tracked with at least 1 ppc"))
         .isInstanceOf(FailedParseException.class)
-        .hasMessage("Searching by motive type (tracked) isn't supported yet");
-    // "tank" is a synonym for tracked
-    assertThatThrownBy(() -> parse("tanks with at least 1 ppc"))
         .hasMessage("Searching by motive type (tracked) isn't supported yet");
     assertThatThrownBy(() -> parse("wheeled with at least 1 ppc"))
         .hasMessage("Searching by motive type (wheeled) isn't supported yet");

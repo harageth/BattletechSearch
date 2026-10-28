@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -130,8 +131,18 @@ class SearchServiceTest {
   }
 
   @Test
+  void tanksAreVehiclesExceptVtols() throws IOException {
+    List<String> tanks = search("tanks with at least 2 lrm20");
+    List<String> vtols = search("vtol with at least 2 lrm20");
+
+    assertThat(tanks).isNotEmpty();
+    assertThat(search("vehicle with at least 2 lrm20"))
+        .containsExactlyInAnyOrderElementsOf(Stream.concat(tanks.stream(), vtols.stream()).toList());
+  }
+
+  @Test
   void motiveTypesAreNotSupportedYet() {
-    assertThatThrownBy(() -> search("tanks with at least 2 lrm20"))
+    assertThatThrownBy(() -> search("tracked with at least 2 lrm20"))
         .isInstanceOf(FailedParseException.class)
         .hasMessage("Searching by motive type (tracked) isn't supported yet");
   }

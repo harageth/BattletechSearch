@@ -12,7 +12,7 @@ grammar Battletech;
 query: line NEWLINE? EOF ;
 equipmentChunk: comparator? QUANTITY WORD+ logicaloperator? | QUANTITY comparator WORD+ logicaloperator? ;
 line: equipmentChunk+ | (WORD* unit? STOPWORD equipmentChunk+) ;
-unit: GENERICUNIT | MECH | VEHICLE | VTOL | WHEELED | TRACKED | HOVERCRAFT ;
+unit: GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
 logicaloperator: AND | OR ;
 //weightclass: ULTRA LIGHT | LIGHT | MEDIUM | HEAVY | ASSAULT | ULTRA HEAVY ;
@@ -61,7 +61,9 @@ VEHICLE: V E H I C L E S* | V E E S* ;
 VTOL: V T O L S* | H E L I C O P T E R S* | H E L O S* ;
 HOVERCRAFT: H O V E R C R A F T S* | H O V E R T A N K S* ;
 WHEELED: W H E E L E D S* ;
-TRACKED: T R A C K E D S* | T A N K S* ;
+TRACKED: T R A C K E D S* ;
+// every ground vehicle (dtype Tank), whatever its motive type
+TANK: T A N K S* ;
 GENERICUNIT: U N I T S* ;
 
 

@@ -1,6 +1,7 @@
 package com.battletech.search.utils;
 
 import com.battletech.search.entities.Mech;
+import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
@@ -17,6 +18,9 @@ public class UnitBuilder {
       unit.setDecoratedUnit(new Mech());
     }else if(unitType.equalsIgnoreCase("vee") | unitType.equalsIgnoreCase("vehicle")) {
       unit.setDecoratedUnit(new Vehicle());
+    }else if(unitType.equalsIgnoreCase("tank")) {
+      // every ground vehicle, whatever its motive type
+      unit.setDecoratedUnit(new Tank());
     }else if(unitType.equalsIgnoreCase("tracked") || unitType.equalsIgnoreCase("wheeled")
         || unitType.equalsIgnoreCase("hovercraft")) {
       // TODO: motive type isn't stored for vehicles yet; search by it once it is
