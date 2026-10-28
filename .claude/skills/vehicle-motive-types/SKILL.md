@@ -23,7 +23,7 @@ When it's decided, record the answer in this file and delete this section.
 - `utils/UnitBuilder.java` throws `FailedParseException` for tracked/wheeled/hovercraft. The controller shows that message on the search page.
 - `utils/ReadMegaMek.java` `ReadVehicleBlk` reads `motion_type` from the `.blk` file and discards it.
 - No motive column exists in the `unit` table. All 917 `Tank` rows come from the Flyway baseline dump (`V2_0__baselineData.sql`). That file is a `pg_dump` of a database originally filled by `UnitService.persistVehicles()`, and every fresh database (including Testcontainers) loads units only from it.
-- The importer can't currently be run from the app: `/readFile/` in `web/SearchController.java` only calls `unitService.importRecognitionGuide()`, and the `persistVehicles()` / `persistMechs()` calls are commented out. Re-enable one deliberately (and set `MEGAMEK_VEHICLES_PATH`) to re-import.
+- The MegaMek importer can't currently be run from the app: `admin/ImportEndpoint` (`POST localhost:8081/actuator/import`) only supports the recognition guide. See the `importers` skill for adding mech/vehicle sources (and setting `MEGAMEK_VEHICLES_PATH`).
 - `entities/Vehicle.java` is **not** an `@Entity` or `@MappedSuperclass`, so a field added there won't be persisted. Put it on `Tank`, or make `Vehicle` a `@MappedSuperclass`. Single-table inheritance stores it in `unit` either way.
 
 ## Implementation outline

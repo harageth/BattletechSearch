@@ -10,7 +10,7 @@ Unit data comes from MegaMek files. `utils/ReadMegaMek` parses them, and `servic
 ## How data gets into the database today
 
 - **Every database gets its units from the frozen dump `db/migration/V2_0__baselineData.sql`.** That's a `pg_dump` of a database that the importer filled in 2020-2021. Fixing a parser changes nothing in the app until the data is regenerated (see "Regenerating data" below).
-- **No way to trigger an import.** `GET /readFile/` (unauthenticated) only calls `importRecognitionGuide()`, and the `persistVehicles()` / `persistMechs()` calls in `web/SearchController.java` are commented out.
+- **No way to trigger a MegaMek import.** The admin endpoint `POST localhost:8081/actuator/import` (`admin/ImportEndpoint`) only accepts `{"source": "recognition-guide"}`. `persistMechs()` / `persistVehicles()` aren't wired to anything; add them as sources once re-importing no longer duplicates units (bug 1).
 - **Configuration.** Paths come from `MEGAMEK_MECHS_PATH`, `MEGAMEK_VEHICLES_PATH` and `RECOGNITION_GUIDE_PDF` (`battletech.import.*` in `application.yml`).
 - **Error handling.** A file that throws is logged ("Unable to import ...") and skipped. Most parser bugs show up there as NPEs, not as clear errors.
 - **No tests.** Nothing covers the importers yet.
@@ -50,7 +50,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
 ## Recommended order
 
 1. **Make imports runnable and testable.**
-   - Replace the `/readFile/` trigger with a command-line runner or Spring profile, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits. Remove or protect the endpoint (that's step 5, hardening).
+   - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
    - Add unit tests for `ReadMechMTF` / `ReadVehicleBlk` using a few small fixture files in `src/test/resources/megamek/`. Cover a plain IS mech, a Clan omni, a mixed-tech mech, a tank with body + turret equipment, and a VTOL.
    - Make import idempotent: upsert on name + designation (bug 1).
 2. **Fix the parsers one bug at a time**, with a fixture test for each. Suggested order: equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.

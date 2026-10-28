@@ -7,9 +7,19 @@ spring:
     hibernate:
       ddl-auto: none
 
+# Admin endpoints (/actuator/...) run on their own port that only listens on this machine
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+    address: 127.0.0.1
+  endpoints:
+    web:
+      exposure:
+        include: health, import, slang
+
 battletech:
   import:
-    # Point these at a local MegaMek checkout (data/mechfiles/...) to re-import units via /readFile/
+    # Point these at a local MegaMek checkout (data/mechfiles/...) to re-import units
     mechs-path: ${MEGAMEK_MECHS_PATH:}
     vehicles-path: ${MEGAMEK_VEHICLES_PATH:}
     pdf-path: ${RECOGNITION_GUIDE_PDF:}

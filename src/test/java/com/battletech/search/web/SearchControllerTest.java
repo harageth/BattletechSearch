@@ -8,9 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.battletech.search.model.search.FailedParseException;
-import com.battletech.search.services.EquipmentService;
 import com.battletech.search.services.SearchService;
-import com.battletech.search.services.UnitService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -26,12 +24,6 @@ class SearchControllerTest {
 
   @MockitoBean
   SearchService searchService;
-
-  @MockitoBean
-  UnitService unitService;
-
-  @MockitoBean
-  EquipmentService equipmentService;
 
   @Test
   void rendersResults() throws Exception {
