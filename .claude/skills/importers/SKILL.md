@@ -82,7 +82,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - ~~Add `mechs` / `vehicles` sources to `ImportEndpoint`.~~ Done. A command-line runner is still optional.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
    - ~~Make import idempotent.~~ Done (bug 1).
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 2-7, 10, 11, 15, 17 and 18. Mech ammo and equipment (8) are done too. Remaining: motive type (12; "tank" is decided as every ground vehicle), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 1-7, 10, 11, 15, 17 and 18, and mech ammo and equipment (8). Remaining: motive type (12; "tank" is decided as every ground vehicle), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 
