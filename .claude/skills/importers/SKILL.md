@@ -7,6 +7,30 @@ description: Use when working on the unit data importers - ReadMegaMek (.mtf mec
 
 Unit data comes from MegaMek files. `utils/ReadMegaMek` parses them, and `services/UnitService.persistUnits` saves them. `utils/ReadPDF` is an unfinished importer for the recognition guide PDF.
 
+## Data source
+
+MegaMek moved its unit files out of the main `megamek` repo (which now only has test fixtures) into **`MegaMek/mm-data`**. The `mm-data` tags lag far behind (latest `v0.3.1`, Jan 2026), so pin to a commit.
+
+- Local checkout: `C:\Users\adam\workspace\mm-data`. It's a sparse, shallow, blobless clone with only `data/mekfiles/meks` and `data/mekfiles/vehicles`. Re-create it with:
+  ```
+  git clone --filter=blob:none --sparse --depth 1 https://github.com/MegaMek/mm-data.git mm-data
+  cd mm-data && git sparse-checkout set data/mekfiles/meks data/mekfiles/vehicles
+  ```
+- Pinned commit: `d195e171b3c87801c8dbc5ffcb5f763e5da57483` (2026-10-27, matching MegaMek release v0.51.00.2).
+- Point the importer at it: `MEGAMEK_MECHS_PATH=.../mm-data/data/mekfiles/meks`, `MEGAMEK_VEHICLES_PATH=.../mm-data/data/mekfiles/vehicles`.
+- Counts at that commit vs the baseline dump:
+  - `.mtf` files: 4,263, vs 3,498 mechs.
+  - `.blk` files: 1,453, vs 1,032 vehicles.
+  - `.blk` `UnitType`: Tank 1086, SupportTank 178, VTOL 131, LargeSupportTank 25, SupportVTOL 24, FixedWingSupport 9.
+  - `motion_type`: Tracked 572, Hover 328, Wheeled 314, VTOL 155, WiGE 36, Submarine 15, Naval 9, Aerodyne 9, Rail 8, Hydrofoil 7.
+  - MTF `techbase:` values: `Inner Sphere` 2708, `Clan` 1178, `Mixed (IS Chassis)` 257, `Mixed (Clan Chassis)` 120.
+
+### Format changes since the importer was written
+- **MTF files no longer start with name/model lines.** They open with a `#` license comment block, then key/value lines: `uuid:`, `generator:`, `chassis:`, `model:`, `mul id:`, `Config:`, `techbase:`, `era:`, `source:`, `published:`, `rules level:`, `role:`, `quirk:`... `ReadMechMTF` still reads lines 1-3 as version/name/model, so **every mech would import with a license comment as its name.** Fix this first. Read `chassis:` / `model:` by key and skip `#` lines.
+- **`era:` is now a year** (e.g. `2755`), not an era name. The column is a string, so map years to era names or store the year. Decide before building era search; see the `query-grammar` skill.
+- **Stable ids now exist.** MTF has `uuid:` and `mul id:` (163 of 4,263 mechs have no `mul id:`). BLK has `<UUID>` and `<mul id:>` (`-1` when unknown; 10 of 1,453 vehicles). Use the MegaMek `uuid` as the upsert key instead of name + designation (bug 1). Consider storing `mul id` too, for Master Unit List links.
+- BLK keeps the same `<tag>`/`</tag>` structure, and `readBlkAllParameters` already skips `#` lines. Note the key `<mul id:>` includes the colon. New tags: `<UUID>`, `<year>`, `<role>`.
+
 ## How data gets into the database today
 
 - **Every database gets its units from the frozen dump `db/migration/V2_0__baselineData.sql`.** That's a `pg_dump` of a database that the importer filled in 2020-2021. Fixing a parser changes nothing in the app until the data is regenerated (see "Regenerating data" below).
@@ -20,7 +44,7 @@ Unit data comes from MegaMek files. `utils/ReadMegaMek` parses them, and `servic
 All of these were checked against the code. The "Data:" lines are from the baseline database.
 
 ### Both formats
-1. **Re-importing duplicates units.** `persistUnits` never checks whether `name` + `designation` already exists. Unit ids are random UUIDs, so a second run adds every unit again. Data: 11 name/designation pairs already appear twice (e.g. Wasp WSP-1S, Marauder II MAD-5C).
+1. **Re-importing duplicates units.** `persistUnits` never checks whether the unit already exists. Unit ids are random UUIDs, so a second run adds every unit again. Data: 11 name/designation pairs already appear twice (e.g. Wasp WSP-1S, Marauder II MAD-5C). Fix: upsert on MegaMek's `uuid` (see "Format changes" above).
 2. **Equipment names are flattened.** `persistUnits` lowercases them and removes spaces (`Medium Laser` → `mediumlaser`). The query side joins words with a space, so `mechs with 2 medium laser` doesn't match. Only `mediumlaser` works, unless `equipment_slang` has a row. That table ships empty. Decide on one normal form and apply it on both the import and query sides.
 3. **Annotations stay in equipment names.** Data: 28 equipment names include suffixes, e.g. `mediumlaser(r)` (rear-facing), `srm6(i-os)` / `srm2(os)` (one-shot), `tag(clan)`, `cargo(1ton)`, `rifle(cannon`, `unknowncritical(0xda)`. The vehicle path strips some of these with `.contains("(r)")` checks, but the mech path strips none. A rear `mediumlaser(r)` therefore isn't counted as a `mediumlaser`.
 4. **Missing tech gives a third copy of the equipment.** Equipment is de-duplicated by name + tech, and a null tech counts as its own value. Data: 128 equipment rows have null tech, e.g. `erlargelaser` exists as CLAN, INNER_SPHERE and NULL. With per-variant counting, one mech's ER large lasers can be split across rows.
@@ -53,7 +77,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
    - Add unit tests for `ReadMechMTF` / `ReadVehicleBlk` using a few small fixture files in `src/test/resources/megamek/`. Cover a plain IS mech, a Clan omni, a mixed-tech mech, a tank with body + turret equipment, and a VTOL.
    - Make import idempotent: upsert on name + designation (bug 1).
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Suggested order: equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Suggested order: the MTF header change (see "Format changes"; nothing imports correctly until it's fixed), then equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 
