@@ -1,5 +1,6 @@
 package com.battletech.search.entities;
 
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Searchable;
 import java.util.UUID;
@@ -28,6 +29,10 @@ public class UnitEquipment implements Searchable {
   boolean omniPod;
   boolean rearFacing;
   boolean turretEquipped;
+
+  // Artemis / Apollo on a missile launcher; null for everything else
+  @Enumerated(EnumType.STRING)
+  FireControl fireControl;
   //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
 
   public UnitEquipment() { }

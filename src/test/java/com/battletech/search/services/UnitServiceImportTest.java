@@ -12,6 +12,7 @@ import jakarta.persistence.PersistenceContext;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +66,7 @@ class UnitServiceImportTest {
 
   @Test
   void importsMechsWithTheirIds() throws IOException {
-    assertThat(importMechs()).isEqualTo(new ImportResult(5, 0, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(7, 0, 0, 0));
 
     Unit atlas = unitRepo.findByMegamekUuid(ATLAS).orElseThrow();
     assertThat(atlas.getName()).isEqualTo("Atlas");
@@ -82,7 +83,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).isEqualTo(new ImportResult(0, 5, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(0, 7, 0, 0));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind
@@ -98,7 +99,7 @@ class UnitServiceImportTest {
     ImportResult result = unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
 
     // Air Car is a SupportTank
-    assertThat(result).isEqualTo(new ImportResult(5, 0, 1, 0));
+    assertThat(result).isEqualTo(new ImportResult(6, 0, 1, 0));
     Unit bulldog = unitRepo.findByMegamekUuid(UUID.fromString("019f583e-e260-75d2-84ad-b6927336283b")).orElseThrow();
     assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
     assertThat(bulldog.getMulId()).isEqualTo(439);
@@ -119,6 +120,30 @@ class UnitServiceImportTest {
     assertThat(searchService.performQuery("tanks with at least 2 machine gun"))
         .extracting(row -> row.get("name"))
         .contains("Bulldog Medium Tank", "Condor Heavy Hover Tank");
+  }
+
+  private List<String> search(String query) throws IOException {
+    return searchService.performQuery(query).stream()
+        .map(row -> row.get("name") + " " + row.get("designation")).toList();
+  }
+
+  @Test
+  void searchesByFireControl() throws IOException {
+    importMechs();
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    // the Champion's SRM 6 has Artemis IV; a plain "srm 6" search still counts it
+    assertThat(search("mechs with exactly 1 artemis srm 6")).contains("Champion CHP-1N2");
+    assertThat(search("mechs with exactly 1 artemis iv srm 6")).contains("Champion CHP-1N2");
+    assertThat(search("mechs with exactly 1 artemis v srm 6")).doesNotContain("Champion CHP-1N2");
+    assertThat(search("mechs with exactly 1 srm 6")).contains("Champion CHP-1N2");
+    // the Atlas' SRM 6 has none
+    assertThat(search("mechs with exactly 1 srm 6")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 1 artemis srm 6")).doesNotContain("Atlas AS7-D");
+
+    assertThat(search("mechs with 1 apollo mrm 40")).contains("Akuma AKU-2X");
+    assertThat(search("tanks with 4 artemis lrm 20")).contains("DI Morgan Assault Tank (LRM)");
   }
 
   @Test

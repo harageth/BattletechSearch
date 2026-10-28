@@ -3,11 +3,13 @@ package com.battletech.search.utils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Mech;
 import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
@@ -119,6 +121,67 @@ class ReadMegaMekTest {
             tuple("ammolb10-xac", Tech.INNER_SPHERE),
             tuple("case", Tech.INNER_SPHERE),
             tuple("targetingcomputer", Tech.INNER_SPHERE));
+  }
+
+  private static List<UnitEquipment> named(Unit unit, String name) {
+    return unit.getMechEquipment().stream().filter(equip -> equip.getEquipment().getName().equals(name)).toList();
+  }
+
+  @Test
+  void fireControlGoesOnTheLauncher() throws IOException {
+    Mech champion = mech("Champion CHP-1N2.mtf");
+    // "SRM 6, SRM 6, ISArtemisIV" in the left torso
+    assertThat(named(champion, "srm6")).extracting(UnitEquipment::getFireControl).containsExactly(FireControl.ARTEMIS_IV);
+    assertThat(named(champion, "artemisiv")).isEmpty();
+    // Artemis-capable ammo stays its own ammo type
+    assertThat(named(champion, "ammosrm-6artemis-capable")).hasSize(1);
+
+    assertThat(named(mech("Akuma AKU-2X.mtf"), "mrm40")).extracting(UnitEquipment::getFireControl)
+        .containsExactly(FireControl.APOLLO);
+    // other weapons don't get one
+    assertThat(mech("Atlas AS7-D.mtf").getMechEquipment()).extracting(UnitEquipment::getFireControl).containsOnlyNulls();
+  }
+
+  private static UnitEquipment weapon(String name, String location) {
+    return new UnitEquipment(new Equipment(name, Tech.CLAN), location);
+  }
+
+  @Test
+  void artemisVFillsTwoSlotsButIsOneSystem() {
+    List<UnitEquipment> weapons = List.of(weapon("lrt15", "Left Torso"), weapon("lrt15", "Left Torso"));
+    Map<String, List<String>> slots = Map.of("left torso",
+        List.of("CLLRT15", "CLLRT15", "CLArtemisV (OMNIPOD)", "CLArtemisV (OMNIPOD)", "CLLRT15", "CLLRT15"));
+
+    ReadMegaMek.attachMtfFireControl(weapons, slots);
+
+    assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(FireControl.ARTEMIS_V, null);
+  }
+
+  @Test
+  void artemisFitsImprovedLaunchersButNotStreaks() {
+    List<UnitEquipment> weapons = List.of(weapon("streaksrm6", "Left Torso"), weapon("improvedlrm20", "Left Torso"));
+    Map<String, List<String>> slots = Map.of("left torso",
+        List.of("CLStreakSRM6", "Improved LRM 20", "CLArtemisIV"));
+
+    ReadMegaMek.attachMtfFireControl(weapons, slots);
+
+    assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(null, FireControl.ARTEMIS_IV);
+  }
+
+  @Test
+  void vehicleFireControlGoesOnTheLauncherBeforeIt() throws IOException {
+    Unit morgan = vehicle("DI Morgan Assault Tank (LRM).blk");
+
+    // "LRM 20, ISArtemisIV" four times in the turret
+    assertThat(at(morgan, Location.FRONTTURRET))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getFireControl)
+        .containsExactly(
+            tuple("lrm 20", FireControl.ARTEMIS_IV),
+            tuple("lrm 20", FireControl.ARTEMIS_IV),
+            tuple("lrm 20", FireControl.ARTEMIS_IV),
+            tuple("lrm 20", FireControl.ARTEMIS_IV));
+    assertThat(at(morgan, Location.BODY)).extracting(equip -> equip.getEquipment().getName())
+        .contains("ammo lrm-20 artemis-capable");
   }
 
   @Test

@@ -5,6 +5,7 @@ import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.MotiveSystem;
@@ -129,6 +130,7 @@ public class ReadMegaMek {
 
   static List<UnitEquipment> convertToEquipment(List<String> equipment, Tech chassisTech, Location location) {
     List<UnitEquipment> returnEquipment = new LinkedList<UnitEquipment>();
+    List<FireControl> unattached = new LinkedList<>();
     for(String equip: equipment) {
       UnitEquipment value = new UnitEquipment();
       value.setEquipment(new Equipment());
@@ -166,7 +168,22 @@ public class ReadMegaMek {
         value.getEquipment().setTech(chassisTech);
         value.getEquipment().setName(equip);
       }
+      // Artemis / Apollo upgrade the launcher listed before them rather than being equipment
+      FireControl fireControl = FireControl.fromEquipmentName(value.getEquipment().getName());
+      if(fireControl != null) {
+        String previous = returnEquipment.isEmpty() ? null : returnEquipment.get(returnEquipment.size() - 1).getEquipment().getName();
+        if(!attachFireControl(fireControl, returnEquipment, previous)) {
+          unattached.add(fireControl);
+        }
+        continue;
+      }
       returnEquipment.add(value);
+    }
+    // the few listed before their launcher
+    for(FireControl fireControl : unattached) {
+      if(!attachFireControl(fireControl, returnEquipment, null)) {
+        log.debug("{} at {} has no launcher to go on", fireControl, location);
+      }
     }
 
     return returnEquipment;
@@ -252,7 +269,9 @@ public class ReadMegaMek {
 
     Tech chassisTech = Tech.chassisTech(techBase);
     List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, chassisTech);
-    equipment.addAll(readMtfSlotEquipment(readMtfSlots(lines), chassisTech));
+    Map<String, List<String>> slots = readMtfSlots(lines);
+    attachMtfFireControl(equipment, slots);
+    equipment.addAll(readMtfSlotEquipment(slots, chassisTech));
     mech.setMechEquipment(equipment);
     return mech;
   }
@@ -374,10 +393,61 @@ public class ReadMegaMek {
    * left out because some mechs also list them as weapons.
    */
   private static final Pattern SLOT_EQUIPMENT = Pattern.compile("^(targetingcomputer|case|caseii"
-      + "|(industrial)?triplestrengthmyomer|masc|supercharger|.*ecmsuite|.*activeprobe|artemisiv|artemisv"
+      + "|(industrial)?triplestrengthmyomer|masc|supercharger|.*ecmsuite|.*activeprobe"
       + "|c3iunit|c3slaveunit|c3boostedsystemslaveunit|hatchet|sword|claw|mace|chainsaw|retractableblade"
       + "|aes|.*nullsignaturesystem|chameleonlightpolarizationshield|partialwing|umu|antipersonnelpod"
       + "|coolantpod|ppccapacitor|searchlight|environmentalsealing.*|lifthoistarrestinghoist)$");
+
+  /**
+   * Artemis / Apollo slots upgrade a launcher instead of being equipment of their own. MegaMek puts
+   * them right after their launcher's slots, so each one goes on that launcher, or else on the first
+   * launcher in the same location it fits that doesn't have one yet.
+   */
+  static void attachMtfFireControl(List<UnitEquipment> weapons, Map<String, List<String>> slots) {
+    slots.forEach((location, names) -> {
+      Location here = Location.fromString(location);
+      List<UnitEquipment> launchers = weapons.stream().filter(weapon -> weapon.getLocation() == here).toList();
+      String previous = null;
+      FireControl lastFireControl = null;
+      int run = 0;
+      for(String slot : names) {
+        String name = SlotName.of(slot).name();
+        FireControl fireControl = FireControl.fromEquipmentName(name);
+        if(fireControl == null) {
+          previous = name;
+          lastFireControl = null;
+          continue;
+        }
+        // a multi-slot system (Artemis V) repeats once per slot; only its first slot counts
+        run = fireControl == lastFireControl ? run + 1 : 0;
+        lastFireControl = fireControl;
+        if(run % fireControl.getSlots() == 0 && !attachFireControl(fireControl, launchers, previous)) {
+          log.debug("{} in {} has no launcher to go on", slot, location);
+        }
+      }
+    });
+  }
+
+  /** Puts the fire control on the launcher named `previous`, or else the first one it fits. */
+  private static boolean attachFireControl(FireControl fireControl, List<UnitEquipment> launchers, String previous) {
+    UnitEquipment target = null;
+    for(UnitEquipment launcher : launchers) {
+      String name = launcher.getEquipment().getName();
+      if(launcher.getFireControl() == null && fireControl.fits(name)) {
+        if(previous != null && comparable(previous).equals(comparable(name))) {
+          target = launcher;
+          break;
+        }
+        if(target == null) {
+          target = launcher;
+        }
+      }
+    }
+    if(target != null) {
+      target.setFireControl(fireControl);
+    }
+    return target != null;
+  }
 
   /**
    * Ammo and equipment from the critical slots. Each ammo slot is one ton, so ammo is counted per

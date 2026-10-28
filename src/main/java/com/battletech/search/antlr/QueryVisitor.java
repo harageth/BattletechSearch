@@ -3,6 +3,7 @@ package com.battletech.search.antlr;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.EquipmentDecorator;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
@@ -78,8 +79,14 @@ public class QueryVisitor implements BattletechVisitor {
       if(logicObject != null) {
         realDecorator.setOperator((LogicalOperator) logicObject);
       }
+      // "artemis lrm 20": look up the launcher, and only count ones with that fire control
+      String lookup = EquipmentNames.normalize(equip);
+      FireControl.Filter fireControl = FireControl.fromSearch(lookup);
+      if(fireControl != null) {
+        lookup = fireControl.launcher();
+      }
       // validate equipment type
-      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(EquipmentNames.normalize(equip))) {
+      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(lookup)) {
         if(first) {
           first = false;
         }else {
@@ -87,6 +94,7 @@ public class QueryVisitor implements BattletechVisitor {
           realDecorator = decorator;
         }
         realDecorator.setEquipment(thing);
+        realDecorator.setFireControls(fireControl == null ? null : fireControl.fireControls());
         String comparator = (String) this.visitComparator(node.comparator());
         if(comparator == null || comparator.isEmpty()) {
           realDecorator.buildComparison(node.QUANTITY().getText(), null);

@@ -15,6 +15,7 @@ import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.EquipmentDecorator;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.UnitDecorator;
 import com.battletech.search.model.WeightClass;
@@ -172,6 +173,22 @@ class QueryVisitorTest {
     assertThat(names(parse("mechs with 2 Streak SRM 6"))).containsExactly("streaksrm6");
     assertThat(chunk(parse("mechs with 4 or more ac 20"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
     assertThat(names(parse("mechs with 4 or more ac 20"))).containsExactly("ac20");
+  }
+
+  @Test
+  void fireControlNarrowsALauncher() {
+    EquipmentDecorator artemis = chunk(parse("mechs with 2 artemis lrm 20"), 0);
+    assertThat(artemis.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(artemis.getFireControls()).containsExactlyInAnyOrder(FireControl.ARTEMIS_IV, FireControl.ARTEMIS_V);
+    assertThat(artemis.getQuery()).contains("AND fire_control IN ('ARTEMIS_IV', 'ARTEMIS_V')");
+
+    assertThat(chunk(parse("mechs with at least 1 Artemis IV SRM 6"), 0).getFireControls())
+        .containsExactly(FireControl.ARTEMIS_IV);
+    assertThat(chunk(parse("mechs with 1 apollo mrm 40"), 0).getFireControls()).containsExactly(FireControl.APOLLO);
+
+    EquipmentDecorator plain = chunk(parse("mechs with 2 lrm 20"), 0);
+    assertThat(plain.getFireControls()).isNull();
+    assertThat(plain.getQuery()).doesNotContain("fire_control");
   }
 
   @Test
