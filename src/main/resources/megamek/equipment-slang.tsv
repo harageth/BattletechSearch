@@ -1,0 +1,4 @@
+# Hand-maintained shorthand for equipment names, on top of the generated equipment-aliases.tsv:
+# shorthand<TAB>MegaMek display name. Like the aliases, these are meant to move into equipment_slang later.
+ams	Anti-Missile System
+jj	Jump Jet

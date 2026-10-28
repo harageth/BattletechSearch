@@ -4,6 +4,8 @@ import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.search.Comparison;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.model.search.QuantityConverter;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;
@@ -65,21 +67,19 @@ public class EquipmentDecorator extends UnitEquipment {
 
   @Override
   public String getQuery() {
-    // Each matching equipment row (e.g. IS and Clan variants) is counted separately and the
-    // results are UNIONed, so "at least 3" means at least 3 of a single variant.
-    String query = "";
-    if(decoratedEquipment != null){
-      query = decoratedEquipment.getQuery();
+    // Every matching equipment row (e.g. the IS and Clan medium laser) is counted together, so
+    // "at least 4 medium laser" counts a mixed-tech mech's IS and Clan lasers. "clan medium laser"
+    // narrows the rows to one tech before this (QueryVisitor).
+    List<String> ids = new LinkedList<>();
+    for(UnitEquipment equip = this; equip != null;
+        equip = equip instanceof EquipmentDecorator decorator ? decorator.getDecoratedEquipment() : null) {
+      ids.add("'" + equip.getEquipment().getId() + "'");
     }
-    StringBuilder builder = new StringBuilder("");
-    if(!query.isEmpty()) {
-      builder.append(
-          query
-              + " UNION ");
-    }
-    builder.append("SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '");
-    builder.append(this.getEquipment().getId());
-    builder.append("'");
+    StringBuilder builder = new StringBuilder();
+    builder.append("SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id IN (");
+    // ids from the equipment table, not user text
+    builder.append(String.join(", ", ids));
+    builder.append(")");
     if(fireControls != null && !fireControls.isEmpty()) {
       // enum names, not user text
       builder.append(" AND fire_control IN (")

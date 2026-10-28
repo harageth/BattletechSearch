@@ -177,6 +177,27 @@ class QueryVisitorTest {
   }
 
   @Test
+  void techIsOptional() {
+    Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
+    Equipment clanPpc = equipment("ppc", Tech.CLAN);
+    when(equipRepo.findAllByNameOrSlang(eq("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
+
+    // without a tech, IS and Clan PPCs are counted together in one group
+    String query = chunk(parse("mechs with at least 4 ppc"), 0).getQuery();
+    assertThat(query).contains("equipment_id IN ('" + clanPpc.getId() + "', '" + isPpc.getId() + "')");
+    assertThat(query).doesNotContain("UNION");
+
+    EquipmentDecorator clan = chunk(parse("mechs with at least 4 clan ppc"), 0);
+    assertThat(clan.getEquipment()).isSameAs(clanPpc);
+    assertThat(clan.getDecoratedEquipment()).isNull();
+    assertThat(chunk(parse("mechs with at least 4 IS ppc"), 0).getEquipment()).isSameAs(isPpc);
+    assertThat(chunk(parse("mechs with at least 4 inner sphere ppc"), 0).getEquipment()).isSameAs(isPpc);
+    // the mock's equipment is IS by default
+    assertThat(chunk(parse("mechs with 2 is artemis lrm 20"), 0).getFireControls())
+        .containsExactlyInAnyOrder(FireControl.ARTEMIS_IV, FireControl.ARTEMIS_V);
+  }
+
+  @Test
   void fireControlNarrowsALauncher() {
     EquipmentDecorator artemis = chunk(parse("mechs with 2 artemis lrm 20"), 0);
     assertThat(artemis.getEquipment().getName()).isEqualTo("lrm20");

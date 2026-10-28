@@ -52,6 +52,15 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void handWrittenShorthand() {
+    assertThat(EquipmentNames.canonical("ams")).isEqualTo("anti-missilesystem");
+    assertThat(EquipmentNames.canonical("AMS")).isEqualTo("anti-missilesystem");
+    assertThat(EquipmentNames.canonical("jj")).isEqualTo("jumpjet");
+    assertThat(EquipmentNames.canonical("Jump Jet")).isEqualTo("jumpjet");
+    assertThat(EquipmentNames.canonical("VehicleJumpJet")).isEqualTo("jumpjet");
+  }
+
+  @Test
   void unknownNamesAreJustNormalized() {
     assertThat(EquipmentNames.canonical("Nonexistent Gun")).isEqualTo("nonexistentgun");
     assertThat(EquipmentNames.canonical("ml")).isEqualTo("ml");

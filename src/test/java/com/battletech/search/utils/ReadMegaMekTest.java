@@ -185,6 +185,18 @@ class ReadMegaMekTest {
   }
 
   @Test
+  void jumpJetsAreCountedBySlotSize() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // improved jump jets take two slots, and one can be split across locations
+    slots.put("left torso", List.of("Jump Jet", "Jump Jet", "Improved Jump Jet"));
+    slots.put("right torso", List.of("Improved Jump Jet", "Improved Jump Jet", "Improved Jump Jet"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+        .extracting(equip -> equip.getEquipment().getName())
+        .containsExactly("jumpjet", "jumpjet", "improvedjumpjet", "improvedjumpjet");
+  }
+
+  @Test
   void weaponsTakeTheUnitTech() throws IOException {
     // weapon lines don't say IS or Clan, so each weapon gets the mech's tech
     assertThat(mech("Mad Cat (Timber Wolf) Prime.mtf").getMechEquipment())

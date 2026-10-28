@@ -450,22 +450,43 @@ public class ReadMegaMek {
     return target != null;
   }
 
+  // Equipment counted by how many slots one takes (jump jets: one per jump MP)
+  private static final Map<String, Integer> SLOTS_PER_ITEM = Map.of(
+      "jumpjet", 1, "prototypejumpjet", 1, "improvedjumpjet", 2, "prototypeimprovedjumpjet", 2);
+
   /**
    * Ammo and equipment from the critical slots. Each ammo slot is one ton, so ammo is counted per
-   * slot. Equipment can span several slots and locations, so each item is counted once per mech.
+   * slot; jump jets by their slot size. Other equipment can span several slots and locations, so
+   * each item is counted once per mech.
    */
   static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, Tech chassisTech) {
     List<UnitEquipment> equipment = new LinkedList<>();
     Set<String> seen = new HashSet<>();
+    // multi-slot jump jets can be split across locations, so count slots per mech
+    Map<String, Integer> slotCounts = new LinkedHashMap<>();
+    Map<String, SlotName> countedNames = new HashMap<>();
+    Map<String, String> countedLocations = new HashMap<>();
     slots.forEach((location, names) -> {
       for(String slot : names) {
         SlotName name = SlotName.of(slot);
         Tech tech = name.tech() != null ? name.tech() : chassisTech;
         String comparable = comparable(name.name());
-        if(comparable.contains("ammo")
+        if(SLOTS_PER_ITEM.containsKey(comparable)) {
+          slotCounts.merge(comparable, 1, Integer::sum);
+          countedNames.putIfAbsent(comparable, name);
+          countedLocations.putIfAbsent(comparable, location);
+        } else if(comparable.contains("ammo")
             || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable))) {
           equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location));
         }
+      }
+    });
+    slotCounts.forEach((comparable, count) -> {
+      SlotName name = countedNames.get(comparable);
+      Tech tech = name.tech() != null ? name.tech() : chassisTech;
+      for(int i = 0; i < count / SLOTS_PER_ITEM.get(comparable); i++) {
+        // recorded at the first location it's in
+        equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), countedLocations.get(comparable)));
       }
     });
     return equipment;

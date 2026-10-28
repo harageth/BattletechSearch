@@ -165,6 +165,18 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void techIsOptionalInSearches() throws IOException {
+    importMechs();
+    entityManager.flush();
+
+    // the Black Knight BL-6-RR is mixed tech: four Clan ER medium lasers, two IS large lasers
+    assertThat(search("mechs with exactly 4 er medium laser")).contains("Black Knight BL-6-RR");
+    assertThat(search("mechs with exactly 4 clan er medium laser")).contains("Black Knight BL-6-RR");
+    assertThat(search("mechs with at least 1 is er medium laser")).doesNotContain("Black Knight BL-6-RR");
+    assertThat(search("mechs with exactly 2 inner sphere large laser")).contains("Black Knight BL-6-RR");
+  }
+
+  @Test
   void variantsCanShareAMulId() {
     // MUL ids aren't unique: variants of one unit share it
     jdbcTemplate.update("INSERT INTO unit (id, name, designation, mul_id, omni, rules_level, weight,"

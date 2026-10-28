@@ -5,6 +5,7 @@ import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.model.FireControl;
 import com.battletech.search.entities.Unit;
+import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
@@ -12,8 +13,10 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
@@ -31,6 +34,14 @@ import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class QueryVisitor implements BattletechVisitor {
+  // a leading tech word on an equipment name, as typed (lowercase, spaced); longest first
+  private static final Map<String, Tech> TECH_PREFIXES = new LinkedHashMap<>();
+  static {
+    TECH_PREFIXES.put("inner sphere ", Tech.INNER_SPHERE);
+    TECH_PREFIXES.put("clan ", Tech.CLAN);
+    TECH_PREFIXES.put("is ", Tech.INNER_SPHERE);
+  }
+
   Vocabulary vocab;
   EquipmentSlangRepository slangRepo;
   EquipmentRepository equipRepo;
@@ -79,14 +90,29 @@ public class QueryVisitor implements BattletechVisitor {
       if(logicObject != null) {
         realDecorator.setOperator((LogicalOperator) logicObject);
       }
+      // tech is optional: "medium laser" counts IS and Clan ones together, "clan medium laser" only Clan
+      Tech tech = null;
+      String named = equip;
+      for(Map.Entry<String, Tech> prefix : TECH_PREFIXES.entrySet()) {
+        if(equip.startsWith(prefix.getKey()) && equip.length() > prefix.getKey().length()) {
+          tech = prefix.getValue();
+          named = equip.substring(prefix.getKey().length());
+          break;
+        }
+      }
       // "artemis lrm 20": look up the launcher, and only count ones with that fire control
-      String lookup = EquipmentNames.normalize(equip);
+      String lookup = EquipmentNames.normalize(named);
       FireControl.Filter fireControl = FireControl.fromSearch(lookup);
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
       // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
-      for(Equipment thing : equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(lookup), lookup)) {
+      List<Equipment> matches = equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(lookup), lookup);
+      if(tech != null) {
+        Tech wanted = tech;
+        matches = matches.stream().filter(match -> match.getTech() == wanted).toList();
+      }
+      for(Equipment thing : matches) {
         if(first) {
           first = false;
         }else {

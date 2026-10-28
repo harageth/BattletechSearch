@@ -16,7 +16,8 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
    - Leading `WORD`s before the unit are joined into a weight class (`ultra light`).
    - Each `equipmentChunk` becomes an `EquipmentDecorator`. Its words are joined, lowercased, and looked up with `EquipmentRepository.findAllByNameOrSlang(canonical, typed)`: the equipment name by `EquipmentNames.canonical` (MegaMek alias table, so `ac 20` = `autocannon 20` = `ac/20`), or an `equipment_slang` row by the normalized typed name. If several rows match (IS and Clan variants), the decorators are chained.
    - `EquipmentDecorator.buildComparison` + `model/search/QuantityConverter` turn the comparator token and quantity into a `Comparison` and an int.
-4. `UnitDecorator.getQuery()` builds the SQL: a `dtype` / `weight_class` filter plus one `id IN (...)` subquery per chunk, joined by the chunk's `and`/`or` (default AND). Each matching variant is counted separately and UNIONed, so "at least 3 ppc" means at least 3 of one variant.
+4. `UnitDecorator.getQuery()` builds the SQL: a `dtype` / `weight_class` filter plus one `id IN (...)` subquery per chunk, joined by the chunk's `and`/`or` (default AND). **Tech is optional** (user decision, 2026-10-27, replacing the earlier per-variant counting): all matching equipment rows (IS, Clan, null tech) are counted together in one `equipment_id IN (...)` group, so "at least 4 medium laser" counts a mixed mech's IS and Clan lasers. A leading `clan` / `is` / `inner sphere` (`QueryVisitor.TECH_PREFIXES`, checked on the typed words before fire control: `clan artemis lrm 20`) keeps only rows of that tech.
+- **Shorthand:** `src/main/resources/megamek/equipment-slang.tsv` (hand-maintained, e.g. `ams`, `jj`) is loaded on top of the generated alias table by `EquipmentNames`. Like the alias table, it's meant to move into `equipment_slang` later.
 
 ## Gotchas
 

@@ -32,8 +32,12 @@ public final class EquipmentNames {
   // "Gauss Rifle Ammo [Clan]": the tech is stored separately
   private static final Pattern TECH_SUFFIX = Pattern.compile("\\s*[\\[(](is|clan)[\\])]$", Pattern.CASE_INSENSITIVE);
 
-  // letters and digits of an alias or display name -> normalized display name
-  private static final Map<String, String> ALIASES = loadAliases("/megamek/equipment-aliases.tsv");
+  // letters and digits of an alias or display name -> normalized display name; the hand-written
+  // shorthand ("ams", "jj") wins over the generated table
+  private static final Map<String, String> ALIASES = new HashMap<>(loadAliases("/megamek/equipment-aliases.tsv"));
+  static {
+    ALIASES.putAll(loadAliases("/megamek/equipment-slang.tsv"));
+  }
 
   private EquipmentNames() {
   }
