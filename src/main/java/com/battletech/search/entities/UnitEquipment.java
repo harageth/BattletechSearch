@@ -1,5 +1,6 @@
 package com.battletech.search.entities;
 
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Searchable;
 import java.util.UUID;
@@ -20,7 +21,8 @@ public class UnitEquipment implements Searchable {
 
   @Enumerated(EnumType.STRING)
   Location location;
-  double tonnage; // might only be relevant for armor
+  // the tons of a variable-size item (cargo, communications equipment) or infantry bay; else 0
+  double tonnage;
 
   @ManyToOne
   Equipment equipment;
@@ -28,6 +30,13 @@ public class UnitEquipment implements Searchable {
   boolean omniPod;
   boolean rearFacing;
   boolean turretEquipped;
+
+  // Artemis / Apollo on a missile launcher; null for everything else
+  @Enumerated(EnumType.STRING)
+  FireControl fireControl;
+
+  // the jump MP a mechanical jump booster adds; null for everything else
+  Integer jumpBoost;
   //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
 
   public UnitEquipment() { }

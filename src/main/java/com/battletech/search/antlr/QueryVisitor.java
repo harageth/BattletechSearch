@@ -3,18 +3,22 @@ package com.battletech.search.antlr;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.EquipmentDecorator;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.entities.Unit;
+import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
+import me.BattletechParser.EquipmentNameContext;
 import me.BattletechParser.LineContext;
 import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
@@ -48,6 +52,12 @@ public class QueryVisitor implements BattletechVisitor {
     return null;
   }
 
+  /** The name as typed, words separated by spaces ("lrm 20"); normalized before the lookup. */
+  @Override
+  public Object visitEquipmentName(EquipmentNameContext ctx) {
+    return ctx.children.stream().map(ParseTree::getText).collect(Collectors.joining(" "));
+  }
+
   @Override
   public Object visitLine(LineContext ctx) {
     Unit unit = (Unit)visitUnit(ctx.unit());
@@ -62,25 +72,40 @@ public class QueryVisitor implements BattletechVisitor {
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 
     for(EquipmentChunkContext node : equipment) {
-      String equip = "";
-      for(TerminalNode equipNode: node.WORD()) {
-        if(equip.isEmpty()) {
-          equip = equipNode.getText();
-        }else {
-          equip = equip + " " + equipNode.getText();
-        }
-      }
+      String equip = ((String) visitEquipmentName(node.equipmentName())).toLowerCase();
       Object logicObject = visitLogicaloperator(node.logicaloperator());
 
-
-      equip = equip.toLowerCase();
       boolean first = true;
       EquipmentDecorator realDecorator = new EquipmentDecorator(null);
       if(logicObject != null) {
         realDecorator.setOperator((LogicalOperator) logicObject);
       }
-      // validate equipment type
-      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(equip)) {
+      // tech is optional: "medium laser" counts IS and Clan ones together, "clan medium laser" only Clan
+      EquipmentNames.TechWord techWord = EquipmentNames.splitTechWord(equip);
+      Tech tech = techWord.tech();
+      String named = techWord.rest();
+      // "artemis lrm 20": look up the launcher, and only count ones with that fire control
+      String lookup = EquipmentNames.normalize(named);
+      FireControl.Filter fireControl = FireControl.fromSearch(lookup);
+      if(fireControl != null) {
+        lookup = fireControl.launcher();
+      }
+      if(tech == null) {
+        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20
+        tech = EquipmentNames.techOf(lookup);
+      }
+      // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
+      List<Equipment> found = equipRepo.findAllByNameInOrSlang(
+          EquipmentNames.equivalentNames(EquipmentNames.canonical(lookup)), lookup);
+      List<Equipment> matches = found;
+      if(tech != null) {
+        Tech wanted = tech;
+        matches = found.stream().filter(match -> match.getTech() == wanted).toList();
+      }
+      // the equipment exists, just not in that tech ("clan plasma rifle"): no unit has it, which
+      // isn't a parse error
+      boolean noneInTech = matches.isEmpty() && !found.isEmpty();
+      for(Equipment thing : noneInTech ? found.subList(0, 1) : matches) {
         if(first) {
           first = false;
         }else {
@@ -88,6 +113,7 @@ public class QueryVisitor implements BattletechVisitor {
           realDecorator = decorator;
         }
         realDecorator.setEquipment(thing);
+        realDecorator.setFireControls(fireControl == null ? null : fireControl.fireControls());
         String comparator = (String) this.visitComparator(node.comparator());
         if(comparator == null || comparator.isEmpty()) {
           realDecorator.buildComparison(node.QUANTITY().getText(), null);
@@ -96,6 +122,7 @@ public class QueryVisitor implements BattletechVisitor {
         }
       }
       if(realDecorator.getEquipment() != null) {
+        realDecorator.setMatchesNothing(noneInTech);
         decorators.add(realDecorator);
       }else {
         throw new FailedParseException("Unable to parse: " + equip);

@@ -5,8 +5,10 @@ import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
+import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.entities.Mech;
 import com.battletech.search.model.Movement;
 import com.battletech.search.model.Tech;
@@ -17,9 +19,15 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -39,15 +47,28 @@ public class ReadMegaMek {
     if (type.equalsIgnoreCase("VTOL")) {
       vee = new Vtol();
     } else if (type.equalsIgnoreCase("Tank")) {
-      vee = new Tank();
-      // not sure exactly how I want to support locomotion type
-      value.get("motion_type").get(0);
+      Tank tank = new Tank();
+      String motion = first(value, "motion_type");
+      tank.setMotiveSystem(motion == null ? null : MotiveSystem.fromString(motion));
+      if(tank.getMotiveSystem() == null) {
+        log.warn("{}: unknown motion_type {}", filePath, motion);
+      }
+      vee = tank;
     } else {
       log.info("Skipping {}: unsupported unit type {}", filePath, type);
       return null;
     }
+    // the type tells us whether it's IS, Clan or mixed tech, e.g. "Mixed (Clan Chassis) Experimental"
+    String techBase = value.get("type").get(0);
+    vee.setTech(Tech.fromTechBase(techBase));
+    // equipment without an IS/Clan prefix is the chassis tech
+    Tech chassisTech = Tech.chassisTech(techBase);
     vee.setName(value.get("name").get(0));
-    vee.setDesignation(value.get("model").get(0));
+    vee.setMegamekUuid(parseUuid(first(value, "uuid")));
+    // the tag is literally <mul id:>
+    vee.setMulId(parseMulId(first(value, "mul id:")));
+    List<String> model = value.get("model");
+    vee.setDesignation(model == null || model.isEmpty() ? "" : model.get(0));
     vee.setWeight(Integer.parseInt(value.get("tonnage").get(0).split("\\.")[0]));
     Movement move = new Movement();
     move.setWalk(Integer.parseInt(value.get("cruisemp").get(0)));
@@ -67,40 +88,36 @@ public class ReadMegaMek {
       // set default internal structure
     }
     if(value.get("front equipment") != null) {
-      List<UnitEquipment> frontEquip = convertToEquipment(value.get("front equipment"),
-          Location.FRONT);
-      vee.setMechEquipment(frontEquip);
+      vee.setMechEquipment(convertToEquipment(value.get("front equipment"), chassisTech, Location.FRONT));
     }
     if(value.get("right equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(
-          value.get("right equipment"),
-          Location.RIGHT));
+      vee.setMechEquipment(convertToEquipment(value.get("right equipment"), chassisTech, Location.RIGHT));
     }
     if(value.get("left equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("left equipment"), Location.LEFT));
+      vee.setMechEquipment(convertToEquipment(value.get("left equipment"), chassisTech, Location.LEFT));
     }
     if(value.get("rear equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("rear equipment"), Location.REAR));
+      vee.setMechEquipment(convertToEquipment(value.get("rear equipment"), chassisTech, Location.REAR));
     }
-    if(value.get("body") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("body equipment"), Location.BODY));
+    if(value.get("body equipment") != null) {
+      vee.setMechEquipment(convertToEquipment(value.get("body equipment"), chassisTech, Location.BODY));
     }
     if(value.get("rear turret equipment") != null) {
       if(value.get("front turret equipment") != null) {
         vee.setMechEquipment(
-            convertToEquipment(value.get("front turret equipment"), Location.FRONTTURRET));
+            convertToEquipment(value.get("front turret equipment"), chassisTech, Location.FRONTTURRET));
       }
       vee.setMechEquipment(
-          convertToEquipment(value.get("rear turret equipment"), Location.REARTURRET));
+          convertToEquipment(value.get("rear turret equipment"), chassisTech, Location.REARTURRET));
     }else {
       if(value.get("turret equipment") != null) {
         vee.setMechEquipment(
-            convertToEquipment(value.get("turret equipment"), Location.FRONTTURRET));
+            convertToEquipment(value.get("turret equipment"), chassisTech, Location.FRONTTURRET));
       }
     }
 
     if(value.get("transporters") != null && !value.get("transporters").get(0).isEmpty()){
-      Equipment equip = new Equipment("infantry bay");
+      Equipment equip = new Equipment("infantry bay", chassisTech);
       equip.setTonnage(0.5);
       UnitEquipment infantryBay = new UnitEquipment();
       infantryBay.setEquipment(equip);
@@ -109,61 +126,22 @@ public class ReadMegaMek {
       vee.setMechEquipment(Collections.singletonList(infantryBay));
     }
 
-
-    String techType = value.get("type").get(0); // tells us whether its IS, Clan or Mixed Tech
-    if(techType.contains("is")) {
-      vee.setTech(Tech.INNER_SPHERE);
-    }else if(techType.contains("cl")) {
-      vee.setTech(Tech.CLAN);
-    }else if(techType.contains("mixed tech")) {
-      vee.setTech(Tech.MIXED_TECH);
-    }
-    //value.get("fueltype").get(0);
-    /*
-    String unitType = readBlkParameter("UnitType", reader).get(0);
-    String name = readBlkParameter("Name", reader).get(0);
-    String model = readBlkParameter("Model", reader).get(0);
-    String tonnage = readBlkParameter("Tonnage", reader).get(0);
-    String cruiseMp = readBlkParameter("cruiseMP", reader).get(0);
-    List<String> armor = readBlkParameter("armor", reader);
-
-    List<String> frontEquipment = readBlkParameter("Front Equipment", reader);
-    List<String> rightEquipment = readBlkParameter("Right Equipment", reader);
-    List<String> leftEquipment = readBlkParameter("Left Equipment", reader);
-    List<String> rearEquipment = readBlkParameter("Rear Equipment", reader);
-    List<String> bodyEquipment = readBlkParameter("Body Equipment", reader);
-    List<String> rearTurretEquipment = readBlkParameter("Rear Turret Equipment", reader);
-    List<String> frontTurretEquipment = readBlkParameter("Front Turret Equipment", reader);
-
-    String type = readBlkParameter("type", reader).get(0);
-  */
-
     return vee;
   }
 
-  static List<String> readBlkParameter(String paramName, BufferedReader reader) throws IOException {
-    boolean loop = true;
-    List<String> returnList = new LinkedList();
-    while(loop) {
-      String temp = reader.readLine();
-      if(!temp.isEmpty()) {
-        if (temp.equalsIgnoreCase("<"+paramName+">")) {
-          returnList.add(reader.readLine());
-        } else if(temp.equalsIgnoreCase("</"+paramName+">")) {
-          loop = false;
-        }
-      }
-    }
-    return returnList;
-  }
-
-  static List<UnitEquipment> convertToEquipment(List<String> equipment, Location location) {
+  static List<UnitEquipment> convertToEquipment(List<String> equipment, Tech chassisTech, Location location) {
     List<UnitEquipment> returnEquipment = new LinkedList<UnitEquipment>();
+    List<FireControl> unattached = new LinkedList<>();
     for(String equip: equipment) {
       UnitEquipment value = new UnitEquipment();
       value.setEquipment(new Equipment());
       value.setLocation(location);
-      equip.toLowerCase().replaceAll("\\s", "");
+      equip = equip.toLowerCase();
+      // "communications equipment:size:4.0": the size goes on this unit's item, not in the name
+      Double size = sizeOf(equip);
+      if(size != null) {
+        equip = equip.substring(0, equip.indexOf(":size:"));
+      }
       // there is a problem if something is both rear facing and omni equipped
       if(equip.endsWith(":omni")) {
         value.setOmniPod(true);
@@ -193,14 +171,32 @@ public class ReadMegaMek {
           value.getEquipment().setName(equip.substring(2).strip());
         }
       } else {
+        value.getEquipment().setTech(chassisTech);
         value.getEquipment().setName(equip);
       }
+      setSize(value, value.getEquipment().getName(), size);
+      // Artemis / Apollo upgrade the launcher listed before them rather than being equipment
+      FireControl fireControl = FireControl.fromEquipmentName(value.getEquipment().getName());
+      if(fireControl != null) {
+        String previous = returnEquipment.isEmpty() ? null : returnEquipment.get(returnEquipment.size() - 1).getEquipment().getName();
+        if(!attachFireControl(fireControl, returnEquipment, previous)) {
+          unattached.add(fireControl);
+        }
+        continue;
+      }
       returnEquipment.add(value);
+    }
+    // the few listed before their launcher
+    for(FireControl fireControl : unattached) {
+      if(!attachFireControl(fireControl, returnEquipment, null)) {
+        log.debug("{} at {} has no launcher to go on", fireControl, location);
+      }
     }
 
     return returnEquipment;
   }
 
+  /** Every <tag> in a .blk file, keyed by lowercase tag name. Values keep their original case. */
   static Map<String, List<String>> readBlkAllParameters(BufferedReader reader) throws IOException {
     boolean loop = true;
     Map<String, List<String>> parameters = new HashMap();
@@ -213,15 +209,22 @@ public class ReadMegaMek {
       }
       if(!temp.isEmpty()) {
         if(temp.equalsIgnoreCase("</"+paramName+">")) {
-          //loop = false;
           parameters.put(paramName, parameterList);
           parameterList = new LinkedList();
+        } else if (temp.startsWith("<") && temp.indexOf("</") > 0) {
+          // a whole tag on one line, e.g. "<Model></Model>" for an empty value
+          int open = temp.indexOf('>');
+          String value = temp.substring(open + 1, temp.indexOf("</")).trim();
+          List<String> values = new LinkedList<>();
+          if(!value.isEmpty()) {
+            values.add(value);
+          }
+          parameters.put(temp.substring(1, open).toLowerCase(), values);
         } else if (temp.startsWith("<")) {
           paramName = temp.substring(1, temp.length()-1).toLowerCase();
-          // returnList.add(reader.readLine());
         }else {
           if(!temp.startsWith("#")) {
-            parameterList.add(temp.toLowerCase());
+            parameterList.add(temp);
           }
         }
       }
@@ -230,198 +233,354 @@ public class ReadMegaMek {
     return parameters;
   }
 
+  /**
+   * Reads a MegaMek .mtf file. Current files start with a "#" license block, then "key:value"
+   * lines (chassis:, model:, techbase:, mass:, ...), the armor values, "Weapons:N" followed by N
+   * "name, location" lines, then the critical slots per location.
+   */
   public static Unit ReadMechMTF(File filePath) throws IOException {
+    List<String> lines;
+    try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+      lines = reader.lines().filter(line -> !line.startsWith("#")).toList();
+    }
+    Map<String, String> fields = readMtfFields(lines);
 
     Mech mech = new Mech();
-    BufferedReader reader = new BufferedReader(new FileReader(filePath));
-    String version = reader.readLine();
-    String name = reader.readLine();
-    String designation = reader.readLine();
+    String name = requiredField(fields, "chassis", filePath);
+    String designation = fields.getOrDefault("model", "");
     mech.setName(name);
+    mech.setMegamekUuid(parseUuid(fields.get("uuid")));
+    mech.setMulId(parseMulId(fields.get("mul id")));
     if(designation.isEmpty()) {
       mech.setDesignation(name + " prime");// or is it base?
     }else {
       mech.setDesignation(designation);
     }
-    String[] config = readParameter("config:", reader).split(" ");
-
-    mech.setLocomotion(Locomotion.fromString(config[0]));
-    String techBase = readParameter("techbase:", reader);
-    mech.setTech(Tech.fromString(techBase)); // (IS Chassis) or (Clan Chassis)
-
-    String era = readParameter("era:", reader);
-    mech.setEra(era);
-    String rulesLevel = readParameter("rules level:", reader);
-    mech.setRulesLevel(Integer.parseInt(rulesLevel));
-    String mass = readParameter("mass:", reader);
-    mech.setWeight(Integer.parseInt(mass));
-    String engine = readParameter("engine:", reader);
-    mech.setEngine(engine);
-    String structure = readParameter("structure:", reader);
-    mech.setStructure(structure);
-    String myomer = readParameter("myomer:", reader);
-    mech.setMyomer(myomer);
-    //mech.setEjection(readParameter("ejection:", reader));
-
-
-    String heatsinks = readParameter("heat sinks:", reader);
-    mech.setHeatsinks(heatsinks);
-    String walkMP = readParameter("walk mp:", reader);
+    // e.g. "Biped", "Biped OmniMek", "Quad"
+    mech.setLocomotion(Locomotion.fromString(requiredField(fields, "config", filePath).split(" ")[0]));
+    String techBase = requiredField(fields, "techbase", filePath);
+    mech.setTech(Tech.fromTechBase(techBase));
+    mech.setEra(fields.get("era")); // now a year, e.g. 2755
+    mech.setRulesLevel(Integer.parseInt(requiredField(fields, "rules level", filePath)));
+    mech.setWeight(Integer.parseInt(requiredField(fields, "mass", filePath)));
+    mech.setEngine(fields.get("engine"));
+    mech.setStructure(fields.get("structure"));
+    mech.setMyomer(fields.get("myomer"));
+    // tech has to be set first; heat sinks copy it
+    mech.setHeatsinks(requiredField(fields, "heat sinks", filePath));
     Movement move = new Movement();
-    move.setWalk(Integer.parseInt(walkMP));
-    String jumpMP = readParameter("jump mp:", reader);
-    move.setJump(Integer.parseInt(jumpMP));
+    move.setWalk(Integer.parseInt(requiredField(fields, "walk mp", filePath)));
+    move.setJump(Integer.parseInt(requiredField(fields, "jump mp", filePath)));
     mech.setMovement(move);
+    // armor isn't imported yet
 
-    // armor is supposed to be a piece of equipment
-    String armorType = readParameter("armor:", reader);
-    int totalArmor = getTotalArmor(reader);
-    //gonna ignore armor for a moment
-    //mech.setArmor(armorType, totalArmor);
-
-    int numWeapons = Integer.parseInt(readParameter("weapons:", reader));
-    mech.setMechEquipment(getWeapons(numWeapons, reader));
-
-    // save off the mech
-
-    /*
-    name
-    config: biped/quad
-    techbase:
-    era:
-    source: IGNORE
-    Rules level:
-
-    Mass:
-    engine:
-    structure
-    myomer
-    ejection
-
-    heat sinks
-    walk mp
-    jump mp
-
-    armor:
-    LA armor:15
-    RA armor:20
-    LT armor:23
-    RT armor:23
-    CT armor:31
-    HD armor:9
-    LL armor:28
-    RL armor:28
-    RTL armor:7
-    RTR armor:7
-    RTC armor:10
-
-    weapons: #
-    weapon, location
-    .
-    .
-    .
-
-    Left Arm:
-    all slots
-
-    Right arm:
-    all slots
-
-    Left Torso:
-    all slots
-
-    Right Torso:
-    all slots
-
-    center torso:
-    all slots
-
-    head:
-    all slots
-
-    Left leg:
-    all slots
-
-    right leg:
-    all slots
-
-
-    manufacturers
-     */
-
-
-
-
-
-
-    reader.close();
-
+    Tech chassisTech = Tech.chassisTech(techBase);
+    List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, chassisTech);
+    Map<String, List<String>> slots = readMtfSlots(lines);
+    attachMtfFireControl(equipment, slots);
+    equipment.addAll(readMtfSlotEquipment(slots, chassisTech));
+    mech.setMechEquipment(equipment);
     return mech;
   }
 
-  static String readParameter(String paramName, BufferedReader reader) throws IOException {
-    while(true) {
-      String parameter = reader.readLine();
-      if(!parameter.isEmpty()) {
-        if(parameter.toLowerCase().startsWith(paramName)) { // probably replace these with regex's
-          return parameter.substring(paramName.length());
-        }
-      }
-    }
-  }
-
-  static int getTotalArmor(BufferedReader reader) throws IOException {
-    int totalArmor = 0;
-    while(true) {
-      String line = reader.readLine();
-      if(!line.isEmpty()) {
-        String[]items = line.split(":");
-        totalArmor = totalArmor + Integer.parseInt(items[1]);
-      }else {
+  /** The "key:value" lines before the weapons list, keyed by lowercase key. The first value wins. */
+  static Map<String, String> readMtfFields(List<String> lines) {
+    Map<String, String> fields = new HashMap<>();
+    for(String line : lines) {
+      if(line.toLowerCase().startsWith("weapons:")) {
         break;
       }
-    }
-    return totalArmor;
-  }
-
-  static List<UnitEquipment> getWeapons(int numWeapons, BufferedReader reader) throws IOException {
-    List<UnitEquipment> list = new LinkedList();
-
-    for(int i = 0; i < numWeapons; i++) {
-      String[] equipment = reader.readLine().split(", ");
-      try {
-        String[] quantityTest = equipment[0].split(" ");
-        StringBuilder equipmentName = new StringBuilder();
-        int quantity = Integer.parseInt(quantityTest[0]);
-        for(int j = 1; j < quantityTest.length; j++) {
-          equipmentName.append(quantityTest[j]);
-        }
-        for(int j = 0; j < quantity; j++) {
-          Tech tech = getTechType(equipmentName.toString().toLowerCase().replaceAll("\\s", ""));
-          if(tech != null) {
-            equipmentName.replace(0, 2, "");
-          }
-          list.add(new UnitEquipment(new Equipment(equipmentName.toString().toLowerCase().replaceAll("\\s", ""), tech), equipment[1]));
-        }
-      } catch(NumberFormatException e) {
-        Tech tech = getTechType(equipment[0]);
-        if(tech != null) {
-          equipment[0] = equipment[0].substring(2);
-        }
-        list.add(new UnitEquipment(new Equipment(equipment[0].toLowerCase().replaceAll("\\s", ""), getTechType(equipment[0])), equipment[1]));
+      int colon = line.indexOf(':');
+      if(colon > 0) {
+        fields.putIfAbsent(line.substring(0, colon).trim().toLowerCase(), line.substring(colon + 1).trim());
       }
     }
-    return list;
+    return fields;
   }
 
-  public static Tech getTechType(String equipment) {
-    if(equipment.toLowerCase().startsWith("is")) {
-      return Tech.INNER_SPHERE;
-
-    }else if(equipment.toLowerCase().startsWith("cl")) {
-      return Tech.CLAN;
+  private static String requiredField(Map<String, String> fields, String key, File filePath) throws IOException {
+    String value = fields.get(key);
+    if(value == null || value.isEmpty()) {
+      throw new IOException(filePath + " has no " + key + ": line");
     }
+    return value;
+  }
 
+  /**
+   * The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso".
+   * Weapon lines don't say IS or Clan; the critical slots do ("CLERMediumLaser"), so a weapon that
+   * matches a prefixed slot in its location gets that tech, and anything else the chassis tech.
+   */
+  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath, Tech chassisTech) throws IOException {
+    Map<String, List<String>> slots = readMtfSlots(lines);
+    List<UnitEquipment> weapons = new LinkedList<>();
+    for(int i = 0; i < lines.size(); i++) {
+      if(lines.get(i).toLowerCase().startsWith("weapons:")) {
+        int count = Integer.parseInt(lines.get(i).substring("weapons:".length()).trim());
+        for(int j = 1; j <= count; j++) {
+          String line = lines.get(i + j);
+          // the name can contain ", " itself, so the location is after the last one
+          int split = line.lastIndexOf(", ");
+          if(split < 0) {
+            throw new IOException(filePath + ": weapon line without a location: " + line);
+          }
+          String name = line.substring(0, split);
+          String location = line.substring(split + 2);
+          Tech tech = slotTech(slots.getOrDefault(location.toLowerCase(), List.of()), name);
+          String weapon = EquipmentNames.normalize(name);
+          weapons.add(new UnitEquipment(new Equipment(weapon, tech != null ? tech : chassisTech), location));
+        }
+        return weapons;
+      }
+    }
+    throw new IOException(filePath + " has no weapons: line");
+  }
+
+  /**
+   * Critical slot names per location, in file order ("left arm" -> ["Shoulder", ..., "CLERMediumLaser"]).
+   * The location sections come after the weapons list.
+   */
+  static Map<String, List<String>> readMtfSlots(List<String> lines) {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    List<String> current = null;
+    boolean afterWeapons = false;
+    for(String line : lines) {
+      String trimmed = line.trim();
+      if(trimmed.toLowerCase().startsWith("weapons:")) {
+        afterWeapons = true;
+      } else if(!afterWeapons) {
+        continue;
+      } else if(trimmed.isEmpty()) {
+        current = null;
+      } else if(trimmed.endsWith(":")) {
+        current = new LinkedList<>();
+        slots.put(trimmed.substring(0, trimmed.length() - 1).toLowerCase(), current);
+      } else if(current != null) {
+        current.add(trimmed);
+      }
+    }
+    return slots;
+  }
+
+  // How a slot is mounted, not what's in it; (T) is turret-mounted
+  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // a variable-size item's size, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
+  private static final Pattern SIZE = Pattern.compile("(:omni)?:size:([0-9.]+)$", Pattern.CASE_INSENSITIVE);
+
+  /** The ":SIZE:n" of a variable-size item, or null. */
+  static Double sizeOf(String name) {
+    Matcher size = SIZE.matcher(name);
+    return size.find() ? Double.valueOf(size.group(2)) : null;
+  }
+
+  // Variable-size items whose size is tons. What the size measures depends on the item (MegaMek's
+  // MiscType.sizeSuffix): jump MP for a jump booster, drones for a drone carrier, theaters for MASH,
+  // meters for a ladder.
+  private static final Set<String> SIZED_IN_TONS = Set.of("cargo", "liquidstorage", "communicationsequipment");
+
+  /** Stores a variable size where it belongs: tons in tonnage, a jump booster's MP in jumpBoost. */
+  static void setSize(UnitEquipment item, String name, Double size) {
+    if(size == null) {
+      return;
+    }
+    String comparable = comparable(name);
+    if(SIZED_IN_TONS.contains(comparable)) {
+      item.setTonnage(size);
+    } else if(comparable.equals("mechanicaljumpbooster")) {
+      item.setJumpBoost(size.intValue());
+    }
+    // drones, MASH theaters, ladder meters and support-vehicle infantry weapons aren't kept yet
+  }
+
+  /**
+   * A slot name split into its IS/Clan prefix (null if none), the rest, and the size of a
+   * variable-size item (null if it isn't one).
+   */
+  record SlotName(Tech tech, String name, Double size) {
+    static SlotName of(String slot) {
+      // a slot holding two half tons of ammo lists both, "CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)"
+      String first = slot.split("\\|")[0];
+      Double size = sizeOf(first);
+      String cleaned = SIZE.matcher(SLOT_MOUNTING.matcher(first).replaceAll("")).replaceAll("").trim();
+      // "Clan Gauss Ammo" and "ClanImprovedLRM20Ammo"
+      if(cleaned.startsWith("Clan")) {
+        return new SlotName(Tech.CLAN, cleaned.substring(4).strip(), size);
+      } else if(cleaned.startsWith("CL")) {
+        return new SlotName(Tech.CLAN, cleaned.substring(2), size);
+      } else if(cleaned.startsWith("IS")) {
+        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2), size);
+      }
+      return new SlotName(null, cleaned, size);
+    }
+  }
+
+  /** The tech of a slot naming this weapon with an IS/Clan prefix, or null if there isn't one. */
+  static Tech slotTech(List<String> slots, String weapon) {
+    String wanted = comparable(weapon);
+    for(String slot : slots) {
+      SlotName name = SlotName.of(slot);
+      if(name.tech() != null && comparable(name.name()).equals(wanted)) {
+        return name.tech();
+      }
+    }
     return null;
+  }
+
+  /*
+   * Equipment that only shows up in the critical slots, not the weapons list (by comparable name).
+   * An allow-list because slots also repeat every weapon, often under a different name than the
+   * weapons list uses ("LBXAC10" for "LB 10-X AC", "Autocannon/20" for "AC/20"), and there's no way
+   * to tell those apart from equipment without MegaMek's equipment tables. C3 master computers are
+   * left out because some mechs also list them as weapons.
+   */
+  private static final Pattern SLOT_EQUIPMENT = Pattern.compile("^(targetingcomputer|case|caseii"
+      + "|(industrial)?triplestrengthmyomer|masc|supercharger|.*ecmsuite|.*activeprobe"
+      + "|c3iunit|c3slaveunit|c3boostedsystemslaveunit|hatchet|sword|claw|mace|chainsaw|retractableblade"
+      + "|aes|.*nullsignaturesystem|chameleonlightpolarizationshield|partialwing|umu|antipersonnelpod"
+      + "|coolantpod|ppccapacitor|searchlight|environmentalsealing.*|lifthoistarrestinghoist"
+      // physical and industrial
+      + "|lance|talons|spikes|(small|medium|large)vibroblade|chainwhip|flail|ramplate|wreckingball"
+      + "|rockcutter|dualsaw|miningdrill|(heavyduty)?piledriver|salvagearm|backhoe|combine|spotwelder"
+      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield"
+      // electronics and defensive systems
+      + "|mekvoidsignaturesystem|radicalheatsinksystem|harjel.*|supercooledmyomer|novacews"
+      + "|c3emergencymaster|c3sensors|collapsiblecommandmodule|droneoperatingsystem"
+      + "|remotedronecommandconsole|remotesensordispenser|electronicwarfareequipment|mass"
+      + "|vehicularminedispenser|blueshieldparticlefielddamper|laserinsulator|chaffpod"
+      // not the RISC hyper laser or point defense system, which are weapons
+      + "|riscviraljammer.*|risclaserpulsemodule|riscemergencycoolantsystem"
+      + "|boobytrap|bombbay|mechanicaljumpbooster|communicationsequipment|groundmobilehpg"
+      + "|paramedicequipment|reconcamera)$");
+
+  /**
+   * Artemis / Apollo slots upgrade a launcher instead of being equipment of their own. MegaMek puts
+   * them right after their launcher's slots, so each one goes on that launcher, or else on the first
+   * launcher in the same location it fits that doesn't have one yet.
+   */
+  static void attachMtfFireControl(List<UnitEquipment> weapons, Map<String, List<String>> slots) {
+    slots.forEach((location, names) -> {
+      Location here = Location.fromString(location);
+      List<UnitEquipment> launchers = weapons.stream().filter(weapon -> weapon.getLocation() == here).toList();
+      String previous = null;
+      FireControl lastFireControl = null;
+      int run = 0;
+      for(String slot : names) {
+        String name = SlotName.of(slot).name();
+        FireControl fireControl = FireControl.fromEquipmentName(name);
+        if(fireControl == null) {
+          previous = name;
+          lastFireControl = null;
+          continue;
+        }
+        // a multi-slot system (Artemis V) repeats once per slot; only its first slot counts
+        run = fireControl == lastFireControl ? run + 1 : 0;
+        lastFireControl = fireControl;
+        if(run % fireControl.getSlots() == 0 && !attachFireControl(fireControl, launchers, previous)) {
+          log.debug("{} in {} has no launcher to go on", slot, location);
+        }
+      }
+    });
+  }
+
+  /** Puts the fire control on the launcher named `previous`, or else the first one it fits. */
+  private static boolean attachFireControl(FireControl fireControl, List<UnitEquipment> launchers, String previous) {
+    UnitEquipment target = null;
+    for(UnitEquipment launcher : launchers) {
+      String name = launcher.getEquipment().getName();
+      if(launcher.getFireControl() == null && fireControl.fits(name)) {
+        if(previous != null && comparable(previous).equals(comparable(name))) {
+          target = launcher;
+          break;
+        }
+        if(target == null) {
+          target = launcher;
+        }
+      }
+    }
+    if(target != null) {
+      target.setFireControl(fireControl);
+    }
+    return target != null;
+  }
+
+  // Equipment counted by how many slots one takes (jump jets: one per jump MP)
+  private static final Map<String, Integer> SLOTS_PER_ITEM = Map.of(
+      "jumpjet", 1, "prototypejumpjet", 1, "improvedjumpjet", 2, "prototypeimprovedjumpjet", 2);
+
+  /**
+   * Ammo and equipment from the critical slots. Each ammo slot is one ton, so ammo is counted per
+   * slot; jump jets by their slot size. Other equipment can span several slots and locations, so
+   * each item is counted once per mech.
+   */
+  static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, Tech chassisTech) {
+    List<UnitEquipment> equipment = new LinkedList<>();
+    Set<String> seen = new HashSet<>();
+    // multi-slot jump jets can be split across locations, so count slots per mech
+    Map<String, Integer> slotCounts = new LinkedHashMap<>();
+    Map<String, SlotName> countedNames = new HashMap<>();
+    Map<String, String> countedLocations = new HashMap<>();
+    slots.forEach((location, names) -> {
+      for(String slot : names) {
+        SlotName name = SlotName.of(slot);
+        Tech tech = name.tech() != null ? name.tech() : chassisTech;
+        String comparable = comparable(name.name());
+        if(SLOTS_PER_ITEM.containsKey(comparable)) {
+          slotCounts.merge(comparable, 1, Integer::sum);
+          countedNames.putIfAbsent(comparable, name);
+          countedLocations.putIfAbsent(comparable, location);
+        } else if(comparable.contains("ammo") || isNarcPods(comparable)
+            // a variable-size item repeats its size in every slot; two of different sizes are two items
+            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable + ":" + name.size()))) {
+          UnitEquipment item = new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location);
+          setSize(item, name.name(), name.size());
+          equipment.add(item);
+        }
+      }
+    });
+    slotCounts.forEach((comparable, count) -> {
+      SlotName name = countedNames.get(comparable);
+      Tech tech = name.tech() != null ? name.tech() : chassisTech;
+      for(int i = 0; i < count / SLOTS_PER_ITEM.get(comparable); i++) {
+        // recorded at the first location it's in
+        equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), countedLocations.get(comparable)));
+      }
+    });
+    return equipment;
+  }
+
+  // Narc launcher ammo: "Narc Pods", "iNarc Pods", "iNarc Explosive Pods"
+  private static boolean isNarcPods(String comparable) {
+    return comparable.contains("narc") && comparable.endsWith("pods");
+  }
+
+  // "Ultra AC/10" and "CLUltraAC10" both become "ultraac10"
+  private static String comparable(String name) {
+    return name.toLowerCase().replaceAll("[^a-z0-9]", "");
+  }
+
+  private static String first(Map<String, List<String>> values, String key) {
+    List<String> list = values.get(key);
+    return list == null || list.isEmpty() ? null : list.get(0);
+  }
+
+  static UUID parseUuid(String value) {
+    if(value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value.trim());
+    } catch (IllegalArgumentException e) {
+      log.warn("Ignoring invalid MegaMek uuid {}", value);
+      return null;
+    }
+  }
+
+  // MegaMek writes -1 when a unit isn't in the Master Unit List
+  static Integer parseMulId(String value) {
+    if(value == null || value.isBlank()) {
+      return null;
+    }
+    int mulId = Integer.parseInt(value.trim());
+    return mulId > 0 ? mulId : null;
   }
 }

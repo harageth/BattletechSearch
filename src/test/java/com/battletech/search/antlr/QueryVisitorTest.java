@@ -2,17 +2,22 @@ package com.battletech.search.antlr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Mech;
+import com.battletech.search.model.MotiveSystem;
+import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.EquipmentDecorator;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.UnitDecorator;
 import com.battletech.search.model.WeightClass;
@@ -21,6 +26,7 @@ import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +42,18 @@ class QueryVisitorTest {
   @BeforeEach
   void setUp() {
     equipRepo = mock(EquipmentRepository.class);
-    // Every non-empty equipment name resolves to a single matching row by default, like the real data
-    when(equipRepo.findAllBySlangOrEquipmentName(anyString())).thenAnswer(invocation -> {
-      String name = invocation.getArgument(0);
+    // Every non-empty equipment name resolves to a single matching row by default, like the real data.
+    // The first name looked up is the canonical one.
+    when(equipRepo.findAllByNameInOrSlang(anyCollection(), anyString())).thenAnswer(invocation -> {
+      Collection<String> names = invocation.getArgument(0);
+      String name = names.iterator().next();
       return name.isEmpty() ? List.of() : List.of(equipment(name, Tech.INNER_SPHERE));
     });
+  }
+
+  // a lookup that includes this canonical name
+  private static Collection<String> named(String name) {
+    return argThat(names -> names != null && names.contains(name));
   }
 
   private static Equipment equipment(String name, Tech tech) {
@@ -93,19 +106,25 @@ class QueryVisitorTest {
     assertThat(parse("Units with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
   }
 
-  // Motive type isn't stored for vehicles yet, so searching by it is rejected rather than guessed
+  private Tank tank(String query) {
+    return (Tank) parse(query).getDecoratedUnit();
+  }
+
   @Test
-  void motiveTypesAreNotSupportedYet() {
-    assertThatThrownBy(() -> parse("tracked with at least 1 ppc"))
-        .isInstanceOf(FailedParseException.class)
-        .hasMessage("Searching by motive type (tracked) isn't supported yet");
-    // "tank" is a synonym for tracked
-    assertThatThrownBy(() -> parse("tanks with at least 1 ppc"))
-        .hasMessage("Searching by motive type (tracked) isn't supported yet");
-    assertThatThrownBy(() -> parse("wheeled with at least 1 ppc"))
-        .hasMessage("Searching by motive type (wheeled) isn't supported yet");
-    assertThatThrownBy(() -> parse("hovertanks with at least 1 ppc"))
-        .hasMessage("Searching by motive type (hovercraft) isn't supported yet");
+  void tanksAreAllGroundVehicles() {
+    assertThat(parse("tanks with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Tank.class);
+    assertThat(tank("Tank with at least 1 ppc").getMotiveSystem()).isNull();
+    // boats are filed as tanks too, so plain "tank" leaves them out
+    assertThat(parse("tanks with at least 1 ppc").getQuery())
+        .contains("dtype = 'Tank' AND (motive_system IS NULL OR motive_system NOT IN ('Hydrofoil', 'Naval', 'Submarine'))");
+  }
+
+  @Test
+  void motiveTypesNarrowTanks() {
+    assertThat(tank("tracked with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
+    assertThat(tank("wheeled with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Wheeled);
+    assertThat(tank("hovertanks with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Hover);
+    assertThat(parse("tracked with at least 1 ppc").getQuery()).contains("dtype = 'Tank' AND motive_system = 'Tracked'");
   }
 
   @Test
@@ -143,16 +162,115 @@ class QueryVisitorTest {
   }
 
   @Test
-  void multiWordEquipmentIsJoinedAndLowercased() {
+  void multiWordEquipmentIsNormalized() {
+    // equipment is stored without spaces, so the lookup strips them too
     assertThat(chunk(parse("mechs with at least 1 Medium Laser"), 0).getEquipment().getName())
-        .isEqualTo("medium laser");
+        .isEqualTo("mediumlaser");
+  }
+
+  private static List<String> names(UnitDecorator unit) {
+    return unit.getMechEquipment().stream().map(equip -> equip.getEquipment().getName()).toList();
+  }
+
+  @Test
+  void equipmentNamesCanEndInANumber() {
+    EquipmentDecorator lrm = chunk(parse("mechs with at least 2 lrm 20"), 0);
+    assertThat(lrm.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(lrm.getQuantity()).isEqualTo(2);
+    assertThat(lrm.getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+
+    assertThat(names(parse("mechs with 2 lrm 20"))).containsExactly("lrm20");
+    assertThat(names(parse("mechs with 2 Streak SRM 6"))).containsExactly("streaksrm6");
+    assertThat(chunk(parse("mechs with 4 or more ac 20"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(names(parse("mechs with 4 or more ac 20"))).containsExactly("ac/20");
+  }
+
+  @Test
+  void techIsOptional() {
+    Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
+    Equipment clanPpc = equipment("ppc", Tech.CLAN);
+    when(equipRepo.findAllByNameInOrSlang(named("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
+
+    // without a tech, IS and Clan PPCs are counted together in one group
+    String query = chunk(parse("mechs with at least 4 ppc"), 0).getQuery();
+    assertThat(query).contains("equipment_id IN ('" + clanPpc.getId() + "', '" + isPpc.getId() + "')");
+    assertThat(query).doesNotContain("UNION");
+
+    EquipmentDecorator clan = chunk(parse("mechs with at least 4 clan ppc"), 0);
+    assertThat(clan.getEquipment()).isSameAs(clanPpc);
+    assertThat(clan.getDecoratedEquipment()).isNull();
+    assertThat(chunk(parse("mechs with at least 4 IS ppc"), 0).getEquipment()).isSameAs(isPpc);
+    assertThat(chunk(parse("mechs with at least 4 inner sphere ppc"), 0).getEquipment()).isSameAs(isPpc);
+    // the mock's equipment is IS by default
+    assertThat(chunk(parse("mechs with 2 is artemis lrm 20"), 0).getFireControls())
+        .containsExactlyInAnyOrder(FireControl.ARTEMIS_IV, FireControl.ARTEMIS_V);
+  }
+
+  @Test
+  void equipmentNotMadeInATechMatchesNoUnits() {
+    // only an IS plasma rifle exists, so "clan plasma rifle" finds no units rather than failing to parse
+    when(equipRepo.findAllByNameInOrSlang(named("plasmarifle"), anyString()))
+        .thenReturn(List.of(equipment("plasmarifle", Tech.INNER_SPHERE)));
+
+    EquipmentDecorator clan = chunk(parse("mechs with at least 1 clan plasma rifle"), 0);
+    assertThat(clan.isMatchesNothing()).isTrue();
+    assertThat(clan.getQuery()).isEqualTo("SELECT unit_id FROM unit_mech_equipment WHERE false");
+
+    assertThat(chunk(parse("mechs with at least 1 is plasma rifle"), 0).isMatchesNothing()).isFalse();
+  }
+
+  @Test
+  void fireControlNarrowsALauncher() {
+    EquipmentDecorator artemis = chunk(parse("mechs with 2 artemis lrm 20"), 0);
+    assertThat(artemis.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(artemis.getFireControls()).containsExactlyInAnyOrder(FireControl.ARTEMIS_IV, FireControl.ARTEMIS_V);
+    assertThat(artemis.getQuery()).contains("AND fire_control IN ('ARTEMIS_IV', 'ARTEMIS_V')");
+
+    assertThat(chunk(parse("mechs with at least 1 Artemis IV SRM 6"), 0).getFireControls())
+        .containsExactly(FireControl.ARTEMIS_IV);
+    assertThat(chunk(parse("mechs with 1 apollo mrm 40"), 0).getFireControls()).containsExactly(FireControl.APOLLO);
+
+    EquipmentDecorator plain = chunk(parse("mechs with 2 lrm 20"), 0);
+    assertThat(plain.getFireControls()).isNull();
+    assertThat(plain.getQuery()).doesNotContain("fire_control");
+  }
+
+  @Test
+  void aNumberBeforeAWordStartsTheNextChunk() {
+    // "3" is followed by a name, so it's the next chunk's quantity, not part of "ppc"
+    UnitDecorator unit = parse("mechs with 2 ppc 3 srm6");
+    assertThat(names(unit)).containsExactly("ppc", "srm6");
+    assertThat(chunk(unit, 1).getQuantity()).isEqualTo(3);
+
+    UnitDecorator both = parse("mechs with 2 lrm 20 3 srm 6");
+    assertThat(names(both)).containsExactly("lrm20", "srm6");
+    assertThat(chunk(both, 0).getQuantity()).isEqualTo(2);
+    assertThat(chunk(both, 1).getQuantity()).isEqualTo(3);
+  }
+
+  @Test
+  void numberedNamesWithOperatorsAndComparators() {
+    UnitDecorator unit = parse("mechs with at least 2 lrm 20 and at most 1 srm 6 or 2 ac 10");
+    assertThat(names(unit)).containsExactly("lrm20", "srm6", "ac/10");
+    assertThat(chunk(unit, 0).getLogicOperator()).isEqualTo(LogicalOperator.AND);
+    assertThat(chunk(unit, 1).getLogicOperator()).isEqualTo(LogicalOperator.OR);
+    assertThat(chunk(unit, 1).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
+
+    assertThat(names(parse("mechs with at least 2 lrm 20 at least 1 ppc"))).containsExactly("lrm20", "ppc");
+  }
+
+  @Test
+  void unknownEquipmentIsReportedAsTyped() {
+    when(equipRepo.findAllByNameInOrSlang(named("mediumlazer"), anyString())).thenReturn(List.of());
+    assertThatThrownBy(() -> parse("mechs with at least 2 Medium Lazer"))
+        .hasMessage("Unable to parse: medium lazer");
   }
 
   @Test
   void equipmentMatchingSeveralRowsIsChained() {
     Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
     Equipment clanPpc = equipment("ppc", Tech.CLAN);
-    when(equipRepo.findAllBySlangOrEquipmentName("ppc")).thenReturn(List.of(isPpc, clanPpc));
+    when(equipRepo.findAllByNameInOrSlang(named("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
 
     EquipmentDecorator outer = chunk(parse("mechs with at least 2 ppc"), 0);
     assertThat(outer.getEquipment()).isSameAs(clanPpc);
@@ -166,7 +284,7 @@ class QueryVisitorTest {
 
   @Test
   void unknownEquipmentThrows() {
-    when(equipRepo.findAllBySlangOrEquipmentName("nonexistentgun")).thenReturn(List.of());
+    when(equipRepo.findAllByNameInOrSlang(named("nonexistentgun"), anyString())).thenReturn(List.of());
     assertThatThrownBy(() -> parse("mechs with at least 2 nonexistentgun"))
         .isInstanceOf(FailedParseException.class)
         .hasMessage("Unable to parse: nonexistentgun");

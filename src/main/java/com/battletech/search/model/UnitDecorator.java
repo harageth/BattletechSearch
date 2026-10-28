@@ -9,6 +9,7 @@ import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.search.LogicalOperator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.Data;
 
 @Data
@@ -47,6 +48,17 @@ public class UnitDecorator extends Unit {
       builder.append("dtype = 'Vtol' ");
     }else if(decoratedUnit.getClass().equals(Tank.class)) {
       builder.append("dtype = 'Tank' ");
+      MotiveSystem motive = ((Tank) decoratedUnit).getMotiveSystem();
+      if(motive != null) {
+        // "tracked", "wheeled", "hovercraft"; built from the enum, not user text
+        builder.append("AND motive_system = '").append(motive.name()).append("' ");
+      }else {
+        // "tank" means ground vehicles, so leave out boats; units without a motive type stay in
+        builder.append("AND (motive_system IS NULL OR motive_system NOT IN (")
+            .append(MotiveSystem.WATER.stream().map(water -> "'" + water.name() + "'").sorted()
+                .collect(Collectors.joining(", ")))
+            .append(")) ");
+      }
     }else if(decoratedUnit.getClass().equals(Mech.class)) {
       builder.append("dtype = 'Mech' ");
     }else if(decoratedUnit.getClass().equals(Vehicle.class)) {

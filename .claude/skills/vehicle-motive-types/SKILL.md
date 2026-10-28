@@ -1,42 +1,35 @@
 ---
 name: vehicle-motive-types
-description: Use when importing vehicle motive systems (tracked, wheeled, hover, ...) from MegaMek, adding motive type to the unit table, or making "tank", "tracked", "wheeled" or "hovercraft" searches return results. Contains an unresolved product decision about what "tank" means that must be settled with the user first.
+description: Use when changing vehicle motive systems (tracked, wheeled, hover, naval, ...), the motive_system column, or how "tank", "tracked", "wheeled" or "hovercraft" searches behave. "tank" means every ground vehicle (decided); motive types are imported and searchable.
 ---
 
 # Vehicle motive types
 
-Searching by motive type was designed in but never finished. Queries like `tracked with at least 2 lrm20` parse, then fail on purpose with "Searching by motive type (tracked) isn't supported yet", because the data to answer them doesn't exist.
+MegaMek's `<motion_type>` is imported for tanks and searchable. The V2 baseline data predates it, so baseline vehicles have no motive type until the data is regenerated (see the importers skill, "Regenerating data").
 
-## Open question: resolve with the user before implementing
+## Decided: "tank" means every ground vehicle
 
-**What does "tank" mean?** The user hasn't decided. Ask them before changing search behavior.
+The user decided on 2026-10-27 that `tank` means **every ground vehicle**: every `Tank` row (dtype `Tank`) but not VTOLs. `tracked`, `wheeled` and `hovercraft` narrow it down.
 
-- **A. Synonym for tracked.** This is what the grammar does today: `TRACKED: T R A C K E D S* | T A N K S* ;` in `src/main/antlr4/me/Battletech.g4`.
-- **B. All ground vehicles.** Every `Tank` row (dtype `Tank`) of any motive type except VTOL. This needs `tank` back as its own lexer token (e.g. `TANK: T A N K S* ;`, listed in the `unit` rule) that `UnitBuilder` maps to `new Tank()`. Remove `T A N K S*` from `TRACKED`.
+MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those aren't ground vehicles, plain `tank` excludes them (`MotiveSystem.WATER`). Rows with no motive type (the baseline) stay included. That exclusion was my reading of "ground vehicles"; the user hasn't confirmed it. `vehicle` still means every Tank and VTOL, boats included.
 
-When it's decided, record the answer in this file and delete this section.
+## How it works
 
-## Current state
+- **Schema:** `V3_1__vehicle_motive_system.sql` adds `unit.motive_system` (varchar, enum name; only set for dtype `Tank`).
+- **Entity:** `Tank.motiveSystem` (`@Enumerated(STRING)`). `entities/Vehicle.java` isn't an `@Entity` / `@MappedSuperclass`, so fields there aren't persisted. VTOLs don't store one; they're always VTOL.
+- **Enum:** `model/MotiveSystem`: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE, Aerodyne, Rail. Stored by name, so new values can go anywhere. `fromString` is case-insensitive.
+- **Importer:** `ReadVehicleBlk` maps `motion_type`; unknown values are logged and stored as null. At the pinned mm-data commit every tank's value is recognized (Tracked 572, Hover 328, Wheeled 314, WiGE 36, Submarine 15, Naval 9, Aerodyne 9, Rail 8, Hydrofoil 7, across Tank and support types).
+- **Grammar:** `TANK`, `TRACKED`, `WHEELED` and `HOVERCRAFT` (also "hovertank") tokens, plural- and case-insensitive. There are no tokens yet for WiGE, naval and the others.
+- **Search:** `UnitBuilder` maps tracked/wheeled/hovercraft to a `Tank` with that motive. `UnitDecorator.getQuery` adds `motive_system = '<enum name>'`, or for plain `tank` the boat exclusion. The SQL is built from enum names only, never user text.
 
-- `model/MotiveSystem.java` enum: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE. It isn't used anywhere yet.
-- Grammar unit tokens: `TRACKED` (also matches "tank"), `WHEELED`, `HOVERCRAFT` (also matches "hovertank"), all plural- and case-insensitive.
-- `utils/UnitBuilder.java` throws `FailedParseException` for tracked/wheeled/hovercraft. The controller shows that message on the search page.
-- `utils/ReadMegaMek.java` `ReadVehicleBlk` reads `motion_type` from the `.blk` file and discards it.
-- No motive column exists in the `unit` table. All 917 `Tank` rows come from the Flyway baseline dump (`V2_0__baselineData.sql`). That file is a `pg_dump` of a database originally filled by `UnitService.persistVehicles()`, and every fresh database (including Testcontainers) loads units only from it.
-- The MegaMek importer can't currently be run from the app: `admin/ImportEndpoint` (`POST localhost:8081/actuator/import`) only supports the recognition guide. See the `importers` skill for adding mech/vehicle sources (and setting `MEGAMEK_VEHICLES_PATH`).
-- `entities/Vehicle.java` is **not** an `@Entity` or `@MappedSuperclass`, so a field added there won't be persisted. Put it on `Tank`, or make `Vehicle` a `@MappedSuperclass`. Single-table inheritance stores it in `unit` either way.
+## Tests
 
-## Implementation outline
+- `QueryVisitorTest.tanksAreAllGroundVehicles`, `motiveTypesNarrowTanks`: parsing and the generated SQL.
+- `ReadMegaMekTest.readsMotiveTypes`: the importer.
+- `UnitServiceImportTest.searchesImportedVehiclesByMotiveType`: imports fixtures, then searches `tracked` / `hovercraft` / `tanks` end to end.
+- `SearchServiceTest.baselineVehiclesHaveNoMotiveType`: on baseline data `tracked …` returns nothing. Replace this test when the data is regenerated.
 
-1. **Entity:** add `@Enumerated(EnumType.STRING) MotiveSystem motiveSystem` (see the note on `Vehicle` above).
-2. **Importer:** in `ReadVehicleBlk`, map `motion_type` to `MotiveSystem`. Match case-insensitively, and log unknown values instead of failing the whole unit.
-3. **Schema:** add a new migration `V3_x__vehicle_motive_system.sql` that adds a nullable `motive_system varchar(255)` column. Never edit V1/V2; they're already applied.
-4. **Backfill existing rows:** unit ids are random UUIDs, so match on `name` + `designation`. Either re-run the vehicle import against a MegaMek checkout (`MEGAMEK_VEHICLES_PATH`) and generate `UPDATE` statements into the V3 migration, or ship the backfill as a separate data migration. The baseline must stay reproducible from Flyway alone.
-5. **Search:** replace the throw in `UnitBuilder` with real unit types, and have `UnitDecorator.getQuery` add `motive_system = ...`. Build SQL from enum values only, never from user text.
-6. **Tests:** replace `motiveTypesAreNotSupportedYet` in `QueryVisitorTest` and `SearchServiceTest` with real expectations, plus one for the "tank" decision.
+## Ideas not done
 
-## Verification
-
-- `./mvnw verify` (needs Docker; Testcontainers loads V1 + V2 + the new migration).
-- Spot-check counts per motive type in the database: `select motive_system, count(*) from unit where dtype = 'Tank' group by 1;`. Nothing should be null unless it was logged as unknown.
-- In the running app, `tracked with at least 2 lrm20` and `wheeled …` return disjoint result sets, and `vehicle …` covers both.
+- Tokens for WiGE / naval / submarine / hydrofoil searches.
+- Motive type for support vehicles, which aren't imported yet (importers skill, bug 13).

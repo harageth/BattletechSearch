@@ -13,6 +13,10 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Experimental recognition guide PDF importer. Unfinished: it parses units but saves nothing, and
+ * isn't being worked on for now (see the importers skill). Unit data comes from ReadMegaMek.
+ */
 @Slf4j
 public class ReadPDF {
 

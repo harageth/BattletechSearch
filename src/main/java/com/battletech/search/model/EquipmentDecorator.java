@@ -4,6 +4,10 @@ import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.model.search.Comparison;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.model.search.QuantityConverter;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.Data;
 
 @Data
@@ -12,6 +16,10 @@ public class EquipmentDecorator extends UnitEquipment {
   Comparison comparison;
   int quantity;
   LogicalOperator operator;
+  // only count launchers with one of these ("artemis lrm 20"); null counts all
+  Set<FireControl> fireControls;
+  // the equipment exists but not in the tech asked for ("clan plasma rifle"), so no unit matches
+  boolean matchesNothing;
 
   public EquipmentDecorator(UnitEquipment decoratedEquipment) {
     this.decoratedEquipment = decoratedEquipment;
@@ -61,21 +69,30 @@ public class EquipmentDecorator extends UnitEquipment {
 
   @Override
   public String getQuery() {
-    // Each matching equipment row (e.g. IS and Clan variants) is counted separately and the
-    // results are UNIONed, so "at least 3" means at least 3 of a single variant.
-    String query = "";
-    if(decoratedEquipment != null){
-      query = decoratedEquipment.getQuery();
+    // Every matching equipment row (e.g. the IS and Clan medium laser) is counted together, so
+    // "at least 4 medium laser" counts a mixed-tech mech's IS and Clan lasers. "clan medium laser"
+    // narrows the rows to one tech before this (QueryVisitor).
+    if(matchesNothing) {
+      return "SELECT unit_id FROM unit_mech_equipment WHERE false";
     }
-    StringBuilder builder = new StringBuilder("");
-    if(!query.isEmpty()) {
-      builder.append(
-          query
-              + " UNION ");
+    List<String> ids = new LinkedList<>();
+    for(UnitEquipment equip = this; equip != null;
+        equip = equip instanceof EquipmentDecorator decorator ? decorator.getDecoratedEquipment() : null) {
+      ids.add("'" + equip.getEquipment().getId() + "'");
     }
-    builder.append("SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id = '");
-    builder.append(this.getEquipment().getId());
-    builder.append("' GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");
+    StringBuilder builder = new StringBuilder();
+    builder.append("SELECT unit_id FROM unit_equipment JOIN unit_mech_equipment ON unit_equipment.id = unit_mech_equipment.mech_equipment_id WHERE equipment_id IN (");
+    // ids from the equipment table, not user text
+    builder.append(String.join(", ", ids));
+    builder.append(")");
+    if(fireControls != null && !fireControls.isEmpty()) {
+      // enum names, not user text
+      builder.append(" AND fire_control IN (")
+          .append(fireControls.stream().map(fireControl -> "'" + fireControl.name() + "'").sorted()
+              .collect(Collectors.joining(", ")))
+          .append(")");
+    }
+    builder.append(" GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");
     builder.append(comparison.getText() + " ");
     builder.append(quantity);
     // TODO: if location not null then add location

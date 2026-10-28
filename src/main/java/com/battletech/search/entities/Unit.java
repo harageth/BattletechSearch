@@ -22,6 +22,12 @@ public class Unit implements Searchable {
     @GeneratedValue
     UUID id;
 
+    // MegaMek's id for the unit file; imports match existing units on it
+    UUID megamekUuid;
+
+    // Master Unit List id, shared by variants of the same unit; null when the unit isn't in the MUL
+    Integer mulId;
+
     String name;
 
     String designation;

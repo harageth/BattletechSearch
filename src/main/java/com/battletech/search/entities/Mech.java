@@ -4,6 +4,7 @@ import com.battletech.search.model.Heatsinks;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.Movement;
+import com.battletech.search.model.Tech;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -27,12 +28,15 @@ public class Mech extends Unit {
     this.setMovement(new Movement());
   }
 
+  // e.g. "20 Single", "20 IS Double", "17 Clan Double", "10 Laser"
   public void setHeatsinks(String heatsinkInput) {
     Heatsinks heatsinks = new Heatsinks();
-    heatsinks.setTechType(this.tech);
-    String[] split = heatsinkInput.split(" ");
+    String[] split = heatsinkInput.trim().split(" ");
     heatsinks.setHeatsinkQuantity(Integer.parseInt(split[0]));
-    heatsinks.setType(HeatsinkType.fromString(split[1]));
+    heatsinks.setType(HeatsinkType.fromString(split[split.length - 1]));
+    // the IS/Clan word, when there is one, beats the mech's tech (mixed tech mechs)
+    Tech techType = split.length > 2 ? Tech.fromTechBase(split[1]) : null;
+    heatsinks.setTechType(techType != null ? techType : this.tech);
     this.heatsinks = heatsinks;
   }
 

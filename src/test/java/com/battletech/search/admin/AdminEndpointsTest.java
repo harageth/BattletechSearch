@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.battletech.search.TestcontainersConfiguration;
 import com.battletech.search.services.SearchService;
 import com.battletech.search.services.UnitService;
+import com.battletech.search.services.UnitService.ImportResult;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -76,6 +78,21 @@ class AdminEndpointsTest {
   }
 
   @Test
+  void slangIsFilteredByTechInSearches() throws IOException {
+    // stored as "bigppc" on every ER PPC; the tech word in a search filters it
+    assertThat(postAdmin("slang", Map.of("equipmentName", "ER PPC [Clan]", "terms", "clan big ppc"))
+        .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+    List<Map<String, Object>> clanErPpc = searchService.performQuery("mechs with at least 1 clan er ppc");
+    assertThat(clanErPpc).isNotEmpty();
+    assertThat(searchService.performQuery("mechs with at least 1 clan big ppc")).isEqualTo(clanErPpc);
+    assertThat(searchService.performQuery("mechs with at least 1 is big ppc"))
+        .isEqualTo(searchService.performQuery("mechs with at least 1 is er ppc"));
+    assertThat(searchService.performQuery("mechs with at least 1 big ppc"))
+        .isEqualTo(searchService.performQuery("mechs with at least 1 er ppc"));
+  }
+
+  @Test
   void importsTheRecognitionGuide() {
     assertThat(postAdmin("import", Map.of("source", "recognition-guide")).getStatusCode())
         .isEqualTo(HttpStatus.OK);
@@ -83,8 +100,20 @@ class AdminEndpointsTest {
   }
 
   @Test
+  void importsMegaMekUnits() throws IOException {
+    when(unitService.persistMechs()).thenReturn(new ImportResult(3, 1, 0, 0));
+    ResponseEntity<String> mechs = postAdmin("import", Map.of("source", "mechs"));
+    assertThat(mechs.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(mechs.getBody()).contains("\"added\":3", "\"updated\":1");
+
+    when(unitService.persistVehicles()).thenReturn(new ImportResult(2, 0, 1, 0));
+    assertThat(postAdmin("import", Map.of("source", "vehicles")).getStatusCode()).isEqualTo(HttpStatus.OK);
+    verify(unitService).persistVehicles();
+  }
+
+  @Test
   void rejectsUnknownImportSources() {
-    assertThat(postAdmin("import", Map.of("source", "mechs")).getStatusCode())
+    assertThat(postAdmin("import", Map.of("source", "dropships")).getStatusCode())
         .isEqualTo(HttpStatus.BAD_REQUEST);
     verifyNoInteractions(unitService);
   }

@@ -4,6 +4,7 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.EquipmentSlang;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import com.battletech.search.utils.EquipmentNames;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -19,13 +20,16 @@ public class EquipmentService {
 
   public void addSlangToEquipment(String equipmentPattern, List<String>slangTerms) {
 
-    List<Equipment> equips = equipRepo.findByName(equipmentPattern);
+    // the equipment by its canonical name, every tech of it: slang doesn't carry a tech, a search
+    // filters by one ("clan big ppc" is the slang "bigppc", Clan rows only)
+    List<Equipment> equips = equipRepo.findByNameIn(EquipmentNames.equivalentNames(EquipmentNames.canonical(equipmentPattern)));
 
     for(Equipment equip : equips) {
       for(String slang: slangTerms) {
         EquipmentSlang slangEquipment = new EquipmentSlang();
         slangEquipment.setEquipment(equip);
-        slangEquipment.setSlang(slang);
+        // stored normalized like search words, without a tech word
+        slangEquipment.setSlang(EquipmentNames.normalize(EquipmentNames.splitTechWord(slang).rest()));
         slangRepo.save(slangEquipment);
       }
     }
