@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Mech;
+import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
@@ -94,22 +95,25 @@ class QueryVisitorTest {
     assertThat(parse("Units with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Unit.class);
   }
 
+  private Tank tank(String query) {
+    return (Tank) parse(query).getDecoratedUnit();
+  }
+
   @Test
   void tanksAreAllGroundVehicles() {
     assertThat(parse("tanks with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Tank.class);
-    assertThat(parse("Tank with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Tank.class);
+    assertThat(tank("Tank with at least 1 ppc").getMotiveSystem()).isNull();
+    // boats are filed as tanks too, so plain "tank" leaves them out
+    assertThat(parse("tanks with at least 1 ppc").getQuery())
+        .contains("dtype = 'Tank' AND (motive_system IS NULL OR motive_system NOT IN ('Hydrofoil', 'Naval', 'Submarine'))");
   }
 
-  // Motive type isn't stored for vehicles yet, so searching by it is rejected rather than guessed
   @Test
-  void motiveTypesAreNotSupportedYet() {
-    assertThatThrownBy(() -> parse("tracked with at least 1 ppc"))
-        .isInstanceOf(FailedParseException.class)
-        .hasMessage("Searching by motive type (tracked) isn't supported yet");
-    assertThatThrownBy(() -> parse("wheeled with at least 1 ppc"))
-        .hasMessage("Searching by motive type (wheeled) isn't supported yet");
-    assertThatThrownBy(() -> parse("hovertanks with at least 1 ppc"))
-        .hasMessage("Searching by motive type (hovercraft) isn't supported yet");
+  void motiveTypesNarrowTanks() {
+    assertThat(tank("tracked with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
+    assertThat(tank("wheeled with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Wheeled);
+    assertThat(tank("hovertanks with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Hover);
+    assertThat(parse("tracked with at least 1 ppc").getQuery()).contains("dtype = 'Tank' AND motive_system = 'Tracked'");
   }
 
   @Test

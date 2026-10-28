@@ -31,6 +31,9 @@ class UnitServiceImportTest {
   static final UUID ATLAS = UUID.fromString("019f583e-c18a-7a23-98e0-6a19d55887d4");
 
   @Autowired
+  SearchService searchService;
+
+  @Autowired
   UnitService unitService;
 
   @Autowired
@@ -99,6 +102,23 @@ class UnitServiceImportTest {
     Unit bulldog = unitRepo.findByMegamekUuid(UUID.fromString("019f583e-e260-75d2-84ad-b6927336283b")).orElseThrow();
     assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
     assertThat(bulldog.getMulId()).isEqualTo(439);
+  }
+
+  @Test
+  void searchesImportedVehiclesByMotiveType() throws IOException {
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    // Bulldog (tracked) and Condor (hover) each have two machine guns in front
+    assertThat(searchService.performQuery("tracked with at least 2 machine gun"))
+        .extracting(row -> row.get("name") + " " + row.get("designation"))
+        .containsExactly("Bulldog Medium Tank (AC2)");
+    assertThat(searchService.performQuery("hovercraft with at least 2 machine gun"))
+        .extracting(row -> row.get("name") + " " + row.get("designation"))
+        .containsExactly("Condor Heavy Hover Tank (Davion)");
+    assertThat(searchService.performQuery("tanks with at least 2 machine gun"))
+        .extracting(row -> row.get("name"))
+        .contains("Bulldog Medium Tank", "Condor Heavy Hover Tank");
   }
 
   @Test

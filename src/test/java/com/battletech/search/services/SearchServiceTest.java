@@ -149,10 +149,9 @@ class SearchServiceTest {
   }
 
   @Test
-  void motiveTypesAreNotSupportedYet() {
-    assertThatThrownBy(() -> search("tracked with at least 2 lrm20"))
-        .isInstanceOf(FailedParseException.class)
-        .hasMessage("Searching by motive type (tracked) isn't supported yet");
+  void baselineVehiclesHaveNoMotiveType() throws IOException {
+    // the V2 baseline predates motive types; imported units have them (see UnitServiceImportTest)
+    assertThat(search("tracked with at least 2 lrm20")).isEmpty();
   }
 
   @Test

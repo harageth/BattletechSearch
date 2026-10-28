@@ -63,7 +63,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
 ### Vehicles (`ReadVehicleBlk`, `.blk`)
 10. ~~Body equipment is never imported.~~ **Fixed.** In the baseline data, the only BODY rows on vehicles are 321 `infantrybay` entries. At the pinned commit the parser now reads 5,060 body items. Note that these are mostly ammo, CASE and similar: vehicle equipment lists include everything, while mech weapon lists don't include ammo. Decide whether search should ignore ammo, and keep vehicles and mechs consistent.
 11. ~~Mixed tech becomes Inner Sphere.~~ **Fixed:** the vehicle tech comes from `Tech.fromTechBase`. At the pinned commit: IS 1009, Clan 171, Mixed 37. Equipment with a `CL`/`Clan`/`IS` prefix gets that tech; anything else gets the chassis tech. **Known limitation:** in mixed *Clan-chassis* vehicles (8 files), IS weapons are unprefixed (`Bombast Laser`), so they're labeled Clan. Pure Clan vehicles also list some Clan-only items unprefixed (`Hyper-Assault Gauss Rifle/30 Ammo`, `VehicleJumpJet`), so "unprefixed = IS" would be worse overall. Fixing this properly needs an equipment lookup table.
-12. **Motive type is dropped.** `motion_type` is read and thrown away. See the `vehicle-motive-types` skill, which also has the open "what does tank mean" question.
+12. ~~Motive type is dropped.~~ **Fixed:** `Tank.motiveSystem`, `unit.motive_system` (V3_1) and search by `tracked` / `wheeled` / `hovercraft`. See the `vehicle-motive-types` skill.
 13. **Several unit types are skipped.** Only `Tank` and `VTOL` are imported. `SupportTank`, `SupportVTOL`, `LargeSupportTank` and others are logged and skipped.
 14. **Some vehicle stats aren't kept.** Armor type and internal structure type are parsed into unused locals, and total armor is computed and thrown away. Tonnage is truncated (`7.5` → `7`), and only cruise MP is kept.
 15. ~~A dead line in `convertToEquipment`.~~ **Fixed:** it now lowercases the equipment name, which `readBlkAllParameters` no longer does (bug 17).
@@ -82,7 +82,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - ~~Add `mechs` / `vehicles` sources to `ImportEndpoint`.~~ Done. A command-line runner is still optional.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
    - ~~Make import idempotent.~~ Done (bug 1).
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 1-7, 10, 11, 15, 17 and 18, and mech ammo and equipment (8). Remaining: motive type (12; "tank" is decided as every ground vehicle), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 1-7, 10, 11, 15, 17 and 18, and mech ammo and equipment (8). Motive type (12) is done too. Remaining: support vehicles (13), vehicle stats (14), quad/LAM locations (19), armor, then regenerating the data.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 

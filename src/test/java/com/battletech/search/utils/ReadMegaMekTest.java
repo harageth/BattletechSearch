@@ -11,6 +11,7 @@ import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
+import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
 import java.io.File;
@@ -233,8 +234,16 @@ class ReadMegaMekTest {
     assertThat(at(warrior, Location.FRONT)).extracting(equip -> equip.getEquipment().getName())
         .containsExactly("srm 4", "autocannon/2");
 
-    // motive type isn't stored yet (importers skill bug 12), so a hover tank is just a Tank
-    assertThat(vehicle("Condor Heavy Hover Tank (Davion).blk")).isExactlyInstanceOf(Tank.class);
+    Unit condor = vehicle("Condor Heavy Hover Tank (Davion).blk");
+    assertThat(condor).isExactlyInstanceOf(Tank.class);
+    assertThat(((Tank) condor).getMotiveSystem()).isEqualTo(MotiveSystem.Hover);
+  }
+
+  @Test
+  void readsMotiveTypes() throws IOException {
+    assertThat(((Tank) vehicle("Bulldog Medium Tank (AC2).blk")).getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
+    assertThat(((Tank) vehicle("Chalchiuhtotolin Support Tank (Bombast Laser).blk")).getMotiveSystem())
+        .isEqualTo(MotiveSystem.Wheeled);
   }
 
   @Test

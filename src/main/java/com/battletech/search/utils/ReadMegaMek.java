@@ -7,6 +7,7 @@ import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
+import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.entities.Mech;
 import com.battletech.search.model.Movement;
 import com.battletech.search.model.Tech;
@@ -44,9 +45,13 @@ public class ReadMegaMek {
     if (type.equalsIgnoreCase("VTOL")) {
       vee = new Vtol();
     } else if (type.equalsIgnoreCase("Tank")) {
-      vee = new Tank();
-      // not sure exactly how I want to support locomotion type
-      value.get("motion_type").get(0);
+      Tank tank = new Tank();
+      String motion = first(value, "motion_type");
+      tank.setMotiveSystem(motion == null ? null : MotiveSystem.fromString(motion));
+      if(tank.getMotiveSystem() == null) {
+        log.warn("{}: unknown motion_type {}", filePath, motion);
+      }
+      vee = tank;
     } else {
       log.info("Skipping {}: unsupported unit type {}", filePath, type);
       return null;
