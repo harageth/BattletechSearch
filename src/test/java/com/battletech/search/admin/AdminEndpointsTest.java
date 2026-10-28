@@ -78,6 +78,21 @@ class AdminEndpointsTest {
   }
 
   @Test
+  void slangIsFilteredByTechInSearches() throws IOException {
+    // stored as "bigppc" on every ER PPC; the tech word in a search filters it
+    assertThat(postAdmin("slang", Map.of("equipmentName", "ER PPC [Clan]", "terms", "clan big ppc"))
+        .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+    List<Map<String, Object>> clanErPpc = searchService.performQuery("mechs with at least 1 clan er ppc");
+    assertThat(clanErPpc).isNotEmpty();
+    assertThat(searchService.performQuery("mechs with at least 1 clan big ppc")).isEqualTo(clanErPpc);
+    assertThat(searchService.performQuery("mechs with at least 1 is big ppc"))
+        .isEqualTo(searchService.performQuery("mechs with at least 1 is er ppc"));
+    assertThat(searchService.performQuery("mechs with at least 1 big ppc"))
+        .isEqualTo(searchService.performQuery("mechs with at least 1 er ppc"));
+  }
+
+  @Test
   void importsTheRecognitionGuide() {
     assertThat(postAdmin("import", Map.of("source", "recognition-guide")).getStatusCode())
         .isEqualTo(HttpStatus.OK);

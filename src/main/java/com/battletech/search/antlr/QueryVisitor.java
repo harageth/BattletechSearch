@@ -13,10 +13,8 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
@@ -34,14 +32,6 @@ import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class QueryVisitor implements BattletechVisitor {
-  // a leading tech word on an equipment name, as typed (lowercase, spaced); longest first
-  private static final Map<String, Tech> TECH_PREFIXES = new LinkedHashMap<>();
-  static {
-    TECH_PREFIXES.put("inner sphere ", Tech.INNER_SPHERE);
-    TECH_PREFIXES.put("clan ", Tech.CLAN);
-    TECH_PREFIXES.put("is ", Tech.INNER_SPHERE);
-  }
-
   Vocabulary vocab;
   EquipmentSlangRepository slangRepo;
   EquipmentRepository equipRepo;
@@ -91,15 +81,9 @@ public class QueryVisitor implements BattletechVisitor {
         realDecorator.setOperator((LogicalOperator) logicObject);
       }
       // tech is optional: "medium laser" counts IS and Clan ones together, "clan medium laser" only Clan
-      Tech tech = null;
-      String named = equip;
-      for(Map.Entry<String, Tech> prefix : TECH_PREFIXES.entrySet()) {
-        if(equip.startsWith(prefix.getKey()) && equip.length() > prefix.getKey().length()) {
-          tech = prefix.getValue();
-          named = equip.substring(prefix.getKey().length());
-          break;
-        }
-      }
+      EquipmentNames.TechWord techWord = EquipmentNames.splitTechWord(equip);
+      Tech tech = techWord.tech();
+      String named = techWord.rest();
       // "artemis lrm 20": look up the launcher, and only count ones with that fire control
       String lookup = EquipmentNames.normalize(named);
       FireControl.Filter fireControl = FireControl.fromSearch(lookup);

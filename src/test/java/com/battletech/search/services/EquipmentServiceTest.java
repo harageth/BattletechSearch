@@ -1,5 +1,6 @@
 package com.battletech.search.services;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
@@ -39,11 +40,14 @@ class EquipmentServiceTest {
   }
 
   @Test
-  void aNameWithATechOnlyGetsThatTech() {
-    service.addSlangToEquipment("Gauss Rifle Ammo [Clan]", List.of("clan gauss ammo"));
+  void slangNeverCarriesATech() {
+    // tech is a search filter, not part of the slang: "clan sniper rounds" is stored as "sniperrounds",
+    // on every tech of the equipment, even when the name has one
+    service.addSlangToEquipment("Gauss Rifle Ammo [Clan]", List.of("clan sniper rounds"));
 
     ArgumentCaptor<EquipmentSlang> saved = ArgumentCaptor.forClass(EquipmentSlang.class);
-    verify(slangRepo, times(1)).save(saved.capture());
-    org.assertj.core.api.Assertions.assertThat(saved.getValue().getEquipment()).isSameAs(clanAmmo);
+    verify(slangRepo, times(2)).save(saved.capture());
+    assertThat(saved.getAllValues()).extracting(EquipmentSlang::getSlang).containsOnly("sniperrounds");
+    assertThat(saved.getAllValues()).extracting(EquipmentSlang::getEquipment).containsExactly(isAmmo, clanAmmo);
   }
 }

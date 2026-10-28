@@ -73,6 +73,19 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void splitsALeadingTechWord() {
+    assertThat(EquipmentNames.splitTechWord("Clan Sniper Rounds"))
+        .isEqualTo(new EquipmentNames.TechWord(Tech.CLAN, "sniper rounds"));
+    assertThat(EquipmentNames.splitTechWord("inner sphere er ppc"))
+        .isEqualTo(new EquipmentNames.TechWord(Tech.INNER_SPHERE, "er ppc"));
+    assertThat(EquipmentNames.splitTechWord("is large laser"))
+        .isEqualTo(new EquipmentNames.TechWord(Tech.INNER_SPHERE, "large laser"));
+    // only whole words, and not the whole term
+    assertThat(EquipmentNames.splitTechWord("claw")).isEqualTo(new EquipmentNames.TechWord(null, "claw"));
+    assertThat(EquipmentNames.splitTechWord("clan")).isEqualTo(new EquipmentNames.TechWord(null, "clan"));
+  }
+
+  @Test
   void tagsAreDroppedFromTheName() {
     // the tech goes in its own column
     assertThat(EquipmentNames.normalize("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo("ammolrm-20artemis-capable");

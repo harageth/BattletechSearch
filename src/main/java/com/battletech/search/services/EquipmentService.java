@@ -2,7 +2,6 @@ package com.battletech.search.services;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.EquipmentSlang;
-import com.battletech.search.model.Tech;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
@@ -21,19 +20,16 @@ public class EquipmentService {
 
   public void addSlangToEquipment(String equipmentPattern, List<String>slangTerms) {
 
-    // the equipment by its canonical name; slang terms as typed, normalized like search words
+    // the equipment by its canonical name, every tech of it: slang doesn't carry a tech, a search
+    // filters by one ("clan big ppc" is the slang "bigppc", Clan rows only)
     List<Equipment> equips = equipRepo.findByNameIn(EquipmentNames.equivalentNames(EquipmentNames.canonical(equipmentPattern)));
-    // "Gauss Rifle Ammo [Clan]" / "CLLRM20" name one tech; the slang only goes on that one
-    Tech tech = EquipmentNames.techOf(equipmentPattern);
-    if(tech != null) {
-      equips = equips.stream().filter(equip -> equip.getTech() == tech).toList();
-    }
 
     for(Equipment equip : equips) {
       for(String slang: slangTerms) {
         EquipmentSlang slangEquipment = new EquipmentSlang();
         slangEquipment.setEquipment(equip);
-        slangEquipment.setSlang(EquipmentNames.normalize(slang));
+        // stored normalized like search words, without a tech word
+        slangEquipment.setSlang(EquipmentNames.normalize(EquipmentNames.splitTechWord(slang).rest()));
         slangRepo.save(slangEquipment);
       }
     }

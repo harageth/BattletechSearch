@@ -8,6 +8,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,32 @@ public final class EquipmentNames {
     names.add(canonical);
     names.addAll(EQUIVALENTS.getOrDefault(canonical, Set.of()));
     return names;
+  }
+
+  // a leading tech word as people type it (lowercase, spaced); longest first
+  private static final Map<String, Tech> TECH_WORDS = new LinkedHashMap<>();
+  static {
+    TECH_WORDS.put("inner sphere ", Tech.INNER_SPHERE);
+    TECH_WORDS.put("clan ", Tech.CLAN);
+    TECH_WORDS.put("is ", Tech.INNER_SPHERE);
+  }
+
+  /** Typed text split into its leading tech word (null tech if none) and the rest. */
+  public record TechWord(Tech tech, String rest) {
+  }
+
+  /**
+   * "clan er medium laser" -> CLAN, "er medium laser". Search uses it to filter by tech, and slang
+   * registration to store terms without it, since slang applies to every tech.
+   */
+  public static TechWord splitTechWord(String typed) {
+    String lower = typed.strip().toLowerCase();
+    for (Map.Entry<String, Tech> word : TECH_WORDS.entrySet()) {
+      if (lower.startsWith(word.getKey()) && lower.length() > word.getKey().length()) {
+        return new TechWord(word.getValue(), lower.substring(word.getKey().length()));
+      }
+    }
+    return new TechWord(null, lower);
   }
 
   /** The name without a leading "IS" / "CL" / "Clan" tech prefix, as MegaMek writes them ("ISAC20", "Clan Gauss Ammo"). */
