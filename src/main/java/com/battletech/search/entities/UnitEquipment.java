@@ -21,7 +21,8 @@ public class UnitEquipment implements Searchable {
 
   @Enumerated(EnumType.STRING)
   Location location;
-  double tonnage; // might only be relevant for armor
+  // the tons of a variable-size item (cargo, communications equipment) or infantry bay; else 0
+  double tonnage;
 
   @ManyToOne
   Equipment equipment;
@@ -33,6 +34,9 @@ public class UnitEquipment implements Searchable {
   // Artemis / Apollo on a missile launcher; null for everything else
   @Enumerated(EnumType.STRING)
   FireControl fireControl;
+
+  // the jump MP a mechanical jump booster adds; null for everything else
+  Integer jumpBoost;
   //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
 
   public UnitEquipment() { }

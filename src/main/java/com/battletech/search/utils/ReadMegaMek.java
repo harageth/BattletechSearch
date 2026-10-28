@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
@@ -136,8 +137,9 @@ public class ReadMegaMek {
       value.setEquipment(new Equipment());
       value.setLocation(location);
       equip = equip.toLowerCase();
-      // "communications equipment:size:4.0": the tonnage isn't part of the name
-      if(equip.contains(":size:")) {
+      // "communications equipment:size:4.0": the size goes on this unit's item, not in the name
+      Double size = sizeOf(equip);
+      if(size != null) {
         equip = equip.substring(0, equip.indexOf(":size:"));
       }
       // there is a problem if something is both rear facing and omni equipped
@@ -172,6 +174,7 @@ public class ReadMegaMek {
         value.getEquipment().setTech(chassisTech);
         value.getEquipment().setName(equip);
       }
+      setSize(value, value.getEquipment().getName(), size);
       // Artemis / Apollo upgrade the launcher listed before them rather than being equipment
       FireControl fireControl = FireControl.fromEquipmentName(value.getEquipment().getName());
       if(fireControl != null) {
@@ -361,24 +364,53 @@ public class ReadMegaMek {
 
   // How a slot is mounted, not what's in it; (T) is turret-mounted
   private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
-  // a variable-size item's tonnage, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
-  private static final Pattern SIZE = Pattern.compile("(:omni)?:size:.*$", Pattern.CASE_INSENSITIVE);
+  // a variable-size item's size, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
+  private static final Pattern SIZE = Pattern.compile("(:omni)?:size:([0-9.]+)$", Pattern.CASE_INSENSITIVE);
 
-  /** A slot name split into its IS/Clan prefix (null if none) and the rest. */
-  record SlotName(Tech tech, String name) {
+  /** The ":SIZE:n" of a variable-size item, or null. */
+  static Double sizeOf(String name) {
+    Matcher size = SIZE.matcher(name);
+    return size.find() ? Double.valueOf(size.group(2)) : null;
+  }
+
+  // Variable-size items whose size is tons. What the size measures depends on the item (MegaMek's
+  // MiscType.sizeSuffix): jump MP for a jump booster, drones for a drone carrier, theaters for MASH,
+  // meters for a ladder.
+  private static final Set<String> SIZED_IN_TONS = Set.of("cargo", "liquidstorage", "communicationsequipment");
+
+  /** Stores a variable size where it belongs: tons in tonnage, a jump booster's MP in jumpBoost. */
+  static void setSize(UnitEquipment item, String name, Double size) {
+    if(size == null) {
+      return;
+    }
+    String comparable = comparable(name);
+    if(SIZED_IN_TONS.contains(comparable)) {
+      item.setTonnage(size);
+    } else if(comparable.equals("mechanicaljumpbooster")) {
+      item.setJumpBoost(size.intValue());
+    }
+    // drones, MASH theaters, ladder meters and support-vehicle infantry weapons aren't kept yet
+  }
+
+  /**
+   * A slot name split into its IS/Clan prefix (null if none), the rest, and the size of a
+   * variable-size item (null if it isn't one).
+   */
+  record SlotName(Tech tech, String name, Double size) {
     static SlotName of(String slot) {
       // a slot holding two half tons of ammo lists both, "CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)"
       String first = slot.split("\\|")[0];
+      Double size = sizeOf(first);
       String cleaned = SIZE.matcher(SLOT_MOUNTING.matcher(first).replaceAll("")).replaceAll("").trim();
       // "Clan Gauss Ammo" and "ClanImprovedLRM20Ammo"
       if(cleaned.startsWith("Clan")) {
-        return new SlotName(Tech.CLAN, cleaned.substring(4).strip());
+        return new SlotName(Tech.CLAN, cleaned.substring(4).strip(), size);
       } else if(cleaned.startsWith("CL")) {
-        return new SlotName(Tech.CLAN, cleaned.substring(2));
+        return new SlotName(Tech.CLAN, cleaned.substring(2), size);
       } else if(cleaned.startsWith("IS")) {
-        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2));
+        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2), size);
       }
-      return new SlotName(null, cleaned);
+      return new SlotName(null, cleaned, size);
     }
   }
 
@@ -497,8 +529,11 @@ public class ReadMegaMek {
           countedNames.putIfAbsent(comparable, name);
           countedLocations.putIfAbsent(comparable, location);
         } else if(comparable.contains("ammo") || isNarcPods(comparable)
-            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable))) {
-          equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location));
+            // a variable-size item repeats its size in every slot; two of different sizes are two items
+            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable + ":" + name.size()))) {
+          UnitEquipment item = new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location);
+          setSize(item, name.name(), name.size());
+          equipment.add(item);
         }
       }
     });

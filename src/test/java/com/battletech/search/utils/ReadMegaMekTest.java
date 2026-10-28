@@ -142,6 +142,26 @@ class ReadMegaMekTest {
   }
 
   @Test
+  void variableSizeEquipmentKeepsItsSizeOnTheMech() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // the size is the whole item's, repeated in each of its slots (Perseus P1E, Thunder Fox TFT-C3)
+    slots.put("right torso", List.of("Communications Equipment (OMNIPOD):SIZE:3.0",
+        "Communications Equipment (OMNIPOD):SIZE:3.0", "Communications Equipment (OMNIPOD):SIZE:3.0",
+        "MechanicalJumpBooster:SIZE:4.0", "Targeting Computer"));
+    slots.put("left torso", List.of("MechanicalJumpBooster:SIZE:4.0", "Communications Equipment:SIZE:1.0"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getJumpBoost)
+        .containsExactly(
+            tuple("communicationsequipment", 3.0, null),
+            // the booster's size is jump MP, not tons
+            tuple("mechanicaljumpbooster", 0.0, 4),
+            tuple("targetingcomputer", 0.0, null),
+            // a second one of another size
+            tuple("communicationsequipment", 1.0, null));
+  }
+
+  @Test
   void turretArtemisGoesOnTheTurretLauncher() {
     // Doom Courser Prime: "CLLRM20 (T) (OMNIPOD)" x4, then "CLArtemisIV (T) (OMNIPOD)"
     List<UnitEquipment> weapons = List.of(weapon("lrm20", "Left Torso"));
@@ -154,12 +174,15 @@ class ReadMegaMekTest {
   }
 
   @Test
-  void vehicleSizesArentPartOfTheName() {
+  void vehicleSizesGoOnTheItemNotTheName() {
     assertThat(ReadMegaMek.convertToEquipment(
             List.of("Communications Equipment:SIZE:4.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"),
             Tech.INNER_SPHERE, Location.BODY))
-        .extracting(equip -> equip.getEquipment().getName())
-        .containsExactly("communications equipment", "dronecarriercontrolsystem");
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod)
+        .containsExactly(
+            tuple("communications equipment", 4.0, false),
+            // a drone carrier's size is drones, which isn't kept yet
+            tuple("dronecarriercontrolsystem", 0.0, true));
   }
 
   private static List<UnitEquipment> named(Unit unit, String name) {

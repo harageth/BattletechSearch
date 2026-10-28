@@ -211,6 +211,18 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void storesTheTonnageOfVariableSizeEquipment() throws IOException {
+    // the Perseus P1E has 3 tons of communications equipment ("Communications Equipment:SIZE:3.0")
+    unitService.persistUnits(fixtures("sized"), ".mtf", ReadMegaMek::ReadMechMTF);
+
+    assertThat(count("SELECT count(*) FROM equipment WHERE name LIKE '%size%'")).isZero();
+    assertThat(jdbcTemplate.queryForObject("SELECT ue.tonnage FROM unit_equipment ue"
+        + " JOIN equipment e ON e.id = ue.equipment_id JOIN unit_mech_equipment ume ON ume.mech_equipment_id = ue.id"
+        + " JOIN unit u ON u.id = ume.unit_id WHERE u.name = 'Perseus' AND e.name = 'communicationsequipment'",
+        Double.class)).isEqualTo(3.0);
+  }
+
+  @Test
   void variantsCanShareAMulId() {
     // MUL ids aren't unique: variants of one unit share it
     jdbcTemplate.update("INSERT INTO unit (id, name, designation, mul_id, omni, rules_level, weight,"
