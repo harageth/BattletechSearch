@@ -123,6 +123,45 @@ class ReadMegaMekTest {
             tuple("targetingcomputer", Tech.INNER_SPHERE));
   }
 
+  @Test
+  void readsSlotsThatHoldTwoAmmoBinsSizesAndNarcPods() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // half a ton of each in one slot (Ares ARS-V1 Aphrodite)
+    slots.put("left torso", List.of("CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)", "ISNarc Pods", "ISiNarc Pods (OMNIPOD)"));
+    slots.put("right torso", List.of("Communications Equipment:SIZE:3.0", "MediumShield", "Lance"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
+        .containsExactly(
+            tuple("rotaryac5ammo", Tech.CLAN),
+            tuple("narcpods", Tech.INNER_SPHERE),
+            tuple("inarcpods", Tech.INNER_SPHERE),
+            tuple("communicationsequipment", Tech.INNER_SPHERE),
+            tuple("mediumshield", Tech.INNER_SPHERE),
+            tuple("lance", Tech.INNER_SPHERE));
+  }
+
+  @Test
+  void turretArtemisGoesOnTheTurretLauncher() {
+    // Doom Courser Prime: "CLLRM20 (T) (OMNIPOD)" x4, then "CLArtemisIV (T) (OMNIPOD)"
+    List<UnitEquipment> weapons = List.of(weapon("lrm20", "Left Torso"));
+    Map<String, List<String>> slots = Map.of("left torso",
+        List.of("CLLRM20 (T) (OMNIPOD)", "CLLRM20 (T) (OMNIPOD)", "CLArtemisIV (T) (OMNIPOD)"));
+
+    ReadMegaMek.attachMtfFireControl(weapons, slots);
+
+    assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(FireControl.ARTEMIS_IV);
+  }
+
+  @Test
+  void vehicleSizesArentPartOfTheName() {
+    assertThat(ReadMegaMek.convertToEquipment(
+            List.of("Communications Equipment:SIZE:4.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"),
+            Tech.INNER_SPHERE, Location.BODY))
+        .extracting(equip -> equip.getEquipment().getName())
+        .containsExactly("communications equipment", "dronecarriercontrolsystem");
+  }
+
   private static List<UnitEquipment> named(Unit unit, String name) {
     return unit.getMechEquipment().stream().filter(equip -> equip.getEquipment().getName().equals(name)).toList();
   }

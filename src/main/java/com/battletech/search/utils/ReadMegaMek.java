@@ -136,6 +136,10 @@ public class ReadMegaMek {
       value.setEquipment(new Equipment());
       value.setLocation(location);
       equip = equip.toLowerCase();
+      // "communications equipment:size:4.0": the tonnage isn't part of the name
+      if(equip.contains(":size:")) {
+        equip = equip.substring(0, equip.indexOf(":size:"));
+      }
       // there is a problem if something is both rear facing and omni equipped
       if(equip.endsWith(":omni")) {
         value.setOmniPod(true);
@@ -355,13 +359,17 @@ public class ReadMegaMek {
     return slots;
   }
 
-  // How a slot is mounted, not what's in it
-  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // How a slot is mounted, not what's in it; (T) is turret-mounted
+  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // a variable-size item's tonnage, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
+  private static final Pattern SIZE = Pattern.compile("(:omni)?:size:.*$", Pattern.CASE_INSENSITIVE);
 
   /** A slot name split into its IS/Clan prefix (null if none) and the rest. */
   record SlotName(Tech tech, String name) {
     static SlotName of(String slot) {
-      String cleaned = SLOT_MOUNTING.matcher(slot).replaceAll("").trim();
+      // a slot holding two half tons of ammo lists both, "CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)"
+      String first = slot.split("\\|")[0];
+      String cleaned = SIZE.matcher(SLOT_MOUNTING.matcher(first).replaceAll("")).replaceAll("").trim();
       // "Clan Gauss Ammo" and "ClanImprovedLRM20Ammo"
       if(cleaned.startsWith("Clan")) {
         return new SlotName(Tech.CLAN, cleaned.substring(4).strip());
@@ -397,7 +405,20 @@ public class ReadMegaMek {
       + "|(industrial)?triplestrengthmyomer|masc|supercharger|.*ecmsuite|.*activeprobe"
       + "|c3iunit|c3slaveunit|c3boostedsystemslaveunit|hatchet|sword|claw|mace|chainsaw|retractableblade"
       + "|aes|.*nullsignaturesystem|chameleonlightpolarizationshield|partialwing|umu|antipersonnelpod"
-      + "|coolantpod|ppccapacitor|searchlight|environmentalsealing.*|lifthoistarrestinghoist)$");
+      + "|coolantpod|ppccapacitor|searchlight|environmentalsealing.*|lifthoistarrestinghoist"
+      // physical and industrial
+      + "|lance|talons|spikes|(small|medium|large)vibroblade|chainwhip|flail|ramplate|wreckingball"
+      + "|rockcutter|dualsaw|miningdrill|(heavyduty)?piledriver|salvagearm|backhoe|combine|spotwelder"
+      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield"
+      // electronics and defensive systems
+      + "|mekvoidsignaturesystem|radicalheatsinksystem|harjel.*|supercooledmyomer|novacews"
+      + "|c3emergencymaster|c3sensors|collapsiblecommandmodule|droneoperatingsystem"
+      + "|remotedronecommandconsole|remotesensordispenser|electronicwarfareequipment|mass"
+      + "|vehicularminedispenser|blueshieldparticlefielddamper|laserinsulator|chaffpod"
+      // not the RISC hyper laser or point defense system, which are weapons
+      + "|riscviraljammer.*|risclaserpulsemodule|riscemergencycoolantsystem"
+      + "|boobytrap|bombbay|mechanicaljumpbooster|communicationsequipment|groundmobilehpg"
+      + "|paramedicequipment|reconcamera)$");
 
   /**
    * Artemis / Apollo slots upgrade a launcher instead of being equipment of their own. MegaMek puts
@@ -475,7 +496,7 @@ public class ReadMegaMek {
           slotCounts.merge(comparable, 1, Integer::sum);
           countedNames.putIfAbsent(comparable, name);
           countedLocations.putIfAbsent(comparable, location);
-        } else if(comparable.contains("ammo")
+        } else if(comparable.contains("ammo") || isNarcPods(comparable)
             || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable))) {
           equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location));
         }
@@ -490,6 +511,11 @@ public class ReadMegaMek {
       }
     });
     return equipment;
+  }
+
+  // Narc launcher ammo: "Narc Pods", "iNarc Pods", "iNarc Explosive Pods"
+  private static boolean isNarcPods(String comparable) {
+    return comparable.contains("narc") && comparable.endsWith("pods");
   }
 
   // "Ultra AC/10" and "CLUltraAC10" both become "ultraac10"
