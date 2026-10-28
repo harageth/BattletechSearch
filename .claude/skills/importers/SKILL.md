@@ -36,7 +36,7 @@ MegaMek moved its unit files out of the main `megamek` repo (which now only has 
 ## How data gets into the database today
 
 - **Every database gets its units from the frozen dump `db/migration/V2_0__baselineData.sql`.** That's a `pg_dump` of a database that the importer filled in 2020-2021. Fixing a parser changes nothing in the app until the data is regenerated (see "Regenerating data" below).
-- **No way to trigger a MegaMek import.** The admin endpoint `POST localhost:8081/actuator/import` (`admin/ImportEndpoint`) only accepts `{"source": "recognition-guide"}`. `persistMechs()` / `persistVehicles()` aren't wired to anything; add them as sources once re-importing no longer duplicates units (bug 1).
+- **Running an import.** With the app running and `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH` set, `POST localhost:8081/actuator/import` with `{"source": "mechs"}` or `{"source": "vehicles"}` (`admin/ImportEndpoint`, admin port, localhost only). It returns `{"added", "updated", "skipped", "failed"}`. Each file is saved in its own transaction. At the pinned commit: mechs take about 90 s (4,263 added), vehicles about 33 s (1,217 added, 236 skipped). Running it again updates every unit and adds nothing.
 - **Configuration.** Paths come from `MEGAMEK_MECHS_PATH`, `MEGAMEK_VEHICLES_PATH` and `RECOGNITION_GUIDE_PDF` (`battletech.import.*` in `application.yml`).
 - **Error handling.** A file that throws is logged ("Unable to import ...") and skipped. Most parser bugs show up there as NPEs, not as clear errors.
 - **Tests.** `ReadMegaMekTest` parses real files copied from mm-data into `src/test/resources/megamek/` (5 mechs, 6 vehicles). Add a test there with each bug fix. `ReadMegaMekAllFilesTest` parses every file in the checkout, but only when `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH` are set. At the pinned commit: 4,263 mechs and 1,453 vehicles, 0 failures, 236 vehicles skipped (bug 13).
@@ -46,7 +46,7 @@ MegaMek moved its unit files out of the main `megamek` repo (which now only has 
 All of these were checked against the code. The "Data:" lines are from the baseline database.
 
 ### Both formats
-1. **Re-importing duplicates units.** `persistUnits` never checks whether the unit already exists. Unit ids are random UUIDs, so a second run adds every unit again. Data: 11 name/designation pairs already appear twice (e.g. Wasp WSP-1S, Marauder II MAD-5C). Fix: upsert on MegaMek's `uuid` (see "Format changes" above).
+1. ~~Re-importing duplicates units.~~ **Fixed:** `V3_0__unit_megamek_ids.sql` adds `unit.megamek_uuid` (unique) and `unit.mul_id` (not unique). `UnitService.save` finds the stored unit by MegaMek uuid, keeps its database id, swaps in the new equipment and deletes the old equipment rows. Every file at the pinned commit has a unique uuid. MUL ids group variants: the user decided that units sharing a MUL id are variants of the same unit. 163 mechs and 10 vehicles have no MUL id (MegaMek's own units), and 11 MUL ids are shared. `UnitRepository.findByMulId` returns a unit's variants. Verified on a scratch database with a full import run twice: same unit, equipment and unit_equipment counts, and no orphaned rows. Data: the baseline has 11 name/designation pairs that appear twice.
 2. ~~Equipment names are flattened.~~ **Fixed:** `utils/EquipmentNames.normalize` (lowercase, no spaces, mounting notes removed) is used on import, for search words and for slang, so `medium laser` matches `mediumlaser`. Numbers after a space (`lrm 20`) still don't parse; see the query-grammar skill.
 3. ~~Annotations stay in equipment names.~~ **Fixed for mounting notes:** `(R)`, `(OS)`, `(I-OS)`, `(iOS)` and `(ST)` are stripped by the normalizer. Annotations that name a different item (`(Vehicle)`, `(B-Pods)`, `(Blazer)`, `(Cannon, Heavy)`) are kept. The baseline data still has names like `mediumlaser(r)` until it's regenerated.
 4. ~~Missing tech gives a third copy of the equipment.~~ **Fixed in the parsers:** every unit and every piece of equipment now gets a tech (0 nulls across the pinned commit), via `Tech.fromTechBase` / `Tech.chassisTech`. The baseline data still has 128 null-tech equipment rows until it's regenerated.
@@ -79,14 +79,16 @@ All of these were checked against the code. The "Data:" lines are from the basel
 ## Recommended order
 
 1. **Make imports runnable and testable.**
-   - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
+   - ~~Add `mechs` / `vehicles` sources to `ImportEndpoint`.~~ Done. A command-line runner is still optional.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
-   - Make import idempotent: store MegaMek's `uuid` and upsert on it (bug 1). This needs a new column, so it needs a migration.
+   - ~~Make import idempotent.~~ Done (bug 1).
 2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 2-7, 10, 11, 15, 17 and 18. Remaining: motive type (12; "tank" is decided as every ground vehicle), mech ammo and equipment from the slot listings (8), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 
 ## Regenerating data
+
+**Baseline rows have no `megamek_uuid`.** Importing into a database that has the V2 baseline adds the MegaMek units *next to* the old rows, so every unit appears twice in search (old lowercase/null-tech rows plus the new ones). The database pass needs to replace the baseline: import, then delete the rows where `megamek_uuid IS NULL` (and their `unit_mech_equipment` / `unit_equipment` rows and any unused `equipment`), then dump. Search tests that pin baseline results (`SearchServiceTest`) will change.
 
 - Never edit `V1_0` / `V2_0`; existing databases have already applied them. Ship new data as a new migration (`V3_x__...`).
 - The new migration can't simply truncate and reload units: unit ids are random, and nothing else references them yet, but check before relying on that. Either:

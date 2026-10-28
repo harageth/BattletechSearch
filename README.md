@@ -34,12 +34,12 @@ All settings have defaults matching `docker-compose.yml` and can be overridden w
 | `DB_URL` | `jdbc:postgresql://localhost:5432/battletechSearch` | JDBC URL |
 | `DB_USER` | `battletech` | Database user |
 | `DB_PASSWORD` | `battletech` | Database password |
-| `MEGAMEK_MECHS_PATH` | _(empty)_ | MegaMek `data/mechfiles/mechs` directory, only needed to re-import units |
-| `MEGAMEK_VEHICLES_PATH` | _(empty)_ | MegaMek `data/mechfiles/vehicles` directory, only needed to re-import units |
+| `MEGAMEK_MECHS_PATH` | _(empty)_ | mm-data `data/mekfiles/meks` directory, only needed to import units |
+| `MEGAMEK_VEHICLES_PATH` | _(empty)_ | mm-data `data/mekfiles/vehicles` directory, only needed to import units |
 | `RECOGNITION_GUIDE_PDF` | _(empty)_ | Recognition guide PDF for the experimental PDF import |
 | `MANAGEMENT_PORT` | `8081` | Port for the admin endpoints (always bound to `127.0.0.1`) |
 
-The MegaMek unit files come from https://github.com/MegaMek/megamek.
+The MegaMek unit files come from https://github.com/MegaMek/mm-data (`data/mekfiles/meks` and `data/mekfiles/vehicles`).
 
 ## Admin endpoints
 Admin actions are [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html) endpoints on a separate port that only listens on `127.0.0.1`. Other machines can't connect to it, and the public port (8080) only serves search.
@@ -47,7 +47,7 @@ Admin actions are [Spring Boot Actuator](https://docs.spring.io/spring-boot/refe
 | Endpoint | Purpose |
 | --- | --- |
 | `GET http://localhost:8081/actuator/health` | Health check |
-| `POST http://localhost:8081/actuator/import` | Run an import. Body: `{"source": "recognition-guide"}` (the experimental PDF import; MegaMek sources are coming) |
+| `POST http://localhost:8081/actuator/import` | Run an import. Body: `{"source": "mechs"}` or `{"source": "vehicles"}` (from `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH`; re-running updates units instead of duplicating them), or `{"source": "recognition-guide"}` (experimental PDF import) |
 | `POST http://localhost:8081/actuator/slang` | Add slang for an equipment name. Body: `{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}`. Terms are comma-separated. |
 
 For example:

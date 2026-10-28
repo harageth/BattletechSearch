@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -52,6 +53,9 @@ public class ReadMegaMek {
     // equipment without an IS/Clan prefix is the chassis tech
     Tech chassisTech = Tech.chassisTech(techBase);
     vee.setName(value.get("name").get(0));
+    vee.setMegamekUuid(parseUuid(first(value, "uuid")));
+    // the tag is literally <mul id:>
+    vee.setMulId(parseMulId(first(value, "mul id:")));
     List<String> model = value.get("model");
     vee.setDesignation(model == null || model.isEmpty() ? "" : model.get(0));
     vee.setWeight(Integer.parseInt(value.get("tonnage").get(0).split("\\.")[0]));
@@ -212,6 +216,8 @@ public class ReadMegaMek {
     String name = requiredField(fields, "chassis", filePath);
     String designation = fields.getOrDefault("model", "");
     mech.setName(name);
+    mech.setMegamekUuid(parseUuid(fields.get("uuid")));
+    mech.setMulId(parseMulId(fields.get("mul id")));
     if(designation.isEmpty()) {
       mech.setDesignation(name + " prime");// or is it base?
     }else {
@@ -336,5 +342,31 @@ public class ReadMegaMek {
   // "Ultra AC/10" and "CLUltraAC10" both become "ultraac10"
   private static String comparable(String name) {
     return name.toLowerCase().replaceAll("[^a-z0-9]", "");
+  }
+
+  private static String first(Map<String, List<String>> values, String key) {
+    List<String> list = values.get(key);
+    return list == null || list.isEmpty() ? null : list.get(0);
+  }
+
+  static UUID parseUuid(String value) {
+    if(value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value.trim());
+    } catch (IllegalArgumentException e) {
+      log.warn("Ignoring invalid MegaMek uuid {}", value);
+      return null;
+    }
+  }
+
+  // MegaMek writes -1 when a unit isn't in the Master Unit List
+  static Integer parseMulId(String value) {
+    if(value == null || value.isBlank()) {
+      return null;
+    }
+    int mulId = Integer.parseInt(value.trim());
+    return mulId > 0 ? mulId : null;
   }
 }
