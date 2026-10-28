@@ -11,9 +11,12 @@ public class Heatsinks {
   HeatsinkType type;
   int heatsinkQuantity; // maybe heatsinks should be equipment like everything else...
 
+  // stored by ordinal (heatsinks.type is an integer column), so only add new values at the end
   public enum HeatsinkType {
     SINGLE("SINGLE"),
-    DOUBLE("DOUBLE");
+    DOUBLE("DOUBLE"),
+    LASER("LASER"),
+    COMPACT("COMPACT");
 
     private String text;
 

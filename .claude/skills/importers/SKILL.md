@@ -39,7 +39,7 @@ MegaMek moved its unit files out of the main `megamek` repo (which now only has 
 - **No way to trigger a MegaMek import.** The admin endpoint `POST localhost:8081/actuator/import` (`admin/ImportEndpoint`) only accepts `{"source": "recognition-guide"}`. `persistMechs()` / `persistVehicles()` aren't wired to anything; add them as sources once re-importing no longer duplicates units (bug 1).
 - **Configuration.** Paths come from `MEGAMEK_MECHS_PATH`, `MEGAMEK_VEHICLES_PATH` and `RECOGNITION_GUIDE_PDF` (`battletech.import.*` in `application.yml`).
 - **Error handling.** A file that throws is logged ("Unable to import ...") and skipped. Most parser bugs show up there as NPEs, not as clear errors.
-- **Tests.** `ReadMegaMekTest` parses real files copied from mm-data into `src/test/resources/megamek/` (5 mechs, 6 vehicles). Known bugs those files show are `@Disabled` tests describing the correct result: enable each one with its fix. `ReadMegaMekAllFilesTest` parses every file in the checkout, but only when `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH` are set. At the pinned commit: 4,263 mechs and 1,453 vehicles, 0 failures, 236 vehicles skipped (bug 13).
+- **Tests.** `ReadMegaMekTest` parses real files copied from mm-data into `src/test/resources/megamek/` (5 mechs, 6 vehicles). Add a test there with each bug fix. `ReadMegaMekAllFilesTest` parses every file in the checkout, but only when `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH` are set. At the pinned commit: 4,263 mechs and 1,453 vehicles, 0 failures, 236 vehicles skipped (bug 13).
 
 ## Known bugs
 
@@ -49,24 +49,25 @@ All of these were checked against the code. The "Data:" lines are from the basel
 1. **Re-importing duplicates units.** `persistUnits` never checks whether the unit already exists. Unit ids are random UUIDs, so a second run adds every unit again. Data: 11 name/designation pairs already appear twice (e.g. Wasp WSP-1S, Marauder II MAD-5C). Fix: upsert on MegaMek's `uuid` (see "Format changes" above).
 2. **Equipment names are flattened.** `persistUnits` lowercases them and removes spaces (`Medium Laser` → `mediumlaser`). The query side joins words with a space, so `mechs with 2 medium laser` doesn't match. Only `mediumlaser` works, unless `equipment_slang` has a row. That table ships empty. Decide on one normal form and apply it on both the import and query sides.
 3. **Annotations stay in equipment names.** Data: 28 equipment names include suffixes, e.g. `mediumlaser(r)` (rear-facing), `srm6(i-os)` / `srm2(os)` (one-shot), `tag(clan)`, `cargo(1ton)`, `rifle(cannon`, `unknowncritical(0xda)`. The vehicle path strips some of these with `.contains("(r)")` checks, but the mech path strips none. A rear `mediumlaser(r)` therefore isn't counted as a `mediumlaser`.
-4. **Missing tech gives a third copy of the equipment.** Equipment is de-duplicated by name + tech, and a null tech counts as its own value. Data: 128 equipment rows have null tech, e.g. `erlargelaser` exists as CLAN, INNER_SPHERE and NULL. With per-variant counting, one mech's ER large lasers can be split across rows.
+4. ~~Missing tech gives a third copy of the equipment.~~ **Fixed in the parsers:** every unit and every piece of equipment now gets a tech (0 nulls across the pinned commit), via `Tech.fromTechBase` / `Tech.chassisTech`. The baseline data still has 128 null-tech equipment rows until it's regenerated.
+19. **Some mech weapons have no location.** `Location` has no values for quad, tripod or LAM locations such as `Front Left Leg`. At the pinned commit, 30 weapons get a null location.
 
 ### Mechs (`ReadMechMTF`, `.mtf`)
-5. **Mixed-tech mechs get no tech.** `Tech.fromString` only matches the exact strings `Inner Sphere`, `CLAN` and `Mixed Tech`. MTF values like `Mixed (IS Chassis)` match nothing. Data: 236 mechs have null tech (e.g. Trebuchet TBT-9N, Awesome AWS-11H). Their weapons then inherit the null tech; see bug 4.
-6. **Per-weapon tech isn't read.** Weapon lines no longer carry an `IS`/`CL` prefix (see "Format changes"), so every weapon gets the unit's tech. That's right for pure IS/Clan mechs but wrong for mixed tech. Fix by reading the critical slot listings (`CLERMediumLaser`). The old prefix code (`getTechType`) is removed.
+5. ~~Mixed-tech mechs get no tech.~~ **Fixed:** `Tech.fromTechBase` maps `Mixed (IS Chassis)` / `Mixed (Clan Chassis)` to `MIXED_TECH`. At the pinned commit: IS 2708, Clan 1178, Mixed 377.
+6. ~~Per-weapon tech isn't read.~~ **Fixed:** weapon lines have no prefix, so `readMtfWeapons` looks for a slot in the same location named with a `CL` / `Clan ` / `IS` prefix that matches the weapon (letters and digits only, so `Ultra AC/10` = `CLUltraAC10`). If there's a match, that's the tech; otherwise it's the chassis tech. Mixed mechs' weapons come out 1,246 Clan and 802 IS.
 7. ~~The fixed field order is fragile.~~ **Fixed:** fields are read by key. A missing required field throws an `IOException` naming the file and field.
-8. **Armor and critical slots aren't imported.** Armor is totaled and thrown away, and the slot layout isn't read.
-9. ~~Prefix-based tech detection for mechs.~~ Obsolete: MTF weapon lines have no prefixes now. The vehicle path still uses `startsWith("is"/"cl")` in `convertToEquipment`.
-18. **Double heat sinks aren't recognized.** `Mech.setHeatsinks` takes the type from the second word: `20 IS Double` → `IS`, and `17 Clan Double` → `Clan`, which both map to null. At the pinned commit: IS Double 1981, Clan Double 1280, Single 968, Laser 30, Compact 4. `HeatsinkType` only has SINGLE/DOUBLE.
+8. **Armor and critical slots aren't imported.** Armor isn't read. Slots are only read to work out weapon tech (bug 6); the slot layout itself isn't stored.
+9. ~~Prefix-based tech detection for mechs.~~ Obsolete: MTF weapon lines have no prefixes now. The vehicle path still uses `startsWith("is"/"cl")` in `convertToEquipment`. That's safe at the pinned commit: no equipment name starts with those letters without being a prefix.
+18. ~~Double heat sinks aren't recognized.~~ **Fixed:** the type is the last word and the tech comes from the `IS`/`Clan` word when present. `HeatsinkType` gained `LASER` and `COMPACT`, added at the end because the column stores the ordinal. At the pinned commit: Double 3261, Single 968, Laser 30, Compact 4.
 
 ### Vehicles (`ReadVehicleBlk`, `.blk`)
-10. **Body equipment is never imported.** The code checks `value.get("body")` but reads `value.get("body equipment")`. The check is always null. Data: the only BODY-location rows on vehicles are 321 `infantrybay` entries, which are added separately from `transporters`.
-11. **Mixed tech becomes Inner Sphere.** Tech comes from `techType.contains("is")` before checking `cl`/`mixed tech`. `chassis` contains "is", so `Mixed (Clan Chassis)` → INNER_SPHERE, and `MIXED_TECH` is never set. Data: no vehicle has MIXED_TECH.
+10. ~~Body equipment is never imported.~~ **Fixed.** In the baseline data, the only BODY rows on vehicles are 321 `infantrybay` entries. At the pinned commit the parser now reads 5,060 body items. Note that these are mostly ammo, CASE and similar: vehicle equipment lists include everything, while mech weapon lists don't include ammo. Decide whether search should ignore ammo, and keep vehicles and mechs consistent.
+11. ~~Mixed tech becomes Inner Sphere.~~ **Fixed:** the vehicle tech comes from `Tech.fromTechBase`. At the pinned commit: IS 1009, Clan 171, Mixed 37. Equipment with a `CL`/`Clan`/`IS` prefix gets that tech; anything else gets the chassis tech. **Known limitation:** in mixed *Clan-chassis* vehicles (8 files), IS weapons are unprefixed (`Bombast Laser`), so they're labeled Clan. Pure Clan vehicles also list some Clan-only items unprefixed (`Hyper-Assault Gauss Rifle/30 Ammo`, `VehicleJumpJet`), so "unprefixed = IS" would be worse overall. Fixing this properly needs an equipment lookup table.
 12. **Motive type is dropped.** `motion_type` is read and thrown away. See the `vehicle-motive-types` skill, which also has the open "what does tank mean" question.
 13. **Several unit types are skipped.** Only `Tank` and `VTOL` are imported. `SupportTank`, `SupportVTOL`, `LargeSupportTank` and others are logged and skipped.
 14. **Some vehicle stats aren't kept.** Armor type and internal structure type are parsed into unused locals, and total armor is computed and thrown away. Tonnage is truncated (`7.5` → `7`), and only cruise MP is kept.
-15. **A dead line in `convertToEquipment`.** `equip.toLowerCase().replaceAll(...)` throws its result away. It's harmless today because `readBlkAllParameters` already lowercases, but it's misleading.
-17. **Vehicle names and models are lowercased.** `readBlkAllParameters` lowercases every value, so `Bulldog Medium Tank` is stored as `bulldog medium tank`. Data: e.g. `packrat lrpv pkr-t5 (ml)`. Only lowercase the values that need it.
+15. ~~A dead line in `convertToEquipment`.~~ **Fixed:** it now lowercases the equipment name, which `readBlkAllParameters` no longer does (bug 17).
+17. ~~Vehicle names and models are lowercased.~~ **Fixed:** `readBlkAllParameters` keeps values in their original case and only lowercases tag names. The baseline data is still lowercase (e.g. `packrat lrpv pkr-t5 (ml)`) until it's regenerated. `SearchServiceTest` pins some of those names.
 
 ### Recognition guide (`ReadPDF`)
 16. **Unfinished and saves nothing.** `convertToUnit` builds a `Mech` and only logs it.
@@ -81,7 +82,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
    - Make import idempotent: store MegaMek's `uuid` and upsert on it (bug 1). This needs a new column, so it needs a migration.
-2. **Fix the parsers one bug at a time**, with a fixture test for each (enable the matching `@Disabled` test). The MTF header change is done. Suggested order: equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 4-7, 10, 11, 15, 17 and 18. Remaining, in suggested order: equipment naming (2, 3, which needs a decision on the normal form shared with the query side), then motive type (12, which needs the tank decision), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 

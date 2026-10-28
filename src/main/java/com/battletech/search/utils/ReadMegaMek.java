@@ -46,6 +46,11 @@ public class ReadMegaMek {
       log.info("Skipping {}: unsupported unit type {}", filePath, type);
       return null;
     }
+    // the type tells us whether it's IS, Clan or mixed tech, e.g. "Mixed (Clan Chassis) Experimental"
+    String techBase = value.get("type").get(0);
+    vee.setTech(Tech.fromTechBase(techBase));
+    // equipment without an IS/Clan prefix is the chassis tech
+    Tech chassisTech = Tech.chassisTech(techBase);
     vee.setName(value.get("name").get(0));
     List<String> model = value.get("model");
     vee.setDesignation(model == null || model.isEmpty() ? "" : model.get(0));
@@ -68,40 +73,36 @@ public class ReadMegaMek {
       // set default internal structure
     }
     if(value.get("front equipment") != null) {
-      List<UnitEquipment> frontEquip = convertToEquipment(value.get("front equipment"),
-          Location.FRONT);
-      vee.setMechEquipment(frontEquip);
+      vee.setMechEquipment(convertToEquipment(value.get("front equipment"), chassisTech, Location.FRONT));
     }
     if(value.get("right equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(
-          value.get("right equipment"),
-          Location.RIGHT));
+      vee.setMechEquipment(convertToEquipment(value.get("right equipment"), chassisTech, Location.RIGHT));
     }
     if(value.get("left equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("left equipment"), Location.LEFT));
+      vee.setMechEquipment(convertToEquipment(value.get("left equipment"), chassisTech, Location.LEFT));
     }
     if(value.get("rear equipment") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("rear equipment"), Location.REAR));
+      vee.setMechEquipment(convertToEquipment(value.get("rear equipment"), chassisTech, Location.REAR));
     }
-    if(value.get("body") != null) {
-      vee.setMechEquipment(convertToEquipment(value.get("body equipment"), Location.BODY));
+    if(value.get("body equipment") != null) {
+      vee.setMechEquipment(convertToEquipment(value.get("body equipment"), chassisTech, Location.BODY));
     }
     if(value.get("rear turret equipment") != null) {
       if(value.get("front turret equipment") != null) {
         vee.setMechEquipment(
-            convertToEquipment(value.get("front turret equipment"), Location.FRONTTURRET));
+            convertToEquipment(value.get("front turret equipment"), chassisTech, Location.FRONTTURRET));
       }
       vee.setMechEquipment(
-          convertToEquipment(value.get("rear turret equipment"), Location.REARTURRET));
+          convertToEquipment(value.get("rear turret equipment"), chassisTech, Location.REARTURRET));
     }else {
       if(value.get("turret equipment") != null) {
         vee.setMechEquipment(
-            convertToEquipment(value.get("turret equipment"), Location.FRONTTURRET));
+            convertToEquipment(value.get("turret equipment"), chassisTech, Location.FRONTTURRET));
       }
     }
 
     if(value.get("transporters") != null && !value.get("transporters").get(0).isEmpty()){
-      Equipment equip = new Equipment("infantry bay");
+      Equipment equip = new Equipment("infantry bay", chassisTech);
       equip.setTonnage(0.5);
       UnitEquipment infantryBay = new UnitEquipment();
       infantryBay.setEquipment(equip);
@@ -110,61 +111,16 @@ public class ReadMegaMek {
       vee.setMechEquipment(Collections.singletonList(infantryBay));
     }
 
-
-    String techType = value.get("type").get(0); // tells us whether its IS, Clan or Mixed Tech
-    if(techType.contains("is")) {
-      vee.setTech(Tech.INNER_SPHERE);
-    }else if(techType.contains("cl")) {
-      vee.setTech(Tech.CLAN);
-    }else if(techType.contains("mixed tech")) {
-      vee.setTech(Tech.MIXED_TECH);
-    }
-    //value.get("fueltype").get(0);
-    /*
-    String unitType = readBlkParameter("UnitType", reader).get(0);
-    String name = readBlkParameter("Name", reader).get(0);
-    String model = readBlkParameter("Model", reader).get(0);
-    String tonnage = readBlkParameter("Tonnage", reader).get(0);
-    String cruiseMp = readBlkParameter("cruiseMP", reader).get(0);
-    List<String> armor = readBlkParameter("armor", reader);
-
-    List<String> frontEquipment = readBlkParameter("Front Equipment", reader);
-    List<String> rightEquipment = readBlkParameter("Right Equipment", reader);
-    List<String> leftEquipment = readBlkParameter("Left Equipment", reader);
-    List<String> rearEquipment = readBlkParameter("Rear Equipment", reader);
-    List<String> bodyEquipment = readBlkParameter("Body Equipment", reader);
-    List<String> rearTurretEquipment = readBlkParameter("Rear Turret Equipment", reader);
-    List<String> frontTurretEquipment = readBlkParameter("Front Turret Equipment", reader);
-
-    String type = readBlkParameter("type", reader).get(0);
-  */
-
     return vee;
   }
 
-  static List<String> readBlkParameter(String paramName, BufferedReader reader) throws IOException {
-    boolean loop = true;
-    List<String> returnList = new LinkedList();
-    while(loop) {
-      String temp = reader.readLine();
-      if(!temp.isEmpty()) {
-        if (temp.equalsIgnoreCase("<"+paramName+">")) {
-          returnList.add(reader.readLine());
-        } else if(temp.equalsIgnoreCase("</"+paramName+">")) {
-          loop = false;
-        }
-      }
-    }
-    return returnList;
-  }
-
-  static List<UnitEquipment> convertToEquipment(List<String> equipment, Location location) {
+  static List<UnitEquipment> convertToEquipment(List<String> equipment, Tech chassisTech, Location location) {
     List<UnitEquipment> returnEquipment = new LinkedList<UnitEquipment>();
     for(String equip: equipment) {
       UnitEquipment value = new UnitEquipment();
       value.setEquipment(new Equipment());
       value.setLocation(location);
-      equip.toLowerCase().replaceAll("\\s", "");
+      equip = equip.toLowerCase();
       // there is a problem if something is both rear facing and omni equipped
       if(equip.endsWith(":omni")) {
         value.setOmniPod(true);
@@ -194,6 +150,7 @@ public class ReadMegaMek {
           value.getEquipment().setName(equip.substring(2).strip());
         }
       } else {
+        value.getEquipment().setTech(chassisTech);
         value.getEquipment().setName(equip);
       }
       returnEquipment.add(value);
@@ -202,6 +159,7 @@ public class ReadMegaMek {
     return returnEquipment;
   }
 
+  /** Every <tag> in a .blk file, keyed by lowercase tag name. Values keep their original case. */
   static Map<String, List<String>> readBlkAllParameters(BufferedReader reader) throws IOException {
     boolean loop = true;
     Map<String, List<String>> parameters = new HashMap();
@@ -219,7 +177,7 @@ public class ReadMegaMek {
         } else if (temp.startsWith("<") && temp.indexOf("</") > 0) {
           // a whole tag on one line, e.g. "<Model></Model>" for an empty value
           int open = temp.indexOf('>');
-          String value = temp.substring(open + 1, temp.indexOf("</")).trim().toLowerCase();
+          String value = temp.substring(open + 1, temp.indexOf("</")).trim();
           List<String> values = new LinkedList<>();
           if(!value.isEmpty()) {
             values.add(value);
@@ -229,7 +187,7 @@ public class ReadMegaMek {
           paramName = temp.substring(1, temp.length()-1).toLowerCase();
         }else {
           if(!temp.startsWith("#")) {
-            parameterList.add(temp.toLowerCase());
+            parameterList.add(temp);
           }
         }
       }
@@ -261,7 +219,8 @@ public class ReadMegaMek {
     }
     // e.g. "Biped", "Biped OmniMek", "Quad"
     mech.setLocomotion(Locomotion.fromString(requiredField(fields, "config", filePath).split(" ")[0]));
-    mech.setTech(Tech.fromString(requiredField(fields, "techbase", filePath))); // Mixed (IS Chassis) isn't mapped yet
+    String techBase = requiredField(fields, "techbase", filePath);
+    mech.setTech(Tech.fromTechBase(techBase));
     mech.setEra(fields.get("era")); // now a year, e.g. 2755
     mech.setRulesLevel(Integer.parseInt(requiredField(fields, "rules level", filePath)));
     mech.setWeight(Integer.parseInt(requiredField(fields, "mass", filePath)));
@@ -276,7 +235,7 @@ public class ReadMegaMek {
     mech.setMovement(move);
     // armor isn't imported yet
 
-    mech.setMechEquipment(readMtfWeapons(lines, filePath));
+    mech.setMechEquipment(readMtfWeapons(lines, filePath, Tech.chassisTech(techBase)));
     return mech;
   }
 
@@ -303,8 +262,13 @@ public class ReadMegaMek {
     return value;
   }
 
-  /** The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso". */
-  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath) throws IOException {
+  /**
+   * The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso".
+   * Weapon lines don't say IS or Clan; the critical slots do ("CLERMediumLaser"), so a weapon that
+   * matches a prefixed slot in its location gets that tech, and anything else the chassis tech.
+   */
+  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath, Tech chassisTech) throws IOException {
+    Map<String, List<String>> slots = readMtfSlots(lines);
     List<UnitEquipment> weapons = new LinkedList<>();
     for(int i = 0; i < lines.size(); i++) {
       if(lines.get(i).toLowerCase().startsWith("weapons:")) {
@@ -316,13 +280,61 @@ public class ReadMegaMek {
           if(split < 0) {
             throw new IOException(filePath + ": weapon line without a location: " + line);
           }
-          String weapon = line.substring(0, split).toLowerCase().replaceAll("\s", "");
-          // weapon lines don't say IS or Clan; persistUnits falls back to the unit's tech
-          weapons.add(new UnitEquipment(new Equipment(weapon, null), line.substring(split + 2)));
+          String name = line.substring(0, split);
+          String location = line.substring(split + 2);
+          Tech tech = slotTech(slots.getOrDefault(location.toLowerCase(), List.of()), name);
+          String weapon = name.toLowerCase().replaceAll("\\s", "");
+          weapons.add(new UnitEquipment(new Equipment(weapon, tech != null ? tech : chassisTech), location));
         }
         return weapons;
       }
     }
     throw new IOException(filePath + " has no weapons: line");
+  }
+
+  /** Critical slot names per location ("left arm" -> ["Shoulder", ..., "CLERMediumLaser"]). */
+  static Map<String, List<String>> readMtfSlots(List<String> lines) {
+    Map<String, List<String>> slots = new HashMap<>();
+    List<String> current = null;
+    for(String line : lines) {
+      String trimmed = line.trim();
+      if(trimmed.isEmpty()) {
+        current = null;
+      } else if(trimmed.endsWith(":") && !trimmed.contains(" armor:")) {
+        current = new LinkedList<>();
+        slots.put(trimmed.substring(0, trimmed.length() - 1).toLowerCase(), current);
+      } else if(current != null) {
+        current.add(trimmed);
+      }
+    }
+    return slots;
+  }
+
+  /** The tech of a slot naming this weapon with an IS/Clan prefix, or null if there isn't one. */
+  static Tech slotTech(List<String> slots, String weapon) {
+    String wanted = comparable(weapon);
+    for(String slot : slots) {
+      Tech tech = null;
+      String rest = slot;
+      if(slot.startsWith("Clan ")) {
+        tech = Tech.CLAN;
+        rest = slot.substring(5);
+      } else if(slot.startsWith("CL")) {
+        tech = Tech.CLAN;
+        rest = slot.substring(2);
+      } else if(slot.startsWith("IS")) {
+        tech = Tech.INNER_SPHERE;
+        rest = slot.substring(2);
+      }
+      if(tech != null && comparable(rest).equals(wanted)) {
+        return tech;
+      }
+    }
+    return null;
+  }
+
+  // "Ultra AC/10" and "CLUltraAC10" both become "ultraac10"
+  private static String comparable(String name) {
+    return name.toLowerCase().replaceAll("[^a-z0-9]", "");
   }
 }

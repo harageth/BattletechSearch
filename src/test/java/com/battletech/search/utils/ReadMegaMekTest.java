@@ -18,13 +18,11 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
  * Parses real MegaMek files copied from MegaMek/mm-data (see the importers skill for the pinned
- * commit). Disabled tests describe the correct result for known bugs listed in the importers skill;
- * enable each one when its bug is fixed.
+ * commit). When fixing a bug from the importers skill, add a test here with the correct result.
  */
 class ReadMegaMekTest {
 
@@ -112,16 +110,51 @@ class ReadMegaMekTest {
     assertThat(mech("Goliath GOL-1M.mtf").getLocomotion()).isEqualTo(Locomotion.QUAD);
   }
 
-  @Disabled("importers skill bug 5: Mixed (IS Chassis) isn't mapped to a tech")
   @Test
   void mixedTechMech() throws IOException {
-    assertThat(mech("Black Knight BL-6-RR.mtf").getTech()).isEqualTo(Tech.MIXED_TECH);
+    Mech blackKnight = mech("Black Knight BL-6-RR.mtf");
+
+    assertThat(blackKnight.getTech()).isEqualTo(Tech.MIXED_TECH);
+    // Clan weapons are "CL..." in the critical slots; unprefixed ones are the IS chassis' tech
+    assertThat(blackKnight.getMechEquipment())
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
+        .containsExactly(
+            tuple("ermediumlaser", Tech.CLAN),
+            tuple("erppc", Tech.CLAN),
+            tuple("ermediumlaser", Tech.CLAN),
+            tuple("largelaser", Tech.INNER_SPHERE),
+            tuple("ermediumlaser", Tech.CLAN),
+            tuple("largelaser", Tech.INNER_SPHERE),
+            tuple("ermediumlaser", Tech.CLAN),
+            tuple("smalllaser", Tech.INNER_SPHERE));
   }
 
-  @Disabled("importers skill bug 18: '17 Clan Double' / '20 IS Double' heat sinks aren't recognized")
   @Test
-  void doubleHeatSinks() throws IOException {
-    assertThat(mech("Mad Cat (Timber Wolf) Prime.mtf").getHeatsinks().getType()).isEqualTo(HeatsinkType.DOUBLE);
+  void slotTechMatchesPrefixedSlots() {
+    List<String> slots = List.of("Shoulder", "CLUltraAC10", "Clan Ultra AC/10 Ammo", "ISERLargeLaser", "Large Laser");
+
+    assertThat(ReadMegaMek.slotTech(slots, "Ultra AC/10")).isEqualTo(Tech.CLAN);
+    assertThat(ReadMegaMek.slotTech(slots, "ER Large Laser")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(ReadMegaMek.slotTech(slots, "Large Laser")).isNull();
+    assertThat(ReadMegaMek.slotTech(slots, "PPC")).isNull();
+  }
+
+  @Test
+  void heatSinks() throws IOException {
+    Mech madCat = mech("Mad Cat (Timber Wolf) Prime.mtf");
+    // "17 Clan Double"
+    assertThat(madCat.getHeatsinks().getHeatsinkQuantity()).isEqualTo(17);
+    assertThat(madCat.getHeatsinks().getType()).isEqualTo(HeatsinkType.DOUBLE);
+    assertThat(madCat.getHeatsinks().getTechType()).isEqualTo(Tech.CLAN);
+
+    Mech mixed = new Mech();
+    mixed.setTech(Tech.MIXED_TECH);
+    mixed.setHeatsinks("20 IS Double");
+    assertThat(mixed.getHeatsinks().getType()).isEqualTo(HeatsinkType.DOUBLE);
+    assertThat(mixed.getHeatsinks().getTechType()).isEqualTo(Tech.INNER_SPHERE);
+    mixed.setHeatsinks("10 Laser");
+    assertThat(mixed.getHeatsinks().getType()).isEqualTo(HeatsinkType.LASER);
+    assertThat(mixed.getHeatsinks().getTechType()).isEqualTo(Tech.MIXED_TECH);
   }
 
   // --- vehicles ---
@@ -131,9 +164,8 @@ class ReadMegaMekTest {
     Unit bulldog = vehicle("Bulldog Medium Tank (AC2).blk");
 
     assertThat(bulldog).isExactlyInstanceOf(Tank.class);
-    // names are lowercased on import (importers skill bug 17)
-    assertThat(bulldog.getName()).isEqualToIgnoringCase("Bulldog Medium Tank");
-    assertThat(bulldog.getDesignation()).isEqualToIgnoringCase("(AC2)");
+    assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
+    assertThat(bulldog.getDesignation()).isEqualTo("(AC2)");
     assertThat(bulldog.getTech()).isEqualTo(Tech.INNER_SPHERE);
     assertThat(bulldog.getWeight()).isEqualTo(60);
     assertThat(bulldog.getMovement().getWalk()).isEqualTo(4);
@@ -178,15 +210,35 @@ class ReadMegaMekTest {
     assertThat(vehicle("Air Car.blk")).isNull();
   }
 
-  @Disabled("importers skill bug 10: <Body Equipment> is never imported")
   @Test
   void readsBodyEquipment() throws IOException {
-    assertThat(at(vehicle("Bulldog Medium Tank (AC2).blk"), Location.BODY)).hasSize(3);
+    assertThat(at(vehicle("Bulldog Medium Tank (AC2).blk"), Location.BODY))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
+        .containsExactly(
+            tuple("ammo srm-4", Tech.INNER_SPHERE),
+            tuple("ammo ac/2", Tech.INNER_SPHERE),
+            tuple("machine gun ammo - half", Tech.INNER_SPHERE));
   }
 
-  @Disabled("importers skill bug 11: 'Mixed (Clan Chassis)' contains \"is\" and becomes INNER_SPHERE")
   @Test
   void mixedTechVehicle() throws IOException {
-    assertThat(vehicle("Chalchiuhtotolin Support Tank (Bombast Laser).blk").getTech()).isEqualTo(Tech.MIXED_TECH);
+    Unit tank = vehicle("Chalchiuhtotolin Support Tank (Bombast Laser).blk");
+
+    assertThat(tank.getTech()).isEqualTo(Tech.MIXED_TECH);
+    // "CLStreakSRM4" is Clan, and unprefixed equipment gets the Clan chassis' tech. That's wrong for
+    // the IS Bombast Laser, a known limitation (importers skill, bug 11)
+    assertThat(at(tank, Location.FRONTTURRET))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
+        .containsExactly(
+            tuple("bombast laser", Tech.CLAN),
+            tuple("streaksrm4", Tech.CLAN),
+            tuple("streaksrm4", Tech.CLAN));
+  }
+
+  @Test
+  void unprefixedEquipmentGetsTheChassisTech() throws IOException {
+    assertThat(vehicle("Puma Assault Tank PAT-001.blk").getMechEquipment())
+        .extracting(equip -> equip.getEquipment().getTech())
+        .containsOnly(Tech.INNER_SPHERE);
   }
 }
