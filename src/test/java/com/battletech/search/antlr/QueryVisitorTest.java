@@ -230,6 +230,10 @@ class QueryVisitorTest {
         .hasMessage("Unable to parse query: expected a quantity like '2' or 'at least 2' after 'with'." + example);
     assertThatThrownBy(() -> parse("mechs with at least 2"))
         .hasMessage("Unable to parse query: expected an equipment name after '2'." + example);
+    assertThatThrownBy(() -> parse("mechs with 2"))
+        .hasMessage("Unable to parse query: expected an equipment name after '2'." + example);
+    assertThatThrownBy(() -> parse("mechs with 2 or fewer"))
+        .hasMessage("Unable to parse query: expected an equipment name after 'or fewer'." + example);
     assertThatThrownBy(() -> parse("mechs with at least ppc"))
         .hasMessage("Unable to parse query: expected a quantity like '2' or 'at least 2' before 'ppc' (character 21)." + example);
     assertThatThrownBy(() -> parse("mechs at least 2 ppc"))

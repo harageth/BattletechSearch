@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.misc.IntervalSet;
 
 /**
@@ -38,6 +39,7 @@ public class QueryParser {
   /** Throws on the first error, translating ANTLR's message into something a user can act on. */
   static class ThrowingErrorListener extends BaseErrorListener {
     static final ThrowingErrorListener INSTANCE = new ThrowingErrorListener();
+    static final String EQUIPMENT = "an equipment name";
 
     @Override
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
@@ -50,9 +52,13 @@ public class QueryParser {
             + " (character " + column + "). Use letters, numbers, '-' and '/'.");
       }
 
-      String expected = describe(parser.getExpectedTokens());
+      TokenStream tokens = parser.getTokenStream();
+      int index = token.getTokenIndex();
+      Token previous = index > 0 ? tokens.get(index - 1) : null;
+      // After "2" or "2 or fewer" only an equipment name fits, but when ANTLR fails while choosing
+      // between the equipmentChunk alternatives its expected set still includes a quantity.
+      String expected = followsQuantity(tokens, index) ? EQUIPMENT : describe(parser.getExpectedTokens());
       if (token.getType() == Token.EOF) {
-        Token previous = token.getTokenIndex() > 0 ? parser.getTokenStream().get(token.getTokenIndex() - 1) : null;
         if (previous == null) {
           throw new FailedParseException("Unable to parse query: the query is empty. " + EXAMPLE);
         }
@@ -76,9 +82,24 @@ public class QueryParser {
         return "'with'";
       }
       if (expected.contains(BattletechParser.WORD)) {
-        return "an equipment name";
+        return EQUIPMENT;
       }
       return null;
+    }
+
+    /** Whether the tokens before index are a quantity, optionally followed by a comparator. */
+    private static boolean followsQuantity(TokenStream tokens, int index) {
+      int previous = index - 1;
+      if (previous >= 0 && isComparator(tokens.get(previous).getType())) {
+        previous--;
+      }
+      return previous >= 0 && tokens.get(previous).getType() == BattletechParser.QUANTITY;
+    }
+
+    private static boolean isComparator(int type) {
+      return type == BattletechParser.ATLEAST || type == BattletechParser.NOMORE
+          || type == BattletechParser.EQUAL || type == BattletechParser.LESSTHANCOMPARATOR
+          || type == BattletechParser.GREATERTHANCOMPARATOR;
     }
   }
 }
