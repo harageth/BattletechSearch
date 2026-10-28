@@ -107,12 +107,16 @@ public class QueryVisitor implements BattletechVisitor {
         lookup = fireControl.launcher();
       }
       // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
-      List<Equipment> matches = equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(lookup), lookup);
+      List<Equipment> found = equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(lookup), lookup);
+      List<Equipment> matches = found;
       if(tech != null) {
         Tech wanted = tech;
-        matches = matches.stream().filter(match -> match.getTech() == wanted).toList();
+        matches = found.stream().filter(match -> match.getTech() == wanted).toList();
       }
-      for(Equipment thing : matches) {
+      // the equipment exists, just not in that tech ("clan plasma rifle"): no unit has it, which
+      // isn't a parse error
+      boolean noneInTech = matches.isEmpty() && !found.isEmpty();
+      for(Equipment thing : noneInTech ? found.subList(0, 1) : matches) {
         if(first) {
           first = false;
         }else {
@@ -129,6 +133,7 @@ public class QueryVisitor implements BattletechVisitor {
         }
       }
       if(realDecorator.getEquipment() != null) {
+        realDecorator.setMatchesNothing(noneInTech);
         decorators.add(realDecorator);
       }else {
         throw new FailedParseException("Unable to parse: " + equip);

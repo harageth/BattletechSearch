@@ -66,7 +66,7 @@ class UnitServiceImportTest {
 
   @Test
   void importsMechsWithTheirIds() throws IOException {
-    assertThat(importMechs()).isEqualTo(new ImportResult(7, 0, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(9, 0, 0, 0));
 
     Unit atlas = unitRepo.findByMegamekUuid(ATLAS).orElseThrow();
     assertThat(atlas.getName()).isEqualTo("Atlas");
@@ -83,7 +83,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).isEqualTo(new ImportResult(0, 7, 0, 0));
+    assertThat(importMechs()).isEqualTo(new ImportResult(0, 9, 0, 0));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind
@@ -174,6 +174,37 @@ class UnitServiceImportTest {
     assertThat(search("mechs with exactly 4 clan er medium laser")).contains("Black Knight BL-6-RR");
     assertThat(search("mechs with at least 1 is er medium laser")).doesNotContain("Black Knight BL-6-RR");
     assertThat(search("mechs with exactly 2 inner sphere large laser")).contains("Black Knight BL-6-RR");
+    // both techs in one request
+    assertThat(search("mechs with exactly 4 clan er medium laser and exactly 2 is large laser"))
+        .contains("Black Knight BL-6-RR");
+    assertThat(search("mechs with exactly 4 clan er medium laser and at least 1 clan large laser"))
+        .doesNotContain("Black Knight BL-6-RR");
+  }
+
+  @Test
+  void countsIsAndClanVersionsOfAWeaponTogether() throws IOException {
+    importMechs();
+    entityManager.flush();
+
+    // the Hybrid Rifleman has one Clan ER medium laser (left arm) and one IS one (rear, center torso)
+    String rifleman = "Hybrid Rifleman RFL-3N (Sneede II)";
+    assertThat(search("mechs with exactly 2 er medium laser")).contains(rifleman);
+    assertThat(search("mechs with exactly 1 clan er medium laser")).contains(rifleman);
+    assertThat(search("mechs with exactly 1 is er medium laser")).contains(rifleman);
+    assertThat(search("mechs with exactly 1 er medium laser")).doesNotContain(rifleman);
+    assertThat(search("mechs with exactly 1 clan er medium laser and exactly 1 is er medium laser")).contains(rifleman);
+    assertThat(search("mechs with 1 clan artemis v lrm 20")).contains(rifleman);
+  }
+
+  @Test
+  void clanChassisMixedTechSearches() throws IOException {
+    importMechs();
+    entityManager.flush();
+
+    // the Flamberge D: Clan SRM 6s and pulse lasers, IS plasma rifles
+    assertThat(search("mechs with exactly 2 is plasma rifle and exactly 2 clan srm 6")).contains("Flamberge D");
+    assertThat(search("mechs with at least 1 clan plasma rifle")).doesNotContain("Flamberge D");
+    assertThat(search("mechs with exactly 4 jj")).contains("Flamberge D");
   }
 
   @Test

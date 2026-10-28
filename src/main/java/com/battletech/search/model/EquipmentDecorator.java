@@ -18,6 +18,8 @@ public class EquipmentDecorator extends UnitEquipment {
   LogicalOperator operator;
   // only count launchers with one of these ("artemis lrm 20"); null counts all
   Set<FireControl> fireControls;
+  // the equipment exists but not in the tech asked for ("clan plasma rifle"), so no unit matches
+  boolean matchesNothing;
 
   public EquipmentDecorator(UnitEquipment decoratedEquipment) {
     this.decoratedEquipment = decoratedEquipment;
@@ -70,6 +72,9 @@ public class EquipmentDecorator extends UnitEquipment {
     // Every matching equipment row (e.g. the IS and Clan medium laser) is counted together, so
     // "at least 4 medium laser" counts a mixed-tech mech's IS and Clan lasers. "clan medium laser"
     // narrows the rows to one tech before this (QueryVisitor).
+    if(matchesNothing) {
+      return "SELECT unit_id FROM unit_mech_equipment WHERE false";
+    }
     List<String> ids = new LinkedList<>();
     for(UnitEquipment equip = this; equip != null;
         equip = equip instanceof EquipmentDecorator decorator ? decorator.getDecoratedEquipment() : null) {

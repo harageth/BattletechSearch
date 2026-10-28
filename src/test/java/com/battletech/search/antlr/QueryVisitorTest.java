@@ -198,6 +198,19 @@ class QueryVisitorTest {
   }
 
   @Test
+  void equipmentNotMadeInATechMatchesNoUnits() {
+    // only an IS plasma rifle exists, so "clan plasma rifle" finds no units rather than failing to parse
+    when(equipRepo.findAllByNameOrSlang(eq("plasmarifle"), anyString()))
+        .thenReturn(List.of(equipment("plasmarifle", Tech.INNER_SPHERE)));
+
+    EquipmentDecorator clan = chunk(parse("mechs with at least 1 clan plasma rifle"), 0);
+    assertThat(clan.isMatchesNothing()).isTrue();
+    assertThat(clan.getQuery()).isEqualTo("SELECT unit_id FROM unit_mech_equipment WHERE false");
+
+    assertThat(chunk(parse("mechs with at least 1 is plasma rifle"), 0).isMatchesNothing()).isFalse();
+  }
+
+  @Test
   void fireControlNarrowsALauncher() {
     EquipmentDecorator artemis = chunk(parse("mechs with 2 artemis lrm 20"), 0);
     assertThat(artemis.getEquipment().getName()).isEqualTo("lrm20");

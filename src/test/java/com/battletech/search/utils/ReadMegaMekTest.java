@@ -246,6 +246,48 @@ class ReadMegaMekTest {
   }
 
   @Test
+  void mixedTechMechWithBothVersionsOfAWeapon() throws IOException {
+    Mech rifleman = mech("Hybrid Rifleman RFL-3N (Sneede II).mtf");
+
+    assertThat(rifleman.getTech()).isEqualTo(Tech.MIXED_TECH);
+    // "CLERMediumLaser" in the left arm, "ISERMediumLaser (R)" (rear-facing) in the center torso
+    assertThat(named(rifleman, "ermediumlaser"))
+        .extracting(UnitEquipment::getLocation, equip -> equip.getEquipment().getTech())
+        .containsExactly(tuple(Location.LEFT_ARM, Tech.CLAN), tuple(Location.CENTER_TORSO, Tech.INNER_SPHERE));
+    assertThat(named(rifleman, "smallx-pulselaser")).extracting(equip -> equip.getEquipment().getTech())
+        .containsExactly(Tech.INNER_SPHERE);
+    // Clan Artemis V on the Clan LRM 20, and the Clan ammo for it
+    assertThat(named(rifleman, "lrm20")).extracting(equip -> equip.getEquipment().getTech(), UnitEquipment::getFireControl)
+        .containsExactly(tuple(Tech.CLAN, FireControl.ARTEMIS_V));
+    assertThat(rifleman.getMechEquipment()).filteredOn(equip -> equip.getEquipment().getName().startsWith("ammo"))
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+    // "15 Clan Double" on an IS chassis
+    assertThat(rifleman.getHeatsinks().getType()).isEqualTo(HeatsinkType.DOUBLE);
+    assertThat(rifleman.getHeatsinks().getTechType()).isEqualTo(Tech.CLAN);
+  }
+
+  @Test
+  void clanChassisMixedTechMech() throws IOException {
+    Mech flamberge = mech("Flamberge D.mtf");
+
+    assertThat(flamberge.getTech()).isEqualTo(Tech.MIXED_TECH);
+    // the reverse of the Black Knight: "CL..." Clan weapons, "ISPlasmaRifle" IS
+    assertThat(named(flamberge, "srm6")).extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+    assertThat(named(flamberge, "mediumpulselaser")).hasSize(4)
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+    assertThat(named(flamberge, "plasmarifle")).hasSize(2)
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.INNER_SPHERE);
+    // ammo keeps its own prefix: 4 tons of IS plasma rifle ammo, 2 of Clan SRM 6
+    assertThat(named(flamberge, "plasmarifleammo")).hasSize(4)
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.INNER_SPHERE);
+    assertThat(named(flamberge, "ammosrm-6")).hasSize(2)
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+    // jump MP 4, unprefixed jump jets get the Clan chassis' tech
+    assertThat(named(flamberge, "jumpjet")).hasSize(4)
+        .extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+  }
+
+  @Test
   void slotTechMatchesPrefixedSlots() {
     List<String> slots = List.of("Shoulder", "CLUltraAC10", "Clan Ultra AC/10 Ammo", "ISERLargeLaser", "Large Laser");
 
