@@ -57,8 +57,40 @@ public final class EquipmentNames {
   // imported before the alias table has "autocannon/2" next to "ac/2"; until it's regenerated a
   // search has to find both.
   private static final Map<String, Set<String>> EQUIVALENTS = GENERATED.equivalents();
+  // a family term as typed ("gauss rifles") -> the display names of its weapons as typed
+  // ("heavy gauss rifle"), from megamek/equipment-family-slang.tsv
+  private static final Map<String, Set<String>> FAMILIES = loadFamilies("/megamek/equipment-family-slang.tsv");
 
   private EquipmentNames() {
+  }
+
+  /**
+   * A display name the way someone would type it: lowercase, single spaces, no mounting or tech tag
+   * ("LRM 10 (OS)" -> "lrm 10"). {@link #normalize} of it is the canonical name.
+   */
+  public static String typed(String display) {
+    return TECH_SUFFIX.matcher(MOUNTING.matcher(display).replaceAll("")).replaceAll("")
+        .strip().replaceAll("\\s+", " ").toLowerCase();
+  }
+
+  /** Every family term as typed ("lrms", "gauss rifles") -> its weapons as typed. */
+  public static Map<String, Set<String>> families() {
+    return FAMILIES;
+  }
+
+  /**
+   * The canonical names of the weapons in a family, for a normalized search name ("gaussrifles");
+   * empty if it isn't a family term.
+   */
+  public static Set<String> familyMembers(String name) {
+    for (Map.Entry<String, Set<String>> family : FAMILIES.entrySet()) {
+      if (normalize(family.getKey()).equals(name)) {
+        Set<String> members = new LinkedHashSet<>();
+        family.getValue().forEach(member -> members.add(normalize(member)));
+        return members;
+      }
+    }
+    return Set.of();
   }
 
   public static String normalize(String name) {
@@ -115,6 +147,13 @@ public final class EquipmentNames {
     TECH_WORDS.put("is ", Tech.INNER_SPHERE);
   }
 
+  /** The tech words a search can start an equipment name with, as typed ("inner sphere"), and their tech. */
+  public static Map<String, Tech> techWords() {
+    Map<String, Tech> words = new LinkedHashMap<>();
+    TECH_WORDS.forEach((word, tech) -> words.put(word.strip(), tech));
+    return words;
+  }
+
   /** Typed text split into its leading tech word (null tech if none) and the rest. */
   public record TechWord(Tech tech, String rest) {
   }
@@ -145,6 +184,29 @@ public final class EquipmentNames {
 
   private static String key(String name) {
     return name.toLowerCase().replaceAll("[^a-z0-9]", "");
+  }
+
+  private static Map<String, Set<String>> loadFamilies(String resource) {
+    Map<String, Set<String>> families = new LinkedHashMap<>();
+    try (InputStream in = EquipmentNames.class.getResourceAsStream(resource)) {
+      if (in == null) {
+        log.warn("No equipment families at {}", resource);
+        return families;
+      }
+      BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.startsWith("#") || line.isBlank()) {
+          continue;
+        }
+        String[] columns = line.split("\t");
+        // "LRM 10" and "LRM 10 (OS)" are the same weapon to search
+        families.computeIfAbsent(columns[0], k -> new LinkedHashSet<>()).add(typed(columns[1]));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return families;
   }
 
   private static AliasTable loadAliases(String resource) {

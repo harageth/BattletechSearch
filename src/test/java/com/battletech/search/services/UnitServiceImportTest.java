@@ -202,6 +202,31 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void familyTermsCountEveryWeaponInTheFamily() throws IOException {
+    importMechs();
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    // the Mad Cat Prime: two ER large, two ER medium and a medium pulse laser, all Clan
+    assertThat(search("mechs with exactly 5 lasers")).contains("Mad Cat Prime");
+    assertThat(search("mechs with exactly 5 clan lasers")).contains("Mad Cat Prime");
+    assertThat(search("mechs with at least 1 is lasers")).doesNotContain("Mad Cat Prime");
+    assertThat(search("mechs with exactly 2 lrms and exactly 2 machine guns")).contains("Mad Cat Prime");
+    // the Atlas: four medium lasers, an LRM 20, an SRM 6 and an AC/20
+    assertThat(search("mechs with exactly 4 lasers and exactly 1 lrms and exactly 1 srms and exactly 1 autocannons"))
+        .contains("Atlas AS7-D");
+    assertThat(search("mechs with at least 1 streaks")).doesNotContain("Atlas AS7-D");
+    // fire control applies to the whole family: the Viking IIC has two LRM 20s and two LRM 15s, all
+    // with Artemis V
+    assertThat(search("mechs with exactly 4 artemis v lrms")).contains("Viking IIC Viking IIC prime");
+    assertThat(search("mechs with at least 1 artemis lrms")).doesNotContain("Atlas AS7-D");
+    assertThat(search("tanks with at least 1 lrms")).contains("DI Morgan Assault Tank (LRM)");
+    // plurals of a weapon
+    assertThat(search("mechs with exactly 4 medium lasers and exactly 1 lrm 20s")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 4 medium lasers")).isEqualTo(search("mechs with exactly 4 medium laser"));
+  }
+
+  @Test
   void onlyImportsUnitsInTheMasterUnitList() throws IOException {
     // the Goliath GOL-1M and the Hybrid Rifleman (Sneede II) have no MUL id
     assertThat(importMechs().failed()).isEqualTo(2);

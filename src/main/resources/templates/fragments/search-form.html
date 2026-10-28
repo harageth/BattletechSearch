@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<!-- shared by index.html and search.html -->
+<head th:fragment="head">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Battletech Search</title>
+    <link rel="stylesheet" th:href="@{/main.css}">
+    <!-- the parser the build generates imports "antlr4"; this is where the browser finds it
+         (antlr4@4.13.2 dist/antlr4.web.mjs, renamed .js so it is served as JavaScript) -->
+    <script type="importmap">{"imports": {"antlr4": "/vendor/antlr4/antlr4.web.js"}}</script>
+    <script type="module" th:src="@{/js/query-input.js}"></script>
+</head>
+<body>
+    <form th:fragment="form" action="/search/">
+        <!-- query-input.js swaps this for a field that colors the query as you type -->
+        <input type="text" id="query" name="query" th:value="${query}" data-query-input
+               aria-label="Search query" placeholder="light mechs with at least 2 lrm 20" autocomplete="off">
+        <input type="submit" value="Search">
+    </form>
+</body>
+</html>

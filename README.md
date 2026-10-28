@@ -26,6 +26,8 @@ Maven does not need to be installed; use the included wrapper (`./mvnw`, or `mvn
 
 To run the tests: `./mvnw verify`. Docker must be running, but `docker compose` doesn't need to be: the tests start their own throwaway Postgres via Testcontainers and load the baseline data into it.
 
+The build also downloads Node into `target/node` and runs the search box's JavaScript tests (`src/test/js`). Nothing else needs installing. Skip them with `-Dskip.npm`.
+
 ## Configuration
 All settings have defaults matching `docker-compose.yml` and can be overridden with environment variables:
 

@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <!-- drawn in CSS (main.css): a metal band with a caution stripe, and our own title, not the
+         BattleTech logo -->
+    <header th:fragment="header" class="site-header">
+        <a class="site-title" th:href="@{/}"><span class="site-title-mark" aria-hidden="true"></span>Battletech <span class="site-title-search">Search</span></a>
+    </header>
+</body>
+</html>

@@ -1,6 +1,9 @@
 package com.battletech.search.model;
 
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -51,6 +54,20 @@ public enum FireControl {
   public record Filter(Set<FireControl> fireControls, String launcher) {
   }
 
+  // what people type before a launcher, longest first so "artemis iv" isn't read as "artemis" + "iv..."
+  private static final Map<String, Set<FireControl>> SEARCH_WORDS = new LinkedHashMap<>();
+  static {
+    SEARCH_WORDS.put("artemis iv", EnumSet.of(ARTEMIS_IV));
+    SEARCH_WORDS.put("artemis v", EnumSet.of(ARTEMIS_V));
+    SEARCH_WORDS.put("artemis", EnumSet.of(ARTEMIS_IV, ARTEMIS_V));
+    SEARCH_WORDS.put("apollo", EnumSet.of(APOLLO));
+  }
+
+  /** The words a search can put before a launcher, as typed ("artemis iv"); the search box offers them. */
+  public static List<String> searchWords() {
+    return List.copyOf(SEARCH_WORDS.keySet());
+  }
+
   /**
    * Splits a leading fire control off a normalized search name: "artemisivlrm20" -> Artemis IV on
    * "lrm20", "artemislrm20" -> either Artemis on "lrm20", "apollomrm10" -> Apollo on "mrm10".
@@ -61,15 +78,11 @@ public enum FireControl {
       // just the system, with no launcher
       return null;
     }
-    // longest first, so "artemisiv" isn't read as "artemis" + "iv..."
-    if (name.startsWith("artemisiv") && name.length() > 9) {
-      return new Filter(EnumSet.of(ARTEMIS_IV), name.substring(9));
-    } else if (name.startsWith("artemisv") && name.length() > 8) {
-      return new Filter(EnumSet.of(ARTEMIS_V), name.substring(8));
-    } else if (name.startsWith("artemis") && name.length() > 7) {
-      return new Filter(EnumSet.of(ARTEMIS_IV, ARTEMIS_V), name.substring(7));
-    } else if (name.startsWith("apollo") && name.length() > 6) {
-      return new Filter(EnumSet.of(APOLLO), name.substring(6));
+    for (Map.Entry<String, Set<FireControl>> word : SEARCH_WORDS.entrySet()) {
+      String prefix = word.getKey().replace(" ", "");
+      if (name.startsWith(prefix) && name.length() > prefix.length()) {
+        return new Filter(word.getValue(), name.substring(prefix.length()));
+      }
     }
     return null;
   }

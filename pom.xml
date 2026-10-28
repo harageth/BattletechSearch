@@ -21,6 +21,9 @@
     <antlr4.version>4.13.2</antlr4.version>
     <antlr4.visitor>true</antlr4.visitor>
     <antlr4.listener>true</antlr4.listener>
+    <!-- Node only runs the JavaScript tests; Maven downloads it into target/node -->
+    <node.version>v24.21.0</node.version>
+    <frontend-maven-plugin.version>1.15.4</frontend-maven-plugin.version>
 	</properties>
 
 	<dependencies>
@@ -121,6 +124,58 @@
             <goals>
               <goal>antlr4</goal>
             </goals>
+          </execution>
+          <!-- the same grammar as JavaScript, so the search box parses queries the way the server does;
+               served from /js/grammar -->
+          <execution>
+            <id>javascript</id>
+            <goals>
+              <goal>antlr4</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/static/js/grammar</outputDirectory>
+              <listener>false</listener>
+              <arguments>
+                <argument>-Dlanguage=JavaScript</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <version>${frontend-maven-plugin.version}</version>
+        <configuration>
+          <nodeVersion>${node.version}</nodeVersion>
+          <installDirectory>${project.build.directory}</installDirectory>
+        </configuration>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <goals>
+              <goal>install-node-and-npm</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>npm-ci</id>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>ci</arguments>
+            </configuration>
+          </execution>
+          <!-- src/test/js, against the generated parser and scripts in target/classes -->
+          <execution>
+            <id>npm-test</id>
+            <phase>test</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>test</arguments>
+            </configuration>
           </execution>
         </executions>
       </plugin>

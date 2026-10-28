@@ -33,11 +33,23 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 - `QueryVisitor`'s `slangRepo` is passed in but unused; slang is resolved inside `findAllBySlangOrEquipmentName`.
 - Unit and weight class SQL is built from enums. Equipment is matched by id after a repository lookup. Keep user text out of the SQL string.
 
+
+## The search box (browser side)
+
+The search box colors the query as you type and offers swaps on hover. It parses **in the browser** with JavaScript generated from the same grammar: a second `antlr4-maven-plugin` execution (`-Dlanguage=JavaScript`) writes `BattletechLexer.js` / `BattletechParser.js` to `target/classes/static/js/grammar/me/`, served as `/js/grammar/me/...`. The ANTLR runtime is vendored at `static/vendor/antlr4/antlr4.web.js` (antlr4@4.13.2 `dist/antlr4.web.mjs`, renamed `.js` so it's served as JavaScript; module scripts need a JavaScript MIME type). It **must stay the same version as `antlr4.version`** in the pom. The import map in `templates/fragments/search-form.html` points the generated code's bare `antlr4` import at it.
+
+- `static/js/query-analysis.js` (no DOM): `analyze` gives each word a role from the parse tree; `alternatives` lists swaps; `replaceToken` applies one. **It splits equipment names the same way `QueryVisitor` does** (tech word, then fire control, then the name). Change both together.
+- `static/js/query-input.js`: replaces each `<input data-query-input>` with a contenteditable field and keeps the hidden input in sync, so the form submits unchanged. Without JavaScript, the plain input still works.
+- **Word lists:** `GET /api/vocabulary` (`web/VocabularyController`) serves `antlr/QueryVocabulary`: weight classes (`WeightClass`), unit words and comparators (`QueryVocabularyTest` checks each still lexes to the right token), tech words (`EquipmentNames.techWords`), fire controls (`FireControl.searchWords`, which `fromSearch` also reads), and equipment families. It lists only family weapons that some unit has and a query can type (`QueryVocabulary.isTypeable` runs them through the real parser).
+- **Equipment families are slang terms** (user decision): `lasers`, `lrms`, `srms`, `streaks`, `torpedoes`, `mmls`, `mrms`, `autocannons`, `ppcs`, `gauss rifles`, `machine guns`, `flamers`. A family term searches every weapon in the family, counted together (`at least 4 lasers`). Tech and fire control still apply (`clan lasers`, `artemis lrms`). There are deliberately no size-level terms like `medium lasers`; they'd clash with the plural of `Medium Laser`. The families come from `megamek/equipment-family-slang.tsv` (see the importers skill, bug 21), loaded by `EquipmentNames.familyMembers`. A slang term registered with the same name as a family term is searched together with the family.
+- **Tests:** `src/test/js/*.test.mjs` run with Node's test runner in Maven's `test` phase. `frontend-maven-plugin` installs Node into `target/node`, and the tests import from `target/classes`. When the grammar changes, check the JS tests too.
+
 ## Adding things
 
 - **Comparator:** add the phrase to the matching token in the grammar (`ATLEAST`, `NOMORE`, `EQUAL`, `LESSTHANCOMPARATOR`, `GREATERTHANCOMPARATOR`), or add a new token to the `comparator` rule and handle its symbolic name in `EquipmentDecorator.buildComparison`.
 - **Quantity word:** add a `fragment` to `NUMBER` in the grammar and the word to `QuantityConverter.NUMBER_WORDS`.
 - **Unit type:** add a token, list it in the `unit` rule, and map its symbolic name in `UnitBuilder` and `UnitDecorator.getQuery`.
+- **Anything people type** (comparator, unit word, tech or fire control word): also add it to `QueryVocabulary` (or where it reads from) so the search box offers it.
 - **Slang:** `POST localhost:8081/actuator/slang` with `{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}` (`admin/SlangEndpoint`, admin port, localhost only). Terms are one comma-separated string, because Actuator only binds string values from the JSON body. Both the name and the terms are stored normalized (`EquipmentNames`). **Slang never carries a tech** (user decision, 2026-10-28): a leading `clan` / `is` / `inner sphere` is stripped from terms (`EquipmentNames.splitTechWord`), and the term goes on every tech of the equipment, even when the name has a tech (`ER PPC [Clan]`). Tech is only a search filter: `clan big ppc` looks up the slang `bigppc` and keeps the Clan rows. The `equipment_slang` table ships empty.
 - Tests: `QueryVisitorTest` (parser only, mocked repository) and `SearchServiceTest` (real data via Testcontainers). Add both.
 
