@@ -56,7 +56,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
 5. ~~Mixed-tech mechs get no tech.~~ **Fixed:** `Tech.fromTechBase` maps `Mixed (IS Chassis)` / `Mixed (Clan Chassis)` to `MIXED_TECH`. At the pinned commit: IS 2708, Clan 1178, Mixed 377.
 6. ~~Per-weapon tech isn't read.~~ **Fixed:** weapon lines have no prefix, so `readMtfWeapons` looks for a slot in the same location named with a `CL` / `Clan ` / `IS` prefix that matches the weapon (letters and digits only, so `Ultra AC/10` = `CLUltraAC10`). If there's a match, that's the tech; otherwise it's the chassis tech. Mixed mechs' weapons come out 1,246 Clan and 802 IS.
 7. ~~The fixed field order is fragile.~~ **Fixed:** fields are read by key. A missing required field throws an `IOException` naming the file and field.
-8. **Armor and critical slots aren't imported.** Armor isn't read. Slots are only read to work out weapon tech (bug 6); the slot layout itself isn't stored.
+8. **Armor isn't imported.** ~~Critical slot contents~~ **Partly fixed:** `readMtfSlotEquipment` imports ammo per slot (one ton each; 9,837 tons at the pinned commit) and equipment from an allow-list (`SLOT_EQUIPMENT`: targeting computer, CASE, TSM, MASC, ECM, probes, Artemis, C3 slaves, melee weapons and others; 4,319 items), once per mech each. It's an allow-list because slots also repeat every weapon under different names (`LBXAC10` for `LB 10-X AC`), and those can't be told apart from equipment without MegaMek's equipment tables. C3 master computers are left out because some mechs also list them as weapons. Anything new in mm-data that's not on the list is silently skipped; run `SlotSurvey`-style checks (names that match no weapon in their location) when updating the pinned commit. Mech and vehicle ammo now share names (`IS Ammo LRM-20` and `IS Ammo LRM-20` both become `ammolrm-20`).
 9. ~~Prefix-based tech detection for mechs.~~ Obsolete: MTF weapon lines have no prefixes now. The vehicle path still uses `startsWith("is"/"cl")` in `convertToEquipment`. That's safe at the pinned commit: no equipment name starts with those letters without being a prefix.
 18. ~~Double heat sinks aren't recognized.~~ **Fixed:** the type is the last word and the tech comes from the `IS`/`Clan` word when present. `HeatsinkType` gained `LASER` and `COMPACT`, added at the end because the column stores the ordinal. At the pinned commit: Double 3261, Single 968, Laser 30, Compact 4.
 
@@ -82,7 +82,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - ~~Add `mechs` / `vehicles` sources to `ImportEndpoint`.~~ Done. A command-line runner is still optional.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
    - ~~Make import idempotent.~~ Done (bug 1).
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 2-7, 10, 11, 15, 17 and 18. Remaining: motive type (12; "tank" is decided as every ground vehicle), mech ammo and equipment from the slot listings (8), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 2-7, 10, 11, 15, 17 and 18. Mech ammo and equipment (8) are done too. Remaining: motive type (12; "tank" is decided as every ground vehicle), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 

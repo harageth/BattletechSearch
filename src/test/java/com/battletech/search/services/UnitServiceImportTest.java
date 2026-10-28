@@ -68,7 +68,8 @@ class UnitServiceImportTest {
     assertThat(atlas.getName()).isEqualTo("Atlas");
     assertThat(atlas.getDesignation()).isEqualTo("AS7-D");
     assertThat(atlas.getMulId()).isEqualTo(140);
-    assertThat(atlas.getMechEquipment()).hasSize(7);
+    // 7 weapons and 5 tons of ammo
+    assertThat(atlas.getMechEquipment()).hasSize(12);
   }
 
   @Test
@@ -84,7 +85,7 @@ class UnitServiceImportTest {
     // the old equipment rows are replaced, not left behind
     assertThat(count("SELECT count(*) FROM unit_equipment")).isEqualTo(equipmentRows);
     assertThat(count("SELECT count(*) FROM unit_mech_equipment ume JOIN unit u ON u.id = ume.unit_id"
-        + " WHERE u.megamek_uuid = '" + ATLAS + "'")).isEqualTo(7);
+        + " WHERE u.megamek_uuid = '" + ATLAS + "'")).isEqualTo(12);
     // the stored unit keeps its database id
     assertThat(unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId()).isEqualTo(atlasId);
   }

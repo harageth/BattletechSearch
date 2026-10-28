@@ -17,10 +17,14 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -241,7 +245,10 @@ public class ReadMegaMek {
     mech.setMovement(move);
     // armor isn't imported yet
 
-    mech.setMechEquipment(readMtfWeapons(lines, filePath, Tech.chassisTech(techBase)));
+    Tech chassisTech = Tech.chassisTech(techBase);
+    List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, chassisTech);
+    equipment.addAll(readMtfSlotEquipment(readMtfSlots(lines), chassisTech));
+    mech.setMechEquipment(equipment);
     return mech;
   }
 
@@ -298,15 +305,23 @@ public class ReadMegaMek {
     throw new IOException(filePath + " has no weapons: line");
   }
 
-  /** Critical slot names per location ("left arm" -> ["Shoulder", ..., "CLERMediumLaser"]). */
+  /**
+   * Critical slot names per location, in file order ("left arm" -> ["Shoulder", ..., "CLERMediumLaser"]).
+   * The location sections come after the weapons list.
+   */
   static Map<String, List<String>> readMtfSlots(List<String> lines) {
-    Map<String, List<String>> slots = new HashMap<>();
+    Map<String, List<String>> slots = new LinkedHashMap<>();
     List<String> current = null;
+    boolean afterWeapons = false;
     for(String line : lines) {
       String trimmed = line.trim();
-      if(trimmed.isEmpty()) {
+      if(trimmed.toLowerCase().startsWith("weapons:")) {
+        afterWeapons = true;
+      } else if(!afterWeapons) {
+        continue;
+      } else if(trimmed.isEmpty()) {
         current = null;
-      } else if(trimmed.endsWith(":") && !trimmed.contains(" armor:")) {
+      } else if(trimmed.endsWith(":")) {
         current = new LinkedList<>();
         slots.put(trimmed.substring(0, trimmed.length() - 1).toLowerCase(), current);
       } else if(current != null) {
@@ -316,27 +331,68 @@ public class ReadMegaMek {
     return slots;
   }
 
+  // How a slot is mounted, not what's in it
+  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|armored)\\)", Pattern.CASE_INSENSITIVE);
+
+  /** A slot name split into its IS/Clan prefix (null if none) and the rest. */
+  record SlotName(Tech tech, String name) {
+    static SlotName of(String slot) {
+      String cleaned = SLOT_MOUNTING.matcher(slot).replaceAll("").trim();
+      if(cleaned.startsWith("Clan ")) {
+        return new SlotName(Tech.CLAN, cleaned.substring(5));
+      } else if(cleaned.startsWith("CL")) {
+        return new SlotName(Tech.CLAN, cleaned.substring(2));
+      } else if(cleaned.startsWith("IS")) {
+        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2));
+      }
+      return new SlotName(null, cleaned);
+    }
+  }
+
   /** The tech of a slot naming this weapon with an IS/Clan prefix, or null if there isn't one. */
   static Tech slotTech(List<String> slots, String weapon) {
     String wanted = comparable(weapon);
     for(String slot : slots) {
-      Tech tech = null;
-      String rest = slot;
-      if(slot.startsWith("Clan ")) {
-        tech = Tech.CLAN;
-        rest = slot.substring(5);
-      } else if(slot.startsWith("CL")) {
-        tech = Tech.CLAN;
-        rest = slot.substring(2);
-      } else if(slot.startsWith("IS")) {
-        tech = Tech.INNER_SPHERE;
-        rest = slot.substring(2);
-      }
-      if(tech != null && comparable(rest).equals(wanted)) {
-        return tech;
+      SlotName name = SlotName.of(slot);
+      if(name.tech() != null && comparable(name.name()).equals(wanted)) {
+        return name.tech();
       }
     }
     return null;
+  }
+
+  /*
+   * Equipment that only shows up in the critical slots, not the weapons list (by comparable name).
+   * An allow-list because slots also repeat every weapon, often under a different name than the
+   * weapons list uses ("LBXAC10" for "LB 10-X AC", "Autocannon/20" for "AC/20"), and there's no way
+   * to tell those apart from equipment without MegaMek's equipment tables. C3 master computers are
+   * left out because some mechs also list them as weapons.
+   */
+  private static final Pattern SLOT_EQUIPMENT = Pattern.compile("^(targetingcomputer|case|caseii"
+      + "|(industrial)?triplestrengthmyomer|masc|supercharger|.*ecmsuite|.*activeprobe|artemisiv|artemisv"
+      + "|c3iunit|c3slaveunit|c3boostedsystemslaveunit|hatchet|sword|claw|mace|chainsaw|retractableblade"
+      + "|aes|.*nullsignaturesystem|chameleonlightpolarizationshield|partialwing|umu|antipersonnelpod"
+      + "|coolantpod|ppccapacitor|searchlight|environmentalsealing.*|lifthoistarrestinghoist)$");
+
+  /**
+   * Ammo and equipment from the critical slots. Each ammo slot is one ton, so ammo is counted per
+   * slot. Equipment can span several slots and locations, so each item is counted once per mech.
+   */
+  static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, Tech chassisTech) {
+    List<UnitEquipment> equipment = new LinkedList<>();
+    Set<String> seen = new HashSet<>();
+    slots.forEach((location, names) -> {
+      for(String slot : names) {
+        SlotName name = SlotName.of(slot);
+        Tech tech = name.tech() != null ? name.tech() : chassisTech;
+        String comparable = comparable(name.name());
+        if(comparable.contains("ammo")
+            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable))) {
+          equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location));
+        }
+      }
+    });
+    return equipment;
   }
 
   // "Ultra AC/10" and "CLUltraAC10" both become "ultraac10"

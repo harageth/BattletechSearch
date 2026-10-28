@@ -17,7 +17,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -78,7 +80,44 @@ class ReadMegaMekTest {
             tuple("srm6", Location.LEFT_TORSO),
             tuple("ac/20", Location.RIGHT_TORSO),
             tuple("mediumlaser", Location.CENTER_TORSO),
-            tuple("mediumlaser", Location.CENTER_TORSO));
+            tuple("mediumlaser", Location.CENTER_TORSO),
+            // then the ammo from the critical slots, one per ton
+            tuple("ammolrm-20", Location.LEFT_TORSO),
+            tuple("ammolrm-20", Location.LEFT_TORSO),
+            tuple("ammosrm-6", Location.LEFT_TORSO),
+            tuple("ammoac/20", Location.RIGHT_TORSO),
+            tuple("ammoac/20", Location.RIGHT_TORSO));
+  }
+
+  @Test
+  void readsAmmoAndEquipmentFromSlots() throws IOException {
+    // "Clan Ammo LRM-20 (OMNIPOD)": prefix gives the tech, the mounting note is dropped
+    assertThat(mech("Mad Cat (Timber Wolf) Prime.mtf").getMechEquipment())
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation, equip -> equip.getEquipment().getTech())
+        .endsWith(
+            tuple("ammolrm-20", Location.LEFT_TORSO, Tech.CLAN),
+            tuple("ammolrm-20", Location.RIGHT_TORSO, Tech.CLAN),
+            tuple("machinegunammo-full", Location.RIGHT_TORSO, Tech.CLAN));
+
+    // the probe fills two slots but is one piece of equipment
+    assertThat(mech("Black Knight BL-6-RR.mtf").getMechEquipment())
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation, equip -> equip.getEquipment().getTech())
+        .containsOnlyOnce(tuple("beagleactiveprobe", Location.CENTER_TORSO, Tech.INNER_SPHERE));
+  }
+
+  @Test
+  void slotEquipmentIsAllowListed() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // a weapon's slots, spelled unlike the weapons list ("LB 10-X AC"), aren't equipment
+    slots.put("right torso", List.of("ISLBXAC10", "ISLBXAC10", "IS Ammo LB 10-X AC", "ISCASE"));
+    slots.put("left torso", List.of("Targeting Computer", "Targeting Computer", "CLCASE"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
+        .containsExactly(
+            tuple("ammolb10-xac", Tech.INNER_SPHERE),
+            tuple("case", Tech.INNER_SPHERE),
+            tuple("targetingcomputer", Tech.INNER_SPHERE));
   }
 
   @Test
@@ -93,7 +132,7 @@ class ReadMegaMekTest {
   void weaponNamesCanContainCommas() throws IOException {
     assertThat(mech("Deep Lord RCL-Z1M MilitiaMech.mtf").getMechEquipment())
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation)
-        .containsExactly(
+        .startsWith(
             tuple("rifle(cannon,heavy)", Location.LEFT_TORSO),
             tuple("srm6", Location.RIGHT_TORSO));
   }
@@ -126,7 +165,8 @@ class ReadMegaMekTest {
             tuple("ermediumlaser", Tech.CLAN),
             tuple("largelaser", Tech.INNER_SPHERE),
             tuple("ermediumlaser", Tech.CLAN),
-            tuple("smalllaser", Tech.INNER_SPHERE));
+            tuple("smalllaser", Tech.INNER_SPHERE),
+            tuple("beagleactiveprobe", Tech.INNER_SPHERE));
   }
 
   @Test
