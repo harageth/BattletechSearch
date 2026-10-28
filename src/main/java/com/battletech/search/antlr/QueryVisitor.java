@@ -85,8 +85,8 @@ public class QueryVisitor implements BattletechVisitor {
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
-      // validate equipment type
-      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(lookup)) {
+      // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
+      for(Equipment thing : equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(lookup), lookup)) {
         if(first) {
           first = false;
         }else {

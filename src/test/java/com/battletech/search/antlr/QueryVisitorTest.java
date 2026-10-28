@@ -3,6 +3,7 @@ package com.battletech.search.antlr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +41,7 @@ class QueryVisitorTest {
   void setUp() {
     equipRepo = mock(EquipmentRepository.class);
     // Every non-empty equipment name resolves to a single matching row by default, like the real data
-    when(equipRepo.findAllBySlangOrEquipmentName(anyString())).thenAnswer(invocation -> {
+    when(equipRepo.findAllByNameOrSlang(anyString(), anyString())).thenAnswer(invocation -> {
       String name = invocation.getArgument(0);
       return name.isEmpty() ? List.of() : List.of(equipment(name, Tech.INNER_SPHERE));
     });
@@ -172,7 +173,7 @@ class QueryVisitorTest {
     assertThat(names(parse("mechs with 2 lrm 20"))).containsExactly("lrm20");
     assertThat(names(parse("mechs with 2 Streak SRM 6"))).containsExactly("streaksrm6");
     assertThat(chunk(parse("mechs with 4 or more ac 20"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
-    assertThat(names(parse("mechs with 4 or more ac 20"))).containsExactly("ac20");
+    assertThat(names(parse("mechs with 4 or more ac 20"))).containsExactly("ac/20");
   }
 
   @Test
@@ -207,7 +208,7 @@ class QueryVisitorTest {
   @Test
   void numberedNamesWithOperatorsAndComparators() {
     UnitDecorator unit = parse("mechs with at least 2 lrm 20 and at most 1 srm 6 or 2 ac 10");
-    assertThat(names(unit)).containsExactly("lrm20", "srm6", "ac10");
+    assertThat(names(unit)).containsExactly("lrm20", "srm6", "ac/10");
     assertThat(chunk(unit, 0).getLogicOperator()).isEqualTo(LogicalOperator.AND);
     assertThat(chunk(unit, 1).getLogicOperator()).isEqualTo(LogicalOperator.OR);
     assertThat(chunk(unit, 1).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
@@ -217,7 +218,7 @@ class QueryVisitorTest {
 
   @Test
   void unknownEquipmentIsReportedAsTyped() {
-    when(equipRepo.findAllBySlangOrEquipmentName("mediumlazer")).thenReturn(List.of());
+    when(equipRepo.findAllByNameOrSlang(eq("mediumlazer"), anyString())).thenReturn(List.of());
     assertThatThrownBy(() -> parse("mechs with at least 2 Medium Lazer"))
         .hasMessage("Unable to parse: medium lazer");
   }
@@ -226,7 +227,7 @@ class QueryVisitorTest {
   void equipmentMatchingSeveralRowsIsChained() {
     Equipment isPpc = equipment("ppc", Tech.INNER_SPHERE);
     Equipment clanPpc = equipment("ppc", Tech.CLAN);
-    when(equipRepo.findAllBySlangOrEquipmentName("ppc")).thenReturn(List.of(isPpc, clanPpc));
+    when(equipRepo.findAllByNameOrSlang(eq("ppc"), anyString())).thenReturn(List.of(isPpc, clanPpc));
 
     EquipmentDecorator outer = chunk(parse("mechs with at least 2 ppc"), 0);
     assertThat(outer.getEquipment()).isSameAs(clanPpc);
@@ -240,7 +241,7 @@ class QueryVisitorTest {
 
   @Test
   void unknownEquipmentThrows() {
-    when(equipRepo.findAllBySlangOrEquipmentName("nonexistentgun")).thenReturn(List.of());
+    when(equipRepo.findAllByNameOrSlang(eq("nonexistentgun"), anyString())).thenReturn(List.of());
     assertThatThrownBy(() -> parse("mechs with at least 2 nonexistentgun"))
         .isInstanceOf(FailedParseException.class)
         .hasMessage("Unable to parse: nonexistentgun");

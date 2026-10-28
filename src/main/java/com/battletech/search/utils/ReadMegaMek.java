@@ -362,8 +362,9 @@ public class ReadMegaMek {
   record SlotName(Tech tech, String name) {
     static SlotName of(String slot) {
       String cleaned = SLOT_MOUNTING.matcher(slot).replaceAll("").trim();
-      if(cleaned.startsWith("Clan ")) {
-        return new SlotName(Tech.CLAN, cleaned.substring(5));
+      // "Clan Gauss Ammo" and "ClanImprovedLRM20Ammo"
+      if(cleaned.startsWith("Clan")) {
+        return new SlotName(Tech.CLAN, cleaned.substring(4).strip());
       } else if(cleaned.startsWith("CL")) {
         return new SlotName(Tech.CLAN, cleaned.substring(2));
       } else if(cleaned.startsWith("IS")) {

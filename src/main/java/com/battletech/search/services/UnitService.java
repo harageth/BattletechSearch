@@ -99,7 +99,8 @@ public class UnitService {
       if(equip.getEquipment().getTech() == null) {
         equip.getEquipment().setTech(unit.getTech());
       }
-      equip.getEquipment().setName(EquipmentNames.normalize(equip.getEquipment().getName()));
+      // one name per equipment, whichever MegaMek name the file used ("Autocannon/20" -> "ac/20")
+      equip.getEquipment().setName(EquipmentNames.canonical(equip.getEquipment().getName()));
       List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
           equip.getEquipment().getTech());
       Equipment equipment = exists.isEmpty() ? equipRepo.save(equip.getEquipment()) : exists.get(0);

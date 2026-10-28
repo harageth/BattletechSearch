@@ -14,8 +14,9 @@ public enum FireControl {
   APOLLO("apollo", 1, Launchers.APOLLO);
 
   private static final class Launchers {
-    // LRM, SRM, MML and torpedoes, including improved / extended / enhanced LRMs
-    static final String ARTEMIS = "(improved|extended|enhanced)?(lrm|srm|mml|lrt|srt)\\d+";
+    // LRM, SRM, MML and torpedoes, including improved and enhanced LRMs. Not extended LRMs: no
+    // MegaMek unit mounts Artemis on one
+    static final String ARTEMIS = "(improved|enhanced)?(lrm|srm|mml|lrt|srt)\\d+";
     static final String APOLLO = "mrm\\d+";
   }
 

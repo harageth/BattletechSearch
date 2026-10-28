@@ -24,6 +24,40 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void mapsMegaMekNamesToTheDisplayName() {
+    // .mtf weapon lines use display names, .blk files and critical slots internal / lookup names
+    assertThat(EquipmentNames.canonical("AC/20")).isEqualTo("ac/20");
+    assertThat(EquipmentNames.canonical("Autocannon/20")).isEqualTo("ac/20");
+    assertThat(EquipmentNames.canonical("ISAC20")).isEqualTo("ac/20");
+    assertThat(EquipmentNames.canonical("LBXAC10")).isEqualTo("lb10-xac");
+    assertThat(EquipmentNames.canonical("UltraAC10")).isEqualTo("ultraac/10");
+    assertThat(EquipmentNames.canonical("MG")).isEqualTo("machinegun");
+    assertThat(EquipmentNames.canonical("LightMG")).isEqualTo("lightmachinegun");
+    assertThat(EquipmentNames.canonical("AntiMissileSystem")).isEqualTo("anti-missilesystem");
+    assertThat(EquipmentNames.canonical("RL10")).isEqualTo("rocketlauncher10");
+    assertThat(EquipmentNames.canonical("SRM2 IOS")).isEqualTo("srm2");
+    // ammo: tech goes in its own column, so "[Clan]" is dropped
+    assertThat(EquipmentNames.canonical("Ammo AC/20")).isEqualTo("ac/20ammo");
+    assertThat(EquipmentNames.canonical("Gauss Ammo")).isEqualTo("gaussrifleammo");
+  }
+
+  @Test
+  void mapsWhatPeopleType() {
+    assertThat(EquipmentNames.canonical("ac 20")).isEqualTo("ac/20");
+    assertThat(EquipmentNames.canonical("lb 10-x ac")).isEqualTo("lb10-xac");
+    assertThat(EquipmentNames.canonical("machine gun")).isEqualTo("machinegun");
+    assertThat(EquipmentNames.canonical("lrm 20")).isEqualTo("lrm20");
+    assertThat(EquipmentNames.canonical("extended lrm 20")).isEqualTo("extendedlrm20");
+    assertThat(EquipmentNames.canonical("mrm 40")).isEqualTo("mrm40");
+  }
+
+  @Test
+  void unknownNamesAreJustNormalized() {
+    assertThat(EquipmentNames.canonical("Nonexistent Gun")).isEqualTo("nonexistentgun");
+    assertThat(EquipmentNames.canonical("ml")).isEqualTo("ml");
+  }
+
+  @Test
   void keepsAnnotationsThatNameADifferentItem() {
     assertThat(EquipmentNames.normalize("Flamer (Vehicle)")).isEqualTo("flamer(vehicle)");
     assertThat(EquipmentNames.normalize("Anti-BattleArmor Pods (B-Pods)")).isEqualTo("anti-battlearmorpods(b-pods)");

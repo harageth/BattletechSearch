@@ -147,6 +147,24 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void mechsAndVehiclesShareEquipmentNames() throws IOException {
+    importMechs();
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    // the Atlas lists "AC/20" (display name); the Bulldog "Autocannon/2" (internal name)
+    assertThat(search("units with exactly 1 ac 20")).contains("Atlas AS7-D");
+    assertThat(search("units with exactly 2 ac 2")).contains("Bulldog Medium Tank (AC2)");
+    assertThat(search("units with exactly 2 autocannon 2")).contains("Bulldog Medium Tank (AC2)");
+    // the Mad Cat's "Machine Gun" lines and the Bulldog's "Machine Gun" are the same equipment
+    assertThat(search("units with exactly 2 machine gun")).contains("Mad Cat Prime", "Bulldog Medium Tank (AC2)");
+    // imported units only use the display names (the baseline data still has the old ones)
+    assertThat(count("SELECT count(*) FROM equipment e JOIN unit_equipment ue ON ue.equipment_id = e.id"
+        + " JOIN unit_mech_equipment ume ON ume.mech_equipment_id = ue.id JOIN unit u ON u.id = ume.unit_id"
+        + " WHERE u.megamek_uuid IS NOT NULL AND e.name IN ('autocannon/2', 'autocannon/20', 'mg')")).isZero();
+  }
+
+  @Test
   void variantsCanShareAMulId() {
     // MUL ids aren't unique: variants of one unit share it
     jdbcTemplate.update("INSERT INTO unit (id, name, designation, mul_id, omni, rules_level, weight,"

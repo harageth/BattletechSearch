@@ -14,7 +14,7 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 3. `antlr/QueryVisitor` walks the tree:
    - `visitUnit` → `utils/UnitBuilder` maps the unit token's symbolic name to an entity class (`Mech`, `Vehicle`, `Vtol`, `Unit`) wrapped in a `UnitDecorator`.
    - Leading `WORD`s before the unit are joined into a weight class (`ultra light`).
-   - Each `equipmentChunk` becomes an `EquipmentDecorator`. Its words are joined, lowercased, and looked up with `EquipmentRepository.findAllBySlangOrEquipmentName`, which matches the equipment name or an `equipment_slang` row. If several rows match (IS and Clan variants), the decorators are chained.
+   - Each `equipmentChunk` becomes an `EquipmentDecorator`. Its words are joined, lowercased, and looked up with `EquipmentRepository.findAllByNameOrSlang(canonical, typed)`: the equipment name by `EquipmentNames.canonical` (MegaMek alias table, so `ac 20` = `autocannon 20` = `ac/20`), or an `equipment_slang` row by the normalized typed name. If several rows match (IS and Clan variants), the decorators are chained.
    - `EquipmentDecorator.buildComparison` + `model/search/QuantityConverter` turn the comparator token and quantity into a `Comparison` and an int.
 4. `UnitDecorator.getQuery()` builds the SQL: a `dtype` / `weight_class` filter plus one `id IN (...)` subquery per chunk, joined by the chunk's `and`/`or` (default AND). Each matching variant is counted separately and UNIONed, so "at least 3 ppc" means at least 3 of one variant.
 

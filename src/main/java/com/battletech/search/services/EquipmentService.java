@@ -20,8 +20,8 @@ public class EquipmentService {
 
   public void addSlangToEquipment(String equipmentPattern, List<String>slangTerms) {
 
-    // stored in the same normal form as equipment names and search words
-    List<Equipment> equips = equipRepo.findByName(EquipmentNames.normalize(equipmentPattern));
+    // the equipment by its canonical name; slang terms as typed, normalized like search words
+    List<Equipment> equips = equipRepo.findByName(EquipmentNames.canonical(equipmentPattern));
 
     for(Equipment equip : equips) {
       for(String slang: slangTerms) {

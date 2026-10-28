@@ -23,6 +23,7 @@ class FireControlTest {
     assertThat(FireControl.ARTEMIS_IV.fits("Improved LRM 20")).isTrue();
     assertThat(FireControl.ARTEMIS_IV.fits("LRT 15")).isTrue();
     assertThat(FireControl.ARTEMIS_IV.fits("Streak SRM 6")).isFalse();
+    assertThat(FireControl.ARTEMIS_IV.fits("Extended LRM 20")).isFalse();
     assertThat(FireControl.ARTEMIS_IV.fits("MRM 20")).isFalse();
     assertThat(FireControl.APOLLO.fits("MRM 40")).isTrue();
     assertThat(FireControl.APOLLO.fits("LRM 20")).isFalse();
