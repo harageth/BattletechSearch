@@ -26,10 +26,12 @@ MegaMek moved its unit files out of the main `megamek` repo (which now only has 
   - MTF `techbase:` values: `Inner Sphere` 2708, `Clan` 1178, `Mixed (IS Chassis)` 257, `Mixed (Clan Chassis)` 120.
 
 ### Format changes since the importer was written
-- **MTF files no longer start with name/model lines.** They open with a `#` license comment block, then key/value lines: `uuid:`, `generator:`, `chassis:`, `model:`, `mul id:`, `Config:`, `techbase:`, `era:`, `source:`, `published:`, `rules level:`, `role:`, `quirk:`... `ReadMechMTF` still reads lines 1-3 as version/name/model, so **every mech would import with a license comment as its name.** Fix this first. Read `chassis:` / `model:` by key and skip `#` lines.
+- **MTF files no longer start with name/model lines.** They open with a `#` license comment block, then key/value lines: `uuid:`, `generator:`, `chassis:`, `model:`, `mul id:`, `Config:`, `techbase:`, `era:`, `source:`, `published:`, `rules level:`, `role:`, `quirk:`... **Fixed:** `ReadMechMTF` now skips `#` lines and reads fields by key (`readMtfFields`).
+- **MTF weapon lines have no `IS`/`CL` prefix and no quantity** (`Medium Laser, Left Arm`; all 22,369 lines at the pinned commit). Each weapon now takes the unit's tech in `persistUnits`. For mixed-tech mechs the per-weapon tech is only in the critical slot listings (`CLERMediumLaser` vs `Large Laser`), so getting it right means reading the slots (bug 6). Rear-facing `(R)` also only appears in the slots. A few names contain `, ` themselves (`Rifle (Cannon, Heavy), Left Torso`); the location is after the last `, `.
 - **`era:` is now a year** (e.g. `2755`), not an era name. The column is a string, so map years to era names or store the year. Decide before building era search; see the `query-grammar` skill.
 - **Stable ids now exist.** MTF has `uuid:` and `mul id:` (163 of 4,263 mechs have no `mul id:`). BLK has `<UUID>` and `<mul id:>` (`-1` when unknown; 10 of 1,453 vehicles). Use the MegaMek `uuid` as the upsert key instead of name + designation (bug 1). Consider storing `mul id` too, for Master Unit List links.
-- BLK keeps the same `<tag>`/`</tag>` structure, and `readBlkAllParameters` already skips `#` lines. Note the key `<mul id:>` includes the colon. New tags: `<UUID>`, `<year>`, `<role>`.
+- BLK keeps the same `<tag>`/`</tag>` structure, and `readBlkAllParameters` already skips `#` lines. Note the key `<mul id:>` includes the colon. New tags: `<UUID>`, `<year>`, `<role>`. Empty values are written on one line (`<Model></Model>`, `<Right Equipment></Right Equipment>`); **fixed:** these now parse as empty values.
+- BLK Inner Sphere equipment is no longer prefixed (`Machine Gun`, `IS Ammo AC/2`), while Clan equipment still is (`CLLightMG`, `Clan Streak SRM 4 Ammo`).
 
 ## How data gets into the database today
 
@@ -37,7 +39,7 @@ MegaMek moved its unit files out of the main `megamek` repo (which now only has 
 - **No way to trigger a MegaMek import.** The admin endpoint `POST localhost:8081/actuator/import` (`admin/ImportEndpoint`) only accepts `{"source": "recognition-guide"}`. `persistMechs()` / `persistVehicles()` aren't wired to anything; add them as sources once re-importing no longer duplicates units (bug 1).
 - **Configuration.** Paths come from `MEGAMEK_MECHS_PATH`, `MEGAMEK_VEHICLES_PATH` and `RECOGNITION_GUIDE_PDF` (`battletech.import.*` in `application.yml`).
 - **Error handling.** A file that throws is logged ("Unable to import ...") and skipped. Most parser bugs show up there as NPEs, not as clear errors.
-- **No tests.** Nothing covers the importers yet.
+- **Tests.** `ReadMegaMekTest` parses real files copied from mm-data into `src/test/resources/megamek/` (5 mechs, 6 vehicles). Known bugs those files show are `@Disabled` tests describing the correct result: enable each one with its fix. `ReadMegaMekAllFilesTest` parses every file in the checkout, but only when `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH` are set. At the pinned commit: 4,263 mechs and 1,453 vehicles, 0 failures, 236 vehicles skipped (bug 13).
 
 ## Known bugs
 
@@ -51,10 +53,11 @@ All of these were checked against the code. The "Data:" lines are from the basel
 
 ### Mechs (`ReadMechMTF`, `.mtf`)
 5. **Mixed-tech mechs get no tech.** `Tech.fromString` only matches the exact strings `Inner Sphere`, `CLAN` and `Mixed Tech`. MTF values like `Mixed (IS Chassis)` match nothing. Data: 236 mechs have null tech (e.g. Trebuchet TBT-9N, Awesome AWS-11H). Their weapons then inherit the null tech; see bug 4.
-6. **Weapon tech is lost when a line has no quantity.** In `getWeapons`, the branch for lines without a quantity strips the `IS`/`CL` prefix and then calls `getTechType` again on the stripped name. That returns null, so the computed `tech` is never used.
-7. **The fixed field order is fragile.** `readParameter` reads forward until it finds each field in a fixed order. If a field is missing or out of order, the reader runs to the end of the file and hits an NPE, and the whole mech is skipped.
+6. **Per-weapon tech isn't read.** Weapon lines no longer carry an `IS`/`CL` prefix (see "Format changes"), so every weapon gets the unit's tech. That's right for pure IS/Clan mechs but wrong for mixed tech. Fix by reading the critical slot listings (`CLERMediumLaser`). The old prefix code (`getTechType`) is removed.
+7. ~~The fixed field order is fragile.~~ **Fixed:** fields are read by key. A missing required field throws an `IOException` naming the file and field.
 8. **Armor and critical slots aren't imported.** Armor is totaled and thrown away, and the slot layout isn't read.
-9. **Prefix-based tech detection.** `getTechType` treats any name starting with `is`/`cl` as Inner Sphere/Clan. A non-prefixed name that happens to start with those letters would be misread. This is unverified, but worth a test.
+9. ~~Prefix-based tech detection for mechs.~~ Obsolete: MTF weapon lines have no prefixes now. The vehicle path still uses `startsWith("is"/"cl")` in `convertToEquipment`.
+18. **Double heat sinks aren't recognized.** `Mech.setHeatsinks` takes the type from the second word: `20 IS Double` → `IS`, and `17 Clan Double` → `Clan`, which both map to null. At the pinned commit: IS Double 1981, Clan Double 1280, Single 968, Laser 30, Compact 4. `HeatsinkType` only has SINGLE/DOUBLE.
 
 ### Vehicles (`ReadVehicleBlk`, `.blk`)
 10. **Body equipment is never imported.** The code checks `value.get("body")` but reads `value.get("body equipment")`. The check is always null. Data: the only BODY-location rows on vehicles are 321 `infantrybay` entries, which are added separately from `transporters`.
@@ -63,6 +66,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
 13. **Several unit types are skipped.** Only `Tank` and `VTOL` are imported. `SupportTank`, `SupportVTOL`, `LargeSupportTank` and others are logged and skipped.
 14. **Some vehicle stats aren't kept.** Armor type and internal structure type are parsed into unused locals, and total armor is computed and thrown away. Tonnage is truncated (`7.5` → `7`), and only cruise MP is kept.
 15. **A dead line in `convertToEquipment`.** `equip.toLowerCase().replaceAll(...)` throws its result away. It's harmless today because `readBlkAllParameters` already lowercases, but it's misleading.
+17. **Vehicle names and models are lowercased.** `readBlkAllParameters` lowercases every value, so `Bulldog Medium Tank` is stored as `bulldog medium tank`. Data: e.g. `packrat lrpv pkr-t5 (ml)`. Only lowercase the values that need it.
 
 ### Recognition guide (`ReadPDF`)
 16. **Unfinished and saves nothing.** `convertToUnit` builds a `Mech` and only logs it.
@@ -75,9 +79,9 @@ All of these were checked against the code. The "Data:" lines are from the basel
 
 1. **Make imports runnable and testable.**
    - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
-   - Add unit tests for `ReadMechMTF` / `ReadVehicleBlk` using a few small fixture files in `src/test/resources/megamek/`. Cover a plain IS mech, a Clan omni, a mixed-tech mech, a tank with body + turret equipment, and a VTOL.
-   - Make import idempotent: upsert on name + designation (bug 1).
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Suggested order: the MTF header change (see "Format changes"; nothing imports correctly until it's fixed), then equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.
+   - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
+   - Make import idempotent: store MegaMek's `uuid` and upsert on it (bug 1). This needs a new column, so it needs a migration.
+2. **Fix the parsers one bug at a time**, with a fixture test for each (enable the matching `@Disabled` test). The MTF header change is done. Suggested order: equipment naming (2, 3), then tech (5, 6, 11, 4), then body equipment (10), then motive type (12, needs the tank decision), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 

@@ -47,7 +47,8 @@ public class ReadMegaMek {
       return null;
     }
     vee.setName(value.get("name").get(0));
-    vee.setDesignation(value.get("model").get(0));
+    List<String> model = value.get("model");
+    vee.setDesignation(model == null || model.isEmpty() ? "" : model.get(0));
     vee.setWeight(Integer.parseInt(value.get("tonnage").get(0).split("\\.")[0]));
     Movement move = new Movement();
     move.setWalk(Integer.parseInt(value.get("cruisemp").get(0)));
@@ -213,12 +214,19 @@ public class ReadMegaMek {
       }
       if(!temp.isEmpty()) {
         if(temp.equalsIgnoreCase("</"+paramName+">")) {
-          //loop = false;
           parameters.put(paramName, parameterList);
           parameterList = new LinkedList();
+        } else if (temp.startsWith("<") && temp.indexOf("</") > 0) {
+          // a whole tag on one line, e.g. "<Model></Model>" for an empty value
+          int open = temp.indexOf('>');
+          String value = temp.substring(open + 1, temp.indexOf("</")).trim().toLowerCase();
+          List<String> values = new LinkedList<>();
+          if(!value.isEmpty()) {
+            values.add(value);
+          }
+          parameters.put(temp.substring(1, open).toLowerCase(), values);
         } else if (temp.startsWith("<")) {
           paramName = temp.substring(1, temp.length()-1).toLowerCase();
-          // returnList.add(reader.readLine());
         }else {
           if(!temp.startsWith("#")) {
             parameterList.add(temp.toLowerCase());
@@ -230,198 +238,91 @@ public class ReadMegaMek {
     return parameters;
   }
 
+  /**
+   * Reads a MegaMek .mtf file. Current files start with a "#" license block, then "key:value"
+   * lines (chassis:, model:, techbase:, mass:, ...), the armor values, "Weapons:N" followed by N
+   * "name, location" lines, then the critical slots per location.
+   */
   public static Unit ReadMechMTF(File filePath) throws IOException {
+    List<String> lines;
+    try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+      lines = reader.lines().filter(line -> !line.startsWith("#")).toList();
+    }
+    Map<String, String> fields = readMtfFields(lines);
 
     Mech mech = new Mech();
-    BufferedReader reader = new BufferedReader(new FileReader(filePath));
-    String version = reader.readLine();
-    String name = reader.readLine();
-    String designation = reader.readLine();
+    String name = requiredField(fields, "chassis", filePath);
+    String designation = fields.getOrDefault("model", "");
     mech.setName(name);
     if(designation.isEmpty()) {
       mech.setDesignation(name + " prime");// or is it base?
     }else {
       mech.setDesignation(designation);
     }
-    String[] config = readParameter("config:", reader).split(" ");
-
-    mech.setLocomotion(Locomotion.fromString(config[0]));
-    String techBase = readParameter("techbase:", reader);
-    mech.setTech(Tech.fromString(techBase)); // (IS Chassis) or (Clan Chassis)
-
-    String era = readParameter("era:", reader);
-    mech.setEra(era);
-    String rulesLevel = readParameter("rules level:", reader);
-    mech.setRulesLevel(Integer.parseInt(rulesLevel));
-    String mass = readParameter("mass:", reader);
-    mech.setWeight(Integer.parseInt(mass));
-    String engine = readParameter("engine:", reader);
-    mech.setEngine(engine);
-    String structure = readParameter("structure:", reader);
-    mech.setStructure(structure);
-    String myomer = readParameter("myomer:", reader);
-    mech.setMyomer(myomer);
-    //mech.setEjection(readParameter("ejection:", reader));
-
-
-    String heatsinks = readParameter("heat sinks:", reader);
-    mech.setHeatsinks(heatsinks);
-    String walkMP = readParameter("walk mp:", reader);
+    // e.g. "Biped", "Biped OmniMek", "Quad"
+    mech.setLocomotion(Locomotion.fromString(requiredField(fields, "config", filePath).split(" ")[0]));
+    mech.setTech(Tech.fromString(requiredField(fields, "techbase", filePath))); // Mixed (IS Chassis) isn't mapped yet
+    mech.setEra(fields.get("era")); // now a year, e.g. 2755
+    mech.setRulesLevel(Integer.parseInt(requiredField(fields, "rules level", filePath)));
+    mech.setWeight(Integer.parseInt(requiredField(fields, "mass", filePath)));
+    mech.setEngine(fields.get("engine"));
+    mech.setStructure(fields.get("structure"));
+    mech.setMyomer(fields.get("myomer"));
+    // tech has to be set first; heat sinks copy it
+    mech.setHeatsinks(requiredField(fields, "heat sinks", filePath));
     Movement move = new Movement();
-    move.setWalk(Integer.parseInt(walkMP));
-    String jumpMP = readParameter("jump mp:", reader);
-    move.setJump(Integer.parseInt(jumpMP));
+    move.setWalk(Integer.parseInt(requiredField(fields, "walk mp", filePath)));
+    move.setJump(Integer.parseInt(requiredField(fields, "jump mp", filePath)));
     mech.setMovement(move);
+    // armor isn't imported yet
 
-    // armor is supposed to be a piece of equipment
-    String armorType = readParameter("armor:", reader);
-    int totalArmor = getTotalArmor(reader);
-    //gonna ignore armor for a moment
-    //mech.setArmor(armorType, totalArmor);
-
-    int numWeapons = Integer.parseInt(readParameter("weapons:", reader));
-    mech.setMechEquipment(getWeapons(numWeapons, reader));
-
-    // save off the mech
-
-    /*
-    name
-    config: biped/quad
-    techbase:
-    era:
-    source: IGNORE
-    Rules level:
-
-    Mass:
-    engine:
-    structure
-    myomer
-    ejection
-
-    heat sinks
-    walk mp
-    jump mp
-
-    armor:
-    LA armor:15
-    RA armor:20
-    LT armor:23
-    RT armor:23
-    CT armor:31
-    HD armor:9
-    LL armor:28
-    RL armor:28
-    RTL armor:7
-    RTR armor:7
-    RTC armor:10
-
-    weapons: #
-    weapon, location
-    .
-    .
-    .
-
-    Left Arm:
-    all slots
-
-    Right arm:
-    all slots
-
-    Left Torso:
-    all slots
-
-    Right Torso:
-    all slots
-
-    center torso:
-    all slots
-
-    head:
-    all slots
-
-    Left leg:
-    all slots
-
-    right leg:
-    all slots
-
-
-    manufacturers
-     */
-
-
-
-
-
-
-    reader.close();
-
+    mech.setMechEquipment(readMtfWeapons(lines, filePath));
     return mech;
   }
 
-  static String readParameter(String paramName, BufferedReader reader) throws IOException {
-    while(true) {
-      String parameter = reader.readLine();
-      if(!parameter.isEmpty()) {
-        if(parameter.toLowerCase().startsWith(paramName)) { // probably replace these with regex's
-          return parameter.substring(paramName.length());
-        }
-      }
-    }
-  }
-
-  static int getTotalArmor(BufferedReader reader) throws IOException {
-    int totalArmor = 0;
-    while(true) {
-      String line = reader.readLine();
-      if(!line.isEmpty()) {
-        String[]items = line.split(":");
-        totalArmor = totalArmor + Integer.parseInt(items[1]);
-      }else {
+  /** The "key:value" lines before the weapons list, keyed by lowercase key. The first value wins. */
+  static Map<String, String> readMtfFields(List<String> lines) {
+    Map<String, String> fields = new HashMap<>();
+    for(String line : lines) {
+      if(line.toLowerCase().startsWith("weapons:")) {
         break;
       }
-    }
-    return totalArmor;
-  }
-
-  static List<UnitEquipment> getWeapons(int numWeapons, BufferedReader reader) throws IOException {
-    List<UnitEquipment> list = new LinkedList();
-
-    for(int i = 0; i < numWeapons; i++) {
-      String[] equipment = reader.readLine().split(", ");
-      try {
-        String[] quantityTest = equipment[0].split(" ");
-        StringBuilder equipmentName = new StringBuilder();
-        int quantity = Integer.parseInt(quantityTest[0]);
-        for(int j = 1; j < quantityTest.length; j++) {
-          equipmentName.append(quantityTest[j]);
-        }
-        for(int j = 0; j < quantity; j++) {
-          Tech tech = getTechType(equipmentName.toString().toLowerCase().replaceAll("\\s", ""));
-          if(tech != null) {
-            equipmentName.replace(0, 2, "");
-          }
-          list.add(new UnitEquipment(new Equipment(equipmentName.toString().toLowerCase().replaceAll("\\s", ""), tech), equipment[1]));
-        }
-      } catch(NumberFormatException e) {
-        Tech tech = getTechType(equipment[0]);
-        if(tech != null) {
-          equipment[0] = equipment[0].substring(2);
-        }
-        list.add(new UnitEquipment(new Equipment(equipment[0].toLowerCase().replaceAll("\\s", ""), getTechType(equipment[0])), equipment[1]));
+      int colon = line.indexOf(':');
+      if(colon > 0) {
+        fields.putIfAbsent(line.substring(0, colon).trim().toLowerCase(), line.substring(colon + 1).trim());
       }
     }
-    return list;
+    return fields;
   }
 
-  public static Tech getTechType(String equipment) {
-    if(equipment.toLowerCase().startsWith("is")) {
-      return Tech.INNER_SPHERE;
-
-    }else if(equipment.toLowerCase().startsWith("cl")) {
-      return Tech.CLAN;
+  private static String requiredField(Map<String, String> fields, String key, File filePath) throws IOException {
+    String value = fields.get(key);
+    if(value == null || value.isEmpty()) {
+      throw new IOException(filePath + " has no " + key + ": line");
     }
+    return value;
+  }
 
-    return null;
+  /** The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso". */
+  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath) throws IOException {
+    List<UnitEquipment> weapons = new LinkedList<>();
+    for(int i = 0; i < lines.size(); i++) {
+      if(lines.get(i).toLowerCase().startsWith("weapons:")) {
+        int count = Integer.parseInt(lines.get(i).substring("weapons:".length()).trim());
+        for(int j = 1; j <= count; j++) {
+          String line = lines.get(i + j);
+          // the name can contain ", " itself, so the location is after the last one
+          int split = line.lastIndexOf(", ");
+          if(split < 0) {
+            throw new IOException(filePath + ": weapon line without a location: " + line);
+          }
+          String weapon = line.substring(0, split).toLowerCase().replaceAll("\s", "");
+          // weapon lines don't say IS or Clan; persistUnits falls back to the unit's tech
+          weapons.add(new UnitEquipment(new Equipment(weapon, null), line.substring(split + 2)));
+        }
+        return weapons;
+      }
+    }
+    throw new IOException(filePath + " has no weapons: line");
   }
 }
