@@ -25,6 +25,7 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 - `NEWLINE` used to be `[\r\n]`-ish letters and matched the words `r` and `n`. It's now `('\r'? '\n' | '\r')+`. Test single-letter input when touching it.
 - Case-insensitivity comes from the letter fragments (`M : ('M'|'m')`). Plurals come from a trailing `S*`.
 - `QUANTITY` includes `a`, so `a` can't be used as an equipment word.
+- Equipment names are `WORD+`, joined and then normalized with `utils/EquipmentNames.normalize` (lowercase, no spaces, mounting notes like `(R)` / `(OS)` removed). The same normalizer is used on import and for slang, so `large laser` = `largelaser`. **Limitation:** a number after a space (`lrm 20`) lexes as a `QUANTITY` and fails to parse. Write `lrm20`. Allowing numbers inside names would clash with chunks that have no operator between them (`mechs with 2 ppc 3 srm6`), so it needs a grammar decision.
 - `tank` means every ground vehicle (dtype `Tank`, not VTOLs). `tracked` / `wheeled` / `hovercraft` are motive types; see the `vehicle-motive-types` skill.
 - `QueryVisitor`'s `slangRepo` is passed in but unused; slang is resolved inside `findAllBySlangOrEquipmentName`.
 - Unit and weight class SQL is built from enums. Equipment is matched by id after a repository lookup. Keep user text out of the SQL string.
@@ -34,7 +35,7 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 - **Comparator:** add the phrase to the matching token in the grammar (`ATLEAST`, `NOMORE`, `EQUAL`, `LESSTHANCOMPARATOR`, `GREATERTHANCOMPARATOR`), or add a new token to the `comparator` rule and handle its symbolic name in `EquipmentDecorator.buildComparison`.
 - **Quantity word:** add a `fragment` to `NUMBER` in the grammar and the word to `QuantityConverter.NUMBER_WORDS`.
 - **Unit type:** add a token, list it in the `unit` rule, and map its symbolic name in `UnitBuilder` and `UnitDecorator.getQuery`.
-- **Slang:** `POST localhost:8081/actuator/slang` with `{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}` (`admin/SlangEndpoint`, admin port, localhost only). Terms are one comma-separated string, because Actuator only binds string values from the JSON body. The `equipment_slang` table ships empty.
+- **Slang:** `POST localhost:8081/actuator/slang` with `{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}` (`admin/SlangEndpoint`, admin port, localhost only). Terms are one comma-separated string, because Actuator only binds string values from the JSON body. Both the name and the terms are stored normalized (`EquipmentNames`). The `equipment_slang` table ships empty.
 - Tests: `QueryVisitorTest` (parser only, mocked repository) and `SearchServiceTest` (real data via Testcontainers). Add both.
 
 ## Planned, not built

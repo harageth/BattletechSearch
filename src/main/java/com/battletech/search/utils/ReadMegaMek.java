@@ -283,7 +283,7 @@ public class ReadMegaMek {
           String name = line.substring(0, split);
           String location = line.substring(split + 2);
           Tech tech = slotTech(slots.getOrDefault(location.toLowerCase(), List.of()), name);
-          String weapon = name.toLowerCase().replaceAll("\\s", "");
+          String weapon = EquipmentNames.normalize(name);
           weapons.add(new UnitEquipment(new Equipment(weapon, tech != null ? tech : chassisTech), location));
         }
         return weapons;

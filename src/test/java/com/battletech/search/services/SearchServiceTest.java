@@ -113,6 +113,14 @@ class SearchServiceTest {
   }
 
   @Test
+  void equipmentNamesCanHaveSpaces() throws IOException {
+    List<String> largeLasers = search("mechs with exactly 4 largelaser");
+    assertThat(search("mechs with exactly 4 large laser")).isEqualTo(largeLasers);
+    assertThat(search("mechs with exactly 4 Large Laser")).isEqualTo(largeLasers);
+    assertThat(search("mechs with at least 2 ER Large Laser")).isEqualTo(search("mechs with at least 2 erlargelaser"));
+  }
+
+  @Test
   void numberWordsMatchDigits() throws IOException {
     assertThat(search("mechs with at least four ppc")).isEqualTo(search("mechs with at least 4 ppc"));
   }

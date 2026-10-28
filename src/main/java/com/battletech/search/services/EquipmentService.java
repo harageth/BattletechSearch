@@ -4,6 +4,7 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.EquipmentSlang;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import com.battletech.search.utils.EquipmentNames;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -19,13 +20,14 @@ public class EquipmentService {
 
   public void addSlangToEquipment(String equipmentPattern, List<String>slangTerms) {
 
-    List<Equipment> equips = equipRepo.findByName(equipmentPattern);
+    // stored in the same normal form as equipment names and search words
+    List<Equipment> equips = equipRepo.findByName(EquipmentNames.normalize(equipmentPattern));
 
     for(Equipment equip : equips) {
       for(String slang: slangTerms) {
         EquipmentSlang slangEquipment = new EquipmentSlang();
         slangEquipment.setEquipment(equip);
-        slangEquipment.setSlang(slang);
+        slangEquipment.setSlang(EquipmentNames.normalize(slang));
         slangRepo.save(slangEquipment);
       }
     }

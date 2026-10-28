@@ -6,6 +6,7 @@ import com.battletech.search.entities.Unit;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.MechEquipmentRepository;
 import com.battletech.search.repositories.UnitRepository;
+import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.ReadMegaMek;
 import com.battletech.search.utils.ReadPDF;
 import java.io.File;
@@ -67,7 +68,7 @@ public class UnitService {
             if(equip.getEquipment().getTech() == null) {
               equip.getEquipment().setTech(unit.getTech());
             }
-            equip.getEquipment().setName(equip.getEquipment().getName().toLowerCase().replaceAll(" ", ""));
+            equip.getEquipment().setName(EquipmentNames.normalize(equip.getEquipment().getName()));
             List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
                 equip.getEquipment().getTech());
             Equipment equipment = exists.isEmpty() ? equipRepo.save(equip.getEquipment()) : exists.get(0);

@@ -9,6 +9,7 @@ import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
+import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
 import java.util.LinkedList;
 import java.util.List;
@@ -80,7 +81,7 @@ public class QueryVisitor implements BattletechVisitor {
         realDecorator.setOperator((LogicalOperator) logicObject);
       }
       // validate equipment type
-      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(equip)) {
+      for(Equipment thing : equipRepo.findAllBySlangOrEquipmentName(EquipmentNames.normalize(equip))) {
         if(first) {
           first = false;
         }else {

@@ -147,9 +147,17 @@ class QueryVisitorTest {
   }
 
   @Test
-  void multiWordEquipmentIsJoinedAndLowercased() {
+  void multiWordEquipmentIsNormalized() {
+    // equipment is stored without spaces, so the lookup strips them too
     assertThat(chunk(parse("mechs with at least 1 Medium Laser"), 0).getEquipment().getName())
-        .isEqualTo("medium laser");
+        .isEqualTo("mediumlaser");
+  }
+
+  @Test
+  void unknownEquipmentIsReportedAsTyped() {
+    when(equipRepo.findAllBySlangOrEquipmentName("mediumlazer")).thenReturn(List.of());
+    assertThatThrownBy(() -> parse("mechs with at least 2 Medium Lazer"))
+        .hasMessage("Unable to parse: medium lazer");
   }
 
   @Test

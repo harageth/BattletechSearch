@@ -47,8 +47,8 @@ All of these were checked against the code. The "Data:" lines are from the basel
 
 ### Both formats
 1. **Re-importing duplicates units.** `persistUnits` never checks whether the unit already exists. Unit ids are random UUIDs, so a second run adds every unit again. Data: 11 name/designation pairs already appear twice (e.g. Wasp WSP-1S, Marauder II MAD-5C). Fix: upsert on MegaMek's `uuid` (see "Format changes" above).
-2. **Equipment names are flattened.** `persistUnits` lowercases them and removes spaces (`Medium Laser` → `mediumlaser`). The query side joins words with a space, so `mechs with 2 medium laser` doesn't match. Only `mediumlaser` works, unless `equipment_slang` has a row. That table ships empty. Decide on one normal form and apply it on both the import and query sides.
-3. **Annotations stay in equipment names.** Data: 28 equipment names include suffixes, e.g. `mediumlaser(r)` (rear-facing), `srm6(i-os)` / `srm2(os)` (one-shot), `tag(clan)`, `cargo(1ton)`, `rifle(cannon`, `unknowncritical(0xda)`. The vehicle path strips some of these with `.contains("(r)")` checks, but the mech path strips none. A rear `mediumlaser(r)` therefore isn't counted as a `mediumlaser`.
+2. ~~Equipment names are flattened.~~ **Fixed:** `utils/EquipmentNames.normalize` (lowercase, no spaces, mounting notes removed) is used on import, for search words and for slang, so `medium laser` matches `mediumlaser`. Numbers after a space (`lrm 20`) still don't parse; see the query-grammar skill.
+3. ~~Annotations stay in equipment names.~~ **Fixed for mounting notes:** `(R)`, `(OS)`, `(I-OS)`, `(iOS)` and `(ST)` are stripped by the normalizer. Annotations that name a different item (`(Vehicle)`, `(B-Pods)`, `(Blazer)`, `(Cannon, Heavy)`) are kept. The baseline data still has names like `mediumlaser(r)` until it's regenerated.
 4. ~~Missing tech gives a third copy of the equipment.~~ **Fixed in the parsers:** every unit and every piece of equipment now gets a tech (0 nulls across the pinned commit), via `Tech.fromTechBase` / `Tech.chassisTech`. The baseline data still has 128 null-tech equipment rows until it's regenerated.
 19. **Some mech weapons have no location.** `Location` has no values for quad, tripod or LAM locations such as `Front Left Leg`. At the pinned commit, 30 weapons get a null location.
 
@@ -82,7 +82,7 @@ All of these were checked against the code. The "Data:" lines are from the basel
    - Add `mechs` / `vehicles` sources to `ImportEndpoint` (admin port, localhost only). Optionally add a command-line runner too, e.g. `--battletech.import.run=mechs,vehicles`, that runs once and exits.
    - ~~Add fixture tests for `ReadMechMTF` / `ReadVehicleBlk`.~~ Done (see "Tests" above).
    - Make import idempotent: store MegaMek's `uuid` and upsert on it (bug 1). This needs a new column, so it needs a migration.
-2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 4-7, 10, 11, 15, 17 and 18. Remaining, in suggested order: equipment naming (2, 3, which needs a decision on the normal form shared with the query side), then motive type (12, which needs the tank decision), then the rest.
+2. **Fix the parsers one bug at a time**, with a fixture test for each. Done: the MTF header change, plus bugs 2-7, 10, 11, 15, 17 and 18. Remaining: motive type (12; "tank" is decided as every ground vehicle), mech ammo and equipment from the slot listings (8), then the rest.
 3. **Regenerate the data** (see below) and compare it with the old baseline.
 4. **`ReadPDF`**: finish it or delete it, separately.
 
