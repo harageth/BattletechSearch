@@ -296,6 +296,14 @@ main a {
 	color: var(--query-error);
 	text-decoration: underline wavy var(--query-error-line);
 }
+/* a blank a template left, "<quantity>": a dashed pill until it's filled in */
+.tok-slot {
+	color: var(--query-filler);
+	font-style: italic;
+	box-shadow: inset 0 0 0 1px var(--query-filler);
+	border-radius: 3px;
+	padding: 0 2px;
+}
 .tok-swappable {
 	border-radius: 2px;
 }
@@ -327,9 +335,56 @@ main a {
 	background: #e1ad01;
 	color: #000;
 }
+/* a number is typed into a box instead of picked */
+.query-menu li.query-menu-number,
+.query-menu li.query-menu-number:hover {
+	padding: 6px 10px;
+	background: none;
+	color: inherit;
+	cursor: default;
+}
+.query-menu-number input {
+	width: 5em;
+	margin-left: 4px;
+	padding: 3px 6px;
+	font: inherit;
+	color: var(--query-text);
+	background: var(--query-background);
+	border: 1px solid var(--query-menu-border);
+	border-radius: 3px;
+}
+.query-menu-number input:focus {
+	outline: 2px solid #e1ad01;
+}
+.query-menu-number input[aria-invalid="true"] {
+	outline-color: var(--query-error-line);
+}
 .query-menu .query-menu-remove {
 	color: var(--query-filler);
 	font-style: italic;
+}
+.query-templates {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+.query-templates button {
+	padding: 3px 10px;
+	border: 1px solid #e1ad01;
+	border-radius: 12px;
+	background: transparent;
+	color: #e1ad01;
+	font: inherit;
+	font-size: 90%;
+	cursor: pointer;
+}
+.query-templates button:hover {
+	background: #e1ad01;
+	color: #000;
+}
+.query-templates button[hidden] {
+	display: none;
 }
 .query-theme {
 	display: inline-block;

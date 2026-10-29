@@ -33,13 +33,18 @@ class RecordingErrorListener extends ErrorListener {
 
 /**
  * The query's words with their roles: weight-class, unit, with, comparator, quantity, tech,
- * fire-control, equipment, operator, unknown (a weight class that isn't one) or error.
+ * fire-control, equipment, operator, unknown (a weight class that isn't one), error, or slot (a
+ * blank a template left, "<quantity>", with its name in slot).
  * Multi-word phrases ("at least", "ultra light", "lrm 20") are one token. Positions are character
  * offsets into text, stop exclusive.
  *
  * @returns {{tokens: {start: number, stop: number, text: string, role: string}[], error: ?{start: number, stop: number, message: string}}}
  */
 export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
+  const slots = findSlots(text);
+  if (slots.length > 0) {
+    return analyzeWithSlots(text, slots, vocabulary);
+  }
   const listener = new RecordingErrorListener();
   const lexer = new BattletechLexer(CharStreams.fromString(text));
   lexer.removeErrorListeners();
@@ -63,6 +68,90 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
   }
   tokens.sort((a, b) => a.start - b.start);
   return { tokens, error };
+}
+
+/**
+ * The blanks a template leaves to fill in, written into the query as "<comparator>", and what each
+ * becomes if it isn't filled in ('' leaves it out). Each default fits in its blank, so a query with
+ * blanks parses with the defaults padded to the same length.
+ */
+export const SLOT_DEFAULTS = Object.freeze({
+  'weight class': '',
+  unit: 'units',
+  'and/or': 'and',
+  comparator: 'at least',
+  quantity: '1',
+  weapon: 'lasers',
+});
+
+/** The sections the search box can add, each made of blanks. */
+export const TEMPLATES = Object.freeze({
+  unit: '<weight class> <unit> with <comparator> <quantity> <weapon>',
+  weapon: '<comparator> <quantity> <weapon>',
+});
+
+function findSlots(text) {
+  return [...text.matchAll(/<(weight class|unit|and\/or|comparator|quantity|weapon)>/gi)].map(match => ({
+    start: match.index,
+    stop: match.index + match[0].length,
+    text: match[0],
+    role: 'slot',
+    slot: match[1].toLowerCase(),
+  }));
+}
+
+// reads the query as if each blank held its default, then puts the blanks back over those words
+function analyzeWithSlots(text, slots, vocabulary) {
+  let filled = text;
+  for (const slot of slots) {
+    filled = filled.slice(0, slot.start) + SLOT_DEFAULTS[slot.slot].padEnd(slot.stop - slot.start) + filled.slice(slot.stop);
+  }
+  const { tokens, error } = analyze(filled, vocabulary);
+  const outside = token => slots.every(slot => token.stop <= slot.start || token.start >= slot.stop);
+  const kept = tokens.filter(outside).map(token => ({ ...token, text: text.slice(token.start, token.stop) }));
+  return {
+    tokens: [...kept, ...slots].sort((a, b) => a.start - b.start),
+    error: error && outside(error) ? error : null,
+  };
+}
+
+/** A number, or the blank for one: typed into a box rather than picked from a list. */
+export function isQuantity(token) {
+  return token.role === 'quantity' || (token.role === 'slot' && token.slot === 'quantity');
+}
+
+/** What was typed in the number box, as query text: a whole number, or null if it isn't one. */
+export function quantityText(typed) {
+  const number = typed.trim();
+  return /^\d{1,3}$/.test(number) ? String(Number(number)) : null;
+}
+
+/** The sections that can be added to this query: the unit one only starts a query. */
+export function templates(text) {
+  return text.trim() === '' ? ['unit', 'weapon'] : ['weapon'];
+}
+
+/**
+ * The query with a template's blanks added at the end, joined by an "<and/or>" blank when it follows
+ * another section. A weapon section starts an empty query with "units with".
+ */
+export function addTemplate(text, name) {
+  const before = text.trimEnd();
+  if (before === '') {
+    return name === 'unit' ? TEMPLATES.unit : `units with ${TEMPLATES.weapon}`;
+  }
+  const last = analyze(before).tokens.at(-1);
+  const joined = last && (last.role === 'with' || last.role === 'operator');
+  return `${before} ${joined ? '' : '<and/or> '}${TEMPLATES.weapon}`;
+}
+
+/** The query with every blank left as its default. */
+export function fillSlots(text) {
+  let filled = text;
+  for (const slot of findSlots(text).reverse()) {
+    filled = replaceToken(filled, slot, SLOT_DEFAULTS[slot.slot]).text;
+  }
+  return filled;
 }
 
 function firstError(errors, text) {
@@ -151,6 +240,9 @@ function equipmentName(words, tokens, text, vocabulary) {
   if (words.length === 0) {
     return;
   }
+  const nameStart = words[0].symbol.start;
+  let hasTech = false;
+  let hasFireControl = false;
   // tech: whole leading words ("inner sphere"), longest first, only if a name follows
   const techs = Object.keys(vocabulary.techs).sort((a, b) => b.split(' ').length - a.split(' ').length);
   for (const tech of techs) {
@@ -158,6 +250,7 @@ function equipmentName(words, tokens, text, vocabulary) {
     if (words.length > length && words.slice(0, length).map(word => word.getText().toLowerCase()).join(' ') === tech) {
       tokens.push(span(words.slice(0, length), text, 'tech'));
       words = words.slice(length);
+      hasTech = true;
       break;
     }
   }
@@ -171,17 +264,22 @@ function equipmentName(words, tokens, text, vocabulary) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {
           tokens.push(span(words.slice(0, length), text, 'fire-control'));
           words = words.slice(length);
+          hasFireControl = true;
           break found;
         }
       }
     }
   }
-  tokens.push(span(words, text, 'equipment'));
+  // the whole name too, prefixes and all, for adding a tech in front of it
+  const equipment = span(words, text, 'equipment');
+  tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasFireControl });
 }
 
 /**
  * What a token could be swapped for, as {label, text}; text '' removes the token. Empty when there's
- * nothing to offer (quantities, errors, equipment outside the families).
+ * nothing to offer (errors, equipment outside the families, numbers: see isQuantity). An option with
+ * a start replaces from there instead of from the token's start: a tech added in front of a whole
+ * equipment name.
  */
 export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
   const typed = token.text.toLowerCase().replace(/\s+/g, ' ');
@@ -204,26 +302,73 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
     case 'tech': {
       // one word per other tech: "clan" offers "inner sphere", not "is" too
       const current = Object.entries(vocabulary.techs).find(([word]) => word === typed)?.[1];
-      const seen = new Set([current]);
-      const options = [];
-      for (const [word, tech] of Object.entries(vocabulary.techs)) {
-        if (!seen.has(tech)) {
-          seen.add(tech);
-          options.push({ label: word, text: word });
-        }
-      }
-      return [...options, { label: 'any tech', text: '' }];
+      return [...techWords(vocabulary, current).map(word => ({ label: word, text: word })), { label: 'any tech', text: '' }];
     }
     case 'fire-control':
       return [...others(vocabulary.fireControls), { label: 'any fire control', text: '' }];
     case 'equipment':
-      return equipmentAlternatives(typed, vocabulary);
+      return equipmentAlternatives(token, typed, vocabulary);
+    case 'slot':
+      return slotAlternatives(token.slot, vocabulary);
     default:
       return [];
   }
 }
 
-function equipmentAlternatives(typed, vocabulary) {
+/** One word for each tech but the one given: "inner sphere" and "clan", not "is" too. */
+function techWords(vocabulary, except = undefined) {
+  const seen = new Set([except]);
+  const words = [];
+  for (const [word, tech] of Object.entries(vocabulary.techs)) {
+    if (!seen.has(tech)) {
+      seen.add(tech);
+      words.push(word);
+    }
+  }
+  return words;
+}
+
+// what a blank offers; picking one fills it in
+function slotAlternatives(slot, vocabulary) {
+  const words = list => list.map(word => ({ label: word, text: word }));
+  switch (slot) {
+    case 'weight class':
+      return [...words(vocabulary.weightClasses), { label: 'any weight', text: '' }];
+    case 'unit':
+      return words(vocabulary.units.map(unit => unit.plural));
+    case 'and/or':
+      return words(vocabulary.operators);
+    case 'comparator':
+      return words(vocabulary.comparatorsBefore);
+    case 'weapon':
+      return words(Object.keys(vocabulary.families));
+    default:
+      return [];
+  }
+}
+
+// the families whose launchers take Artemis (Streaks don't); MRMs take Apollo
+const ARTEMIS_FAMILIES = ['lrms', 'srms', 'mmls'];
+
+// a tech or fire control in front of a family weapon that has none: "clan only", "with artemis"
+function prefixAlternatives(token, families, vocabulary) {
+  const options = [];
+  if (!token.hasTech) {
+    techWords(vocabulary).forEach(word =>
+      options.push({ label: `${word} only`, text: `${word} ${token.name}`, start: token.nameStart }));
+  }
+  if (!token.hasFireControl && !families.includes('streaks')) {
+    if (families.some(term => ARTEMIS_FAMILIES.includes(term)) && vocabulary.fireControls.includes('artemis')) {
+      options.push({ label: 'with artemis', text: `artemis ${token.text}` });
+    }
+    if (families.includes('mrms') && vocabulary.fireControls.includes('apollo')) {
+      options.push({ label: 'with apollo', text: `apollo ${token.text}` });
+    }
+  }
+  return options;
+}
+
+function equipmentAlternatives(token, typed, vocabulary) {
   const familyTerm = Object.keys(vocabulary.families).find(term => key(term) === key(typed));
   const options = [];
   const add = (word, label = word) => {
@@ -235,7 +380,7 @@ function equipmentAlternatives(typed, vocabulary) {
     // "lrms": the other families, then each LRM
     Object.keys(vocabulary.families).forEach(term => add(term, `any of the ${term}`));
     vocabulary.families[familyTerm].forEach(member => add(member));
-    return options;
+    return [...options, ...prefixAlternatives(token, [familyTerm], vocabulary)];
   }
   let member = Object.keys(vocabulary.equipment).find(name => key(name) === key(typed));
   // a plural, as the search reads it too: "lrm 20s" offers "lrm 15s"
@@ -250,7 +395,7 @@ function equipmentAlternatives(typed, vocabulary) {
   const families = vocabulary.equipment[member];
   families.forEach(term => add(term, `any of the ${term}`));
   families.forEach(term => vocabulary.families[term].forEach(name => add(plural ? `${name}s` : name)));
-  return options;
+  return [...options, ...prefixAlternatives(token, families, vocabulary)];
 }
 
 /**

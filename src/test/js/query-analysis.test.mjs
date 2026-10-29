@@ -2,7 +2,7 @@
 // scripts next to the parser it generates from the grammar.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, alternatives, replaceToken, EMPTY_VOCABULARY } from '../../../target/classes/static/js/query-analysis.js';
+import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY } from '../../../target/classes/static/js/query-analysis.js';
 
 // the shape GET /api/vocabulary returns, cut down
 const vocabulary = {
@@ -20,6 +20,7 @@ const vocabulary = {
   fireControls: ['artemis iv', 'artemis v', 'artemis', 'apollo'],
   families: {
     lrms: ['lrm 10', 'lrm 20', 'streak lrm 20'],
+    mrms: ['mrm 40'],
     streaks: ['streak lrm 20', 'streak srm 6'],
     lasers: ['medium laser', 'er medium laser'],
   },
@@ -28,6 +29,7 @@ const vocabulary = {
     'lrm 20': ['lrms'],
     'streak lrm 20': ['lrms', 'streaks'],
     'streak srm 6': ['streaks'],
+    'mrm 40': ['mrms'],
     'medium laser': ['lasers'],
     'er medium laser': ['lasers'],
   },
@@ -132,6 +134,8 @@ function token(query, text) {
 }
 
 const texts = options => options.map(option => option.text);
+// the swaps, without the tech and fire control that can be added in front (tested on their own)
+const swaps = options => texts(options.filter(option => !option.label.endsWith(' only') && !option.label.startsWith('with ')));
 
 test('weight classes offer the other weight classes', () => {
   assert.deepEqual(texts(alternatives(token('light mechs with 1 ppc', 'light'), vocabulary)),
@@ -160,28 +164,39 @@ test('operators, tech and fire control', () => {
 
 test('equipment offers its families, then the other weapons in them', () => {
   const options = alternatives(token('mechs with 2 lrm 20', 'lrm 20'), vocabulary);
-  assert.deepEqual(texts(options), ['lrms', 'lrm 10', 'streak lrm 20']);
+  assert.deepEqual(swaps(options), ['lrms', 'lrm 10', 'streak lrm 20']);
   assert.equal(options[0].label, 'any of the lrms');
-  assert.deepEqual(texts(alternatives(token('mechs with 2 streak lrm 20', 'streak lrm 20'), vocabulary)),
+  assert.deepEqual(swaps(alternatives(token('mechs with 2 streak lrm 20', 'streak lrm 20'), vocabulary)),
       ['lrms', 'streaks', 'lrm 10', 'lrm 20', 'streak srm 6']);
   // matched on letters and digits
-  assert.deepEqual(texts(alternatives(token('mechs with 2 LRM-20', 'LRM-20'), vocabulary)), ['lrms', 'lrm 10', 'streak lrm 20']);
+  assert.deepEqual(swaps(alternatives(token('mechs with 2 LRM-20', 'LRM-20'), vocabulary)), ['lrms', 'lrm 10', 'streak lrm 20']);
 });
 
 test('plural equipment offers plurals', () => {
-  assert.deepEqual(texts(alternatives(token('mechs with 2 lrm 20s', 'lrm 20s'), vocabulary)),
+  assert.deepEqual(swaps(alternatives(token('mechs with 2 lrm 20s', 'lrm 20s'), vocabulary)),
       ['lrms', 'lrm 10s', 'streak lrm 20s']);
-  assert.deepEqual(texts(alternatives(token('mechs with 4 medium lasers', 'medium lasers'), vocabulary)),
+  assert.deepEqual(swaps(alternatives(token('mechs with 4 medium lasers', 'medium lasers'), vocabulary)),
       ['lasers', 'er medium lasers']);
 });
 
 test('a family term offers the other families and its weapons', () => {
-  assert.deepEqual(texts(alternatives(token('mechs with 4 lasers', 'lasers'), vocabulary)),
-      ['lrms', 'streaks', 'medium laser', 'er medium laser']);
+  assert.deepEqual(swaps(alternatives(token('mechs with 4 lasers', 'lasers'), vocabulary)),
+      ['lrms', 'mrms', 'streaks', 'medium laser', 'er medium laser']);
 });
 
-test('nothing to offer for quantities or equipment outside the families', () => {
+test('numbers are typed into a box, not picked from a list', () => {
+  assert.ok(isQuantity(token('mechs with 2 ppc', '2')));
+  assert.ok(isQuantity(analyze('units with <comparator> <quantity> <weapon>', vocabulary).tokens.find(found => found.slot === 'quantity')));
+  assert.ok(!isQuantity(token('mechs with 2 ppc', 'ppc')));
   assert.deepEqual(alternatives(token('mechs with 2 ppc', '2'), vocabulary), []);
+  assert.equal(quantityText(' 12 '), '12');
+  assert.equal(quantityText('007'), '7');
+  for (const wrong of ['', 'two', '1.5', '-1', '1000']) {
+    assert.equal(quantityText(wrong), null, wrong);
+  }
+});
+
+test('nothing to offer for equipment outside the families', () => {
   assert.deepEqual(alternatives(token('mechs with 2 jump jet', 'jump jet'), vocabulary), []);
 });
 
@@ -193,4 +208,67 @@ test('replacing a token', () => {
   // removing takes the space after it
   const clan = 'mechs with 2 clan lrm 20';
   assert.deepEqual(replaceToken(clan, token(clan, 'clan'), ''), { text: 'mechs with 2 lrm 20', caret: 'mechs with 2 '.length });
+});
+
+test('family weapons can get a tech, and launchers a fire control, in front', () => {
+  const prefixes = (query, text) => alternatives(token(query, text), vocabulary)
+      .filter(option => option.label.endsWith(' only') || option.label.startsWith('with '))
+      .map(option => `${option.label}=${option.text}`);
+  assert.deepEqual(prefixes('mechs with 2 lrm 20', 'lrm 20'),
+      ['inner sphere only=inner sphere lrm 20', 'clan only=clan lrm 20', 'with artemis=artemis lrm 20']);
+  assert.deepEqual(prefixes('mechs with 2 lasers', 'lasers'), ['inner sphere only=inner sphere lasers', 'clan only=clan lasers']);
+  assert.deepEqual(prefixes('mechs with 1 mrm 40', 'mrm 40'),
+      ['inner sphere only=inner sphere mrm 40', 'clan only=clan mrm 40', 'with apollo=apollo mrm 40']);
+  // Streaks take no Artemis; nothing twice
+  assert.deepEqual(prefixes('mechs with 2 streak lrm 20', 'streak lrm 20'),
+      ['inner sphere only=inner sphere streak lrm 20', 'clan only=clan streak lrm 20']);
+  assert.deepEqual(prefixes('mechs with 2 clan artemis lrm 20', 'lrm 20'), []);
+  assert.deepEqual(prefixes('mechs with 2 clan lrm 20', 'lrm 20'), ['with artemis=artemis lrm 20']);
+});
+
+test('a tech goes in front of the fire control', () => {
+  const query = 'mechs with 2 artemis lrm 20';
+  const equipment = token(query, 'lrm 20');
+  const clan = alternatives(equipment, vocabulary).find(option => option.label === 'clan only');
+  assert.deepEqual(replaceToken(query, { ...equipment, start: clan.start }, clan.text),
+      { text: 'mechs with 2 clan artemis lrm 20', caret: query.length + 'clan '.length });
+});
+
+test('the unit section starts a query, the weapon section adds to one', () => {
+  assert.deepEqual(templates(''), ['unit', 'weapon']);
+  assert.deepEqual(templates('mechs with 1 ppc'), ['weapon']);
+  assert.equal(addTemplate('', 'unit'), '<weight class> <unit> with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate(' ', 'weapon'), 'units with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate('mechs with 1 ppc ', 'weapon'), 'mechs with 1 ppc <and/or> <comparator> <quantity> <weapon>');
+  // no "and" after "with" or another and/or
+  assert.equal(addTemplate('mechs with', 'weapon'), 'mechs with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate('mechs with 1 ppc or', 'weapon'), 'mechs with 1 ppc or <comparator> <quantity> <weapon>');
+});
+
+test('blanks are pieces of their own, and the rest still reads', () => {
+  assert.deepEqual(roles('<weight class> <unit> with <comparator> <quantity> <weapon>'),
+      ['<weight class>:slot', '<unit>:slot', 'with:with', '<comparator>:slot', '<quantity>:slot', '<weapon>:slot']);
+  assert.deepEqual(roles('light mechs with at least 2 lrm 20 <and/or> exactly <quantity> clan <weapon>'),
+      ['light:weight-class', 'mechs:unit', 'with:with', 'at least:comparator', '2:quantity', 'lrm 20:equipment',
+        '<and/or>:slot', 'exactly:comparator', '<quantity>:slot', 'clan:tech', '<weapon>:slot']);
+  const blanks = analyze('units with <comparator> <quantity> <weapon>', vocabulary);
+  assert.equal(blanks.error, null);
+  assert.equal(blanks.tokens.find(found => found.role === 'slot').slot, 'comparator');
+});
+
+test('each blank offers what can go there', () => {
+  const slot = (query, name) => alternatives(analyze(query, vocabulary).tokens.find(found => found.slot === name), vocabulary);
+  const query = '<weight class> <unit> with <comparator> <quantity> <weapon> <and/or> <comparator> <quantity> <weapon>';
+  assert.deepEqual(texts(slot(query, 'weight class')), [...vocabulary.weightClasses, '']);
+  assert.deepEqual(texts(slot(query, 'unit')), ['units', 'mechs', 'tanks', 'tracked']);
+  assert.deepEqual(texts(slot(query, 'and/or')), ['and', 'or']);
+  assert.deepEqual(texts(slot(query, 'comparator')), vocabulary.comparatorsBefore);
+  assert.deepEqual(texts(slot(query, 'weapon')), ['lrms', 'mrms', 'streaks', 'lasers']);
+});
+
+test('blanks left empty become their defaults', () => {
+  assert.equal(fillSlots('<weight class> <unit> with <comparator> <quantity> <weapon>'), 'units with at least 1 lasers');
+  assert.equal(fillSlots('heavy <unit> with exactly <quantity> lrms <and/or> <comparator> 2 <weapon>'),
+      'heavy units with exactly 1 lrms and at least 2 lasers');
+  assert.equal(fillSlots('mechs with 1 ppc'), 'mechs with 1 ppc');
 });
