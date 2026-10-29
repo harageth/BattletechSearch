@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.CacheControl;
@@ -47,9 +48,11 @@ public class VocabularyController {
     Map<String, List<String>> families = new LinkedHashMap<>();
     Map<String, List<String>> equipment = new LinkedHashMap<>();
     EquipmentNames.families().forEach((term, members) -> {
+      // as a query can name them: "blazer" for the Binary Laser (Blazer) Cannon
       List<String> searchable = members.stream()
           .filter(member -> stored.contains(EquipmentNames.normalize(member)))
-          .filter(QueryVocabulary::isTypeable)
+          .map(QueryVocabulary::typedName)
+          .filter(Objects::nonNull)
           .toList();
       if (!searchable.isEmpty()) {
         families.put(term, searchable);

@@ -76,6 +76,25 @@ public final class QueryVocabulary {
     return FireControl.searchWords();
   }
 
+  // what to offer for equipment whose name can't be typed; each must find that equipment
+  private static final Map<String, String> TYPED_INSTEAD = Map.of(
+      // user decision (2026-10-29): binary lasers are just "blazers"
+      "binary laser (blazer) cannon", "blazer",
+      // "vehicle flamer" can't be typed either: "vehicle" is a unit word
+      "flamer (vehicle)", "vehicleflamer");
+
+  /**
+   * How a query names this equipment (a weapon as typed, "lrm 20"): the name itself if it can be
+   * typed, else a spelling that can and finds it, else null.
+   */
+  public static String typedName(String name) {
+    if (isTypeable(name)) {
+      return name;
+    }
+    String instead = TYPED_INSTEAD.get(name);
+    return instead != null && isTypeable(instead) ? instead : null;
+  }
+
   /**
    * Whether a query can name this equipment as typed, as one equipment name: "lrm 20" can, "flamer
    * (vehicle)" can't (no parentheses), and neither can a name the grammar splits into two chunks.

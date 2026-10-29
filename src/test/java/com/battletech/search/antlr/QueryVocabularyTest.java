@@ -82,4 +82,18 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isFalse();
     assertThat(QueryVocabulary.isTypeable("")).isFalse();
   }
+
+  @Test
+  void equipmentThatCantBeTypedIsOfferedAsASpellingThatCan() {
+    assertThat(QueryVocabulary.typedName("lrm 20")).isEqualTo("lrm 20");
+    // user decision: binary lasers are just "blazers"
+    assertThat(QueryVocabulary.typedName("binary laser (blazer) cannon")).isEqualTo("blazer");
+    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("vehicleflamer");
+    // each spelling finds the equipment it stands for
+    for (String name : List.of("binary laser (blazer) cannon", "flamer (vehicle)")) {
+      assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)
+          .isEqualTo(EquipmentNames.normalize(name));
+    }
+    assertThat(QueryVocabulary.typedName("some (thing)")).isNull();
+  }
 }
