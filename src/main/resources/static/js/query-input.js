@@ -6,7 +6,7 @@
 // The "+ unit" / "+ weapon" buttons add a section of blanks ("<comparator> <quantity> <weapon>"). Each
 // blank's list opens in turn, and the search runs once the last is filled. Escape, or searching early,
 // leaves the rest as their defaults.
-import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY } from './query-analysis.js';
+import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY } from './query-analysis.js';
 
 let vocabulary = EMPTY_VOCABULARY;
 const editors = [];
@@ -401,8 +401,9 @@ class QueryEditor {
     box.type = 'text';
     box.autocomplete = 'off';
     box.inputMode = 'numeric';
-    box.placeholder = '1';
-    // a number typed as digits starts in the box; "two" or a blank starts empty
+    // a number typed as digits starts in the box; "two" or a blank starts empty, showing what Enter
+    // keeps: the blank's default, or "two"
+    box.placeholder = token.role === 'slot' ? SLOT_DEFAULTS.quantity : token.text;
     box.value = quantityText(token.text) ?? '';
     label.append('How many? ', box);
     item.append(label);
@@ -413,7 +414,7 @@ class QueryEditor {
       if (event.key === 'Enter') {
         // not the form's Enter: the box is inside it
         event.preventDefault();
-        const number = quantityText(box.value);
+        const number = box.value.trim() === '' ? box.placeholder : quantityText(box.value);
         if (number === null) {
           box.setAttribute('aria-invalid', 'true');
         } else {

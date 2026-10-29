@@ -95,6 +95,12 @@ public class QueryVisitor implements BattletechVisitor {
       // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20", and a family term
       // ("lrms") finds every weapon in it, counted together
       List<Equipment> found = findEquipment(lookup);
+      String family = EquipmentNames.familyOfSingular(lookup);
+      if(found.isEmpty() && family != null) {
+        // a family in the singular: "1 atm", "at least 2 laser"
+        lookup = family;
+        found = findEquipment(lookup);
+      }
       if(found.isEmpty() && lookup.endsWith("s")) {
         // a plural: "2 lrm 20s", "4 medium lasers"
         lookup = lookup.substring(0, lookup.length() - 1);

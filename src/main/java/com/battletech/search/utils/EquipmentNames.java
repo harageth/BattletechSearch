@@ -93,6 +93,21 @@ public final class EquipmentNames {
     return Set.of();
   }
 
+  /**
+   * The normalized family term this is the singular of ("atm" -> "atms", "torpedo" -> "torpedoes"),
+   * or null. Search only reads it as the family when no weapon has the name: "ppc" is the PPC.
+   */
+  public static String familyOfSingular(String name) {
+    for (String term : FAMILIES.keySet()) {
+      String family = normalize(term);
+      String singular = family.substring(0, family.length() - (family.endsWith("oes") ? 2 : 1));
+      if (singular.equals(name)) {
+        return family;
+      }
+    }
+    return null;
+  }
+
   public static String normalize(String name) {
     return TECH_SUFFIX.matcher(MOUNTING.matcher(name).replaceAll("")).replaceAll("").toLowerCase().replaceAll("\\s", "");
   }

@@ -186,6 +186,13 @@ test('a family term offers the other families and its weapons', () => {
       ['lrms', 'mrms', 'streaks', 'medium laser', 'er medium laser']);
 });
 
+test('a family in the singular offers the same, unless a weapon has that name', () => {
+  assert.deepEqual(swaps(alternatives(token('mechs with 1 laser', 'laser'), vocabulary)),
+      ['lrms', 'mrms', 'streaks', 'lasers', 'medium laser', 'er medium laser']);
+  const named = { ...vocabulary, families: { ...vocabulary.families, 'medium lasers': ['medium laser'] } };
+  assert.deepEqual(swaps(alternatives(token('mechs with 1 medium laser', 'medium laser'), named)), ['lasers', 'er medium laser']);
+});
+
 test('numbers are typed into a box, not picked from a list', () => {
   assert.ok(isQuantity(token('mechs with 2 ppc', '2')));
   assert.ok(isQuantity(analyze('units with <comparator> <quantity> <weapon>', vocabulary).tokens.find(found => found.slot === 'quantity')));

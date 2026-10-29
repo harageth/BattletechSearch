@@ -224,6 +224,10 @@ class UnitServiceImportTest {
     // plurals of a weapon
     assertThat(search("mechs with exactly 4 medium lasers and exactly 1 lrm 20s")).contains("Atlas AS7-D");
     assertThat(search("mechs with exactly 4 medium lasers")).isEqualTo(search("mechs with exactly 4 medium laser"));
+    // a family in the singular, unless a weapon has that name: the Atlas has no PPC
+    assertThat(search("mechs with exactly 4 laser and exactly 1 lrm")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 5 laser")).isEqualTo(search("mechs with exactly 5 lasers"));
+    assertThat(search("mechs with at least 1 ppc")).doesNotContain("Atlas AS7-D");
   }
 
   @Test

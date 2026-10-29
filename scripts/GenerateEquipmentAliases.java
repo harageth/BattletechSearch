@@ -44,6 +44,8 @@ public class GenerateEquipmentAliases {
     FAMILIES.put("torpedoes", Pattern.compile("(lrms|srms)/.*/torpedo/.*"));
     FAMILIES.put("mmls", Pattern.compile("missiles/.*/mml/.*"));
     FAMILIES.put("mrms", Pattern.compile("missiles/.*/mrm/.*"));
+    // ATMs have no folder of their own; improved ATMs count too
+    FAMILIES.put("atms", Pattern.compile("missiles/clan/CLI?ATM\\d+\\.java"));
     // not rifles or the nail / rivet gun, which MegaMek keeps with the autocannons
     FAMILIES.put("autocannons", Pattern.compile("autoCannons/(?!.*(Rifle|Nail)).*"));
     // not plasma weapons, which MegaMek keeps with the PPCs

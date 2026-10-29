@@ -393,8 +393,17 @@ function prefixAlternatives(token, families, vocabulary) {
   return options;
 }
 
+// "atms" -> "atm", "torpedoes" -> "torpedo", as EquipmentNames.familyOfSingular reads them
+function singular(term) {
+  return term.slice(0, term.endsWith('oes') ? -2 : -1);
+}
+
 function equipmentAlternatives(token, typed, vocabulary) {
-  const familyTerm = Object.keys(vocabulary.families).find(term => key(term) === key(typed));
+  let familyTerm = Object.keys(vocabulary.families).find(term => key(term) === key(typed));
+  // a family in the singular ("atm") when no weapon has that name: "ppc" is the PPC
+  if (!familyTerm && !Object.keys(vocabulary.equipment).some(name => key(name) === key(typed))) {
+    familyTerm = Object.keys(vocabulary.families).find(term => key(singular(term)) === key(typed));
+  }
   const options = [];
   const add = (word, label = word) => {
     if (key(word) !== key(typed) && !options.some(option => option.text === word)) {
