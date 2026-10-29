@@ -247,7 +247,12 @@ class QueryEditor {
   }
 
   insert(typed) {
-    const [start, stop] = selectionOffsets(this.field) ?? [this.text.length, this.text.length];
+    let [start, stop] = selectionOffsets(this.field) ?? [this.text.length, this.text.length];
+    // pasting into a blank replaces the whole blank, as typing does (typeOverSlot)
+    const slot = start === stop && this.tokens.find(token => token.role === 'slot' && token.start < start && start < token.stop);
+    if (slot) {
+      [start, stop] = [slot.start, slot.stop];
+    }
     const clean = typed.replace(/\s+/g, ' ');
     this.input.value = this.text.slice(0, start) + clean + this.text.slice(stop);
     // like typing: an open menu would point at where its word used to be

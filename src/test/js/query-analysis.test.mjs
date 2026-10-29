@@ -291,3 +291,17 @@ test('positions count an emoji as two, like the editor', () => {
   // the emoji itself is marked whole
   assert.deepEqual(analyze(query, vocabulary).tokens[0], { start: 0, stop: 2, text: '😀', role: 'error' });
 });
+
+test('weight classes are spelled as the server reads them', () => {
+  assert.deepEqual(roles('Ultra  Light mechs with 1 ppc').slice(0, 1), ['Ultra  Light:weight-class']);
+  // the server doesn't know these, so they aren't colored as weight classes
+  assert.deepEqual(roles('ultralight mechs with 1 ppc').slice(0, 1), ['ultralight:unknown']);
+  assert.deepEqual(roles('ultra-light mechs with 1 ppc').slice(0, 1), ['ultra-light:unknown']);
+});
+
+test('adding a tech to a word split by an error keeps the rest once', () => {
+  const query = "mechs with 1 medium laser's";
+  const laser = token(query, 'medium laser');
+  const clan = alternatives(laser, vocabulary).find(option => option.label === 'clan only');
+  assert.equal(replaceToken(query, { ...laser, start: clan.start }, clan.text).text, "mechs with 1 clan medium laser's");
+});

@@ -80,11 +80,14 @@ function outsideOf(token, span, text) {
     return [token];
   }
   const parts = [];
+  // an equipment name ends where its piece does, so adding a tech doesn't repeat the rest
+  const named = (piece, nameStart) => (token.name === undefined ? piece
+    : { ...piece, nameStart, name: text.slice(nameStart, piece.stop) });
   if (token.start < span.start) {
-    parts.push({ ...token, stop: span.start, text: text.slice(token.start, span.start) });
+    parts.push(named({ ...token, stop: span.start, text: text.slice(token.start, span.start) }, token.nameStart));
   }
   if (token.stop > span.stop) {
-    parts.push({ ...token, start: span.stop, text: text.slice(span.stop, token.stop) });
+    parts.push(named({ ...token, start: span.stop, text: text.slice(span.stop, token.stop) }, span.stop));
   }
   return parts;
 }
@@ -219,8 +222,10 @@ function visit(context, tokens, text, vocabulary) {
         words.push(children[++i]);
       }
       const weightClass = span(words, text, 'weight-class');
+      // as WeightClass.fromString reads it: any case, but "ultralight" and "ultra-light" aren't one
+      const spelled = name => name.toLowerCase().replace(/\s+/g, ' ');
       const known = vocabulary.weightClasses.length === 0
-          || vocabulary.weightClasses.some(name => key(name) === key(weightClass.text));
+          || vocabulary.weightClasses.some(name => spelled(name) === spelled(weightClass.text));
       tokens.push(known ? weightClass : { ...weightClass, role: 'unknown' });
     } else {
       terminal(child, context, tokens, text);
