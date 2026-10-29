@@ -16,7 +16,7 @@ fetch('/api/vocabulary')
   .then(loaded => {
     if (loaded) {
       vocabulary = loaded;
-      editors.forEach(editor => editor.render());
+      editors.forEach(editor => editor.refresh());
     }
   })
   // without the word lists the query is still colored, there's just nothing to offer
@@ -28,6 +28,7 @@ class QueryEditor {
     this.tokens = [];
     this.menuToken = null;
     this.active = -1;
+    this.composing = false;
 
     this.wrapper = document.createElement('div');
     this.wrapper.className = 'query-editor';
@@ -103,7 +104,13 @@ class QueryEditor {
         this.changed();
       }
     });
-    field.addEventListener('compositionend', () => this.changed());
+    field.addEventListener('compositionstart', () => {
+      this.composing = true;
+    });
+    field.addEventListener('compositionend', () => {
+      this.composing = false;
+      this.changed();
+    });
     field.addEventListener('paste', event => {
       event.preventDefault();
       this.insert(event.clipboardData.getData('text/plain'));
@@ -243,7 +250,24 @@ class QueryEditor {
     const [start, stop] = selectionOffsets(this.field) ?? [this.text.length, this.text.length];
     const clean = typed.replace(/\s+/g, ' ');
     this.input.value = this.text.slice(0, start) + clean + this.text.slice(stop);
+    // like typing: an open menu would point at where its word used to be
+    this.closeMenu();
     this.render(start + clean.length);
+  }
+
+  /**
+   * Colors the query again with the word lists once they load, keeping the selection. Not while an
+   * IME is composing: redrawing would drop the text not yet committed, and compositionend redraws.
+   */
+  refresh() {
+    if (this.composing) {
+      return;
+    }
+    const selection = selectionOffsets(this.field);
+    this.render();
+    if (selection && document.activeElement === this.field) {
+      setSelection(this.field, ...selection);
+    }
   }
 
   /** Redraws the field as colored words; puts the caret back at that offset if given. */
@@ -254,6 +278,10 @@ class QueryEditor {
     const parts = [];
     let at = 0;
     tokens.forEach((token, index) => {
+      if (token.start < at) {
+        // overlaps the one before (analyze shouldn't allow it): drawing it would repeat text
+        return;
+      }
       if (token.start > at) {
         parts.push(text.slice(at, token.start));
       }
@@ -283,6 +311,10 @@ class QueryEditor {
   }
 
   keydown(event) {
+    // keys during IME composition (Enter confirms the composed text) belong to the IME
+    if (event.isComposing || event.keyCode === 229) {
+      return;
+    }
     const open = !this.menu.hidden;
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -368,6 +400,9 @@ class QueryEditor {
     label.append('How many? ', box);
     item.append(label);
     box.addEventListener('keydown', event => {
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
       if (event.key === 'Enter') {
         // not the form's Enter: the box is inside it
         event.preventDefault();
@@ -487,27 +522,31 @@ function selectionOffsets(field) {
 }
 
 function setCaret(field, offset) {
-  const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
+  setSelection(field, offset, offset);
+}
+
+/** Selects from one character offset to another (the same offset for a caret). */
+function setSelection(field, start, stop) {
   const range = document.createRange();
-  let remaining = offset;
-  let node;
-  let placed = false;
-  while ((node = walker.nextNode())) {
-    if (remaining <= node.length) {
-      range.setStart(node, remaining);
-      placed = true;
-      break;
-    }
-    remaining -= node.length;
-  }
-  if (!placed) {
-    range.selectNodeContents(field);
-    range.collapse(false);
-  }
-  range.collapse(true);
+  range.setStart(...position(field, start));
+  range.setEnd(...position(field, stop));
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+// the text node and offset in it for a character offset into the field; past the end is the end
+function position(field, offset) {
+  const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  let node;
+  while ((node = walker.nextNode())) {
+    if (remaining <= node.length) {
+      return [node, remaining];
+    }
+    remaining -= node.length;
+  }
+  return [field, field.childNodes.length];
 }
 
 document.querySelectorAll('input[data-query-input]').forEach(input => editors.push(new QueryEditor(input)));

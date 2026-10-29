@@ -92,16 +92,17 @@ public class QueryVisitor implements BattletechVisitor {
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
-      if(tech == null) {
-        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20
-        tech = EquipmentNames.techOf(lookup);
-      }
       // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20", and a family term
       // ("lrms") finds every weapon in it, counted together
       List<Equipment> found = findEquipment(lookup);
       if(found.isEmpty() && lookup.endsWith("s")) {
         // a plural: "2 lrm 20s", "4 medium lasers"
-        found = findEquipment(lookup.substring(0, lookup.length() - 1));
+        lookup = lookup.substring(0, lookup.length() - 1);
+        found = findEquipment(lookup);
+      }
+      if(tech == null) {
+        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20, and so are "cllrm20s"
+        tech = EquipmentNames.techOf(lookup);
       }
       List<Equipment> matches = found;
       if(tech != null) {

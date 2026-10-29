@@ -228,12 +228,13 @@ main a {
 	position: relative;
 	--query-background: #fff;
 	--query-text: #222;
-	--query-placeholder: #888;
-	--query-weight-class: #3b78c2;
+	/* text colors at least 4.5:1 on the background, and the word colors on the hover color too */
+	--query-placeholder: #767676;
+	--query-weight-class: #326aad;
 	--query-unit: #174a8b;
-	--query-filler: #8a8a8a;
-	--query-amount: #b4621a;
-	--query-equipment-prefix: #2f8a5a;
+	--query-filler: #6b6b6b;
+	--query-amount: #9a4f0f;
+	--query-equipment-prefix: #26734a;
 	--query-equipment: #17663c;
 	--query-error: #8a1c13;
 	--query-error-line: #c0392b;

@@ -121,6 +121,8 @@ test('marks where the query goes wrong', () => {
   const character = analyze("mechs with at least 2 ppc's", vocabulary);
   assert.ok(character.error);
   assert.deepEqual(character.tokens.filter(token => token.role === 'error').map(token => token.text), ["'"]);
+  // the word around it is split, not overlapped, so each character is drawn once
+  assert.deepEqual(character.tokens.slice(-3).map(token => `${token.text}:${token.role}`), ['ppc:equipment', "':error", 's:equipment']);
 });
 
 test('the empty query is an error with nothing to mark', () => {
@@ -271,4 +273,12 @@ test('blanks left empty become their defaults', () => {
   assert.equal(fillSlots('heavy <unit> with exactly <quantity> lrms <and/or> <comparator> 2 <weapon>'),
       'heavy units with exactly 1 lrms and at least 2 lasers');
   assert.equal(fillSlots('mechs with 1 ppc'), 'mechs with 1 ppc');
+});
+
+test('no two tokens share a character', () => {
+  for (const query of ["mechs with at least 2 ppc's", "mechs with 2 clan artemis lrm 20's and 1 ppc", 'mechs with 2 ppc with',
+    'light mechs with at least 2 lrm 20', 'units with <comparator> 2 <weapon> <and/or> 1 ppc', 'mechs with 1 lrm#20']) {
+    const tokens = analyze(query, vocabulary).tokens;
+    tokens.slice(1).forEach((token, index) => assert.ok(token.start >= tokens[index].stop, `${query}: ${JSON.stringify(tokens)}`));
+  }
 });

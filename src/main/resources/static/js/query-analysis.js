@@ -63,11 +63,29 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
     if (at) {
       at.role = 'error';
     } else if (error.stop > error.start) {
-      tokens.push({ start: error.start, stop: error.stop, text: text.slice(error.start, error.stop), role: 'error' });
+      // inside a word ("ppc's"): split the word around it, so no character is in two tokens
+      const split = tokens.flatMap(token => outsideOf(token, error, text));
+      split.push({ start: error.start, stop: error.stop, text: text.slice(error.start, error.stop), role: 'error' });
+      tokens.splice(0, tokens.length, ...split);
     }
   }
   tokens.sort((a, b) => a.start - b.start);
   return { tokens, error };
+}
+
+// the parts of a token before and after a span, keeping its role
+function outsideOf(token, span, text) {
+  if (token.stop <= span.start || token.start >= span.stop) {
+    return [token];
+  }
+  const parts = [];
+  if (token.start < span.start) {
+    parts.push({ ...token, stop: span.start, text: text.slice(token.start, span.start) });
+  }
+  if (token.stop > span.stop) {
+    parts.push({ ...token, start: span.stop, text: text.slice(span.stop, token.stop) });
+  }
+  return parts;
 }
 
 /**
