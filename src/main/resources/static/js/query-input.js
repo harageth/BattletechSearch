@@ -329,13 +329,14 @@ class QueryEditor {
     } else if (event.key === 'Escape' && open) {
       event.preventDefault();
       this.closeMenu();
-    } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && open && this.options.length > 0) {
+    } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.altKey && open && this.options.length > 0) {
       event.preventDefault();
       const count = this.menu.children.length;
       this.highlight((this.active + (event.key === 'ArrowDown' ? 1 : count - 1)) % count);
     } else if (event.key === 'ArrowDown' && event.altKey) {
       // the keyboard way in: the alternatives for the word at the caret
       event.preventDefault();
+      this.closeMenu();
       const caret = caretOffset(this.field);
       const index = this.tokens.findIndex(token => token.start <= caret && caret <= token.stop);
       if (index >= 0) {
@@ -390,9 +391,10 @@ class QueryEditor {
     item.className = 'query-menu-number';
     const label = document.createElement('label');
     const box = document.createElement('input');
-    box.type = 'number';
-    box.min = '0';
-    box.max = '999';
+    // text, not type="number": the browser would validate it as part of the form and could block
+    // searching; quantityText checks it instead
+    box.type = 'text';
+    box.autocomplete = 'off';
     box.inputMode = 'numeric';
     box.placeholder = '1';
     // a number typed as digits starts in the box; "two" or a blank starts empty
@@ -433,10 +435,13 @@ class QueryEditor {
     this.showMenu(span);
   }
 
+  /** Under the word, moved left as far as it takes to stay inside the search box (phones). */
   showMenu(span) {
-    this.menu.style.left = `${span.offsetLeft}px`;
     this.menu.style.top = `${span.offsetTop + span.offsetHeight}px`;
+    this.menu.style.left = '0px';
     this.menu.hidden = false;
+    const room = this.wrapper.clientWidth - this.menu.offsetWidth;
+    this.menu.style.left = `${Math.max(0, Math.min(span.offsetLeft, room))}px`;
     this.field.setAttribute('aria-expanded', 'true');
   }
 
@@ -474,6 +479,8 @@ class QueryEditor {
 
   closeMenu() {
     this.menu.hidden = true;
+    // empty, so nothing left in it (a number box) takes part in the form
+    this.menu.replaceChildren();
     this.menuToken = null;
     this.active = -1;
     this.field.setAttribute('aria-expanded', 'false');

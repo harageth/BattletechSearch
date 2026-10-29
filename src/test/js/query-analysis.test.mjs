@@ -282,3 +282,12 @@ test('no two tokens share a character', () => {
     tokens.slice(1).forEach((token, index) => assert.ok(token.start >= tokens[index].stop, `${query}: ${JSON.stringify(tokens)}`));
   }
 });
+
+test('positions count an emoji as two, like the editor', () => {
+  const query = '😀mechs with 2 ppc';
+  const mechs = token(query, 'mechs');
+  assert.equal(mechs.start, 2);
+  assert.deepEqual(replaceToken(query, mechs, 'tanks').text, '😀tanks with 2 ppc');
+  // the emoji itself is marked whole
+  assert.deepEqual(analyze(query, vocabulary).tokens[0], { start: 0, stop: 2, text: '😀', role: 'error' });
+});

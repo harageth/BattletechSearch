@@ -5,7 +5,7 @@
 // (src/main/antlr4/me/Battletech.g4), and splits equipment names the way QueryVisitor does: a
 // leading tech word ("clan"), then a fire control ("artemis"), then the equipment. Keep the two in
 // step. The word lists come from GET /api/vocabulary (QueryVocabulary on the server).
-import { CharStreams, CommonTokenStream, ErrorListener } from 'antlr4';
+import { CommonTokenStream, ErrorListener, InputStream } from 'antlr4';
 import BattletechLexer from './grammar/me/BattletechLexer.js';
 import BattletechParser from './grammar/me/BattletechParser.js';
 
@@ -46,7 +46,8 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
     return analyzeWithSlots(text, slots, vocabulary);
   }
   const listener = new RecordingErrorListener();
-  const lexer = new BattletechLexer(CharStreams.fromString(text));
+  // UTF-16 code units, not code points: offsets must match slice() and the editor's, even after an emoji
+  const lexer = new BattletechLexer(new InputStream(text, false));
   lexer.removeErrorListeners();
   lexer.addErrorListener(listener);
   const parser = new BattletechParser(new CommonTokenStream(lexer));
@@ -178,8 +179,9 @@ function firstError(errors, text) {
   }
   const { symbol, column, message } = errors[0];
   if (!symbol) {
-    // the lexer: a character no token can start with
-    return { start: column, stop: Math.min(column + 1, text.length), message };
+    // the lexer: a character no token can start with; both halves of an emoji
+    const length = text.codePointAt(column) > 0xffff ? 2 : 1;
+    return { start: column, stop: Math.min(column + length, text.length), message };
   }
   if (symbol.type === BattletechParser.EOF || symbol.start < 0) {
     // something is missing at the end

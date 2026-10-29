@@ -314,7 +314,10 @@ main a {
 .query-menu {
 	position: absolute;
 	z-index: 10;
-	min-width: 10em;
+	/* never wider than the search box; query-input.js keeps it inside */
+	min-width: min(10em, 100%);
+	max-width: 100%;
+	box-sizing: border-box;
 	max-height: 16em;
 	overflow-y: auto;
 	margin: 2px 0 0;
@@ -329,7 +332,7 @@ main a {
 .query-menu li {
 	padding: 4px 12px;
 	cursor: pointer;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 }
 .query-menu li:hover,
 .query-menu li[aria-selected="true"] {
