@@ -57,6 +57,10 @@ The search box colors the query as you type and offers swaps on hover. It parses
 
 - **Era search.** The `unit.era` column exists. `Unit.getQuery()` (unused; `UnitDecorator` overrides it) sketches an era filter. It still refers to an old `mechs` table. `Battletech.g4` has a commented-out list of eras (Age of War ... IlClan) and a commented-out `WEIGHTCLASS` token.
 - **Location filters.** `EquipmentDecorator.getQuery` has a placeholder for filtering by equipment location.
+- **A query the user expects to work** (future work, 2026-10-28): `medium or heavy mechs with at least 2 lrms and any lasers`. Two pieces are missing; `lrms` and `lasers` already work as family terms:
+  - **Several weight classes joined by `or`** (`medium or heavy mechs`). The `line` rule takes `WORD*` before the unit and `QueryVisitor` joins them into one weight class name, so `medium or heavy` fails. `or` also lexes as `OR` there, which `line` doesn't allow. It needs a weight-class list in the grammar and a `weight_class IN (...)` filter in `UnitDecorator.getQuery`.
+  - **`any` as a quantity** (`any lasers` = at least 1). `QUANTITY` has no `any`; it would be a new quantity word (meaning `ATLEAST 1`) in the grammar, `QuantityConverter` and `EquipmentDecorator.buildComparison`. Watch for `any` in the search box: it currently offers "any of the lrms" as a label only, not as query text.
+  - When this is built, add the query to `QueryVisitorTest`, the search tests and the JS analysis tests, and the new words to `QueryVocabulary`.
 - **Synonym graph.** The old `SearchParameters` class noted that unit words form a graph (`vee` → vehicle, `tracked` is a vehicle) rather than a flat map. The old `LanguageMapping` class planned a hard-coded slang map (`LL` → Large Laser, `Vee` → Vehicle, `VSP` → Variable Speed Pulse). The `equipment_slang` table replaced that for equipment.
 
 ## Original design notes

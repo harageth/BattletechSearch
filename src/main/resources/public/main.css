@@ -1,5 +1,32 @@
 /* Demo styles */
 
+/* Page colors; "Dark mode" (query-input.js) puts theme-dark on <html> */
+:root {
+	--page-background: #fff;
+	--page-text: #000;
+	--panel: #ccc;
+	--code-background: #efefef;
+	--table-head: #ccc;
+	--row-alt: #efefef;
+	--rule: #000;
+	--link: #0645ad;
+	--error-background: #fde2e1;
+	--error-text: #8a1c13;
+}
+:root.theme-dark {
+	color-scheme: dark;
+	--page-background: #121212;
+	--page-text: #e6e6e6;
+	--panel: #2a2a2a;
+	--code-background: #1a1a1a;
+	--table-head: #2a2a2a;
+	--row-alt: #1c1c1c;
+	--rule: #555;
+	--link: #8ab4ff;
+	--error-background: #3b1513;
+	--error-text: #ffb4ab;
+}
+
 p {
 	margin-top: 0;
 }
@@ -7,6 +34,8 @@ p {
 body {
 	padding: 0;
 	margin: 0;
+	background: var(--page-background);
+	color: var(--page-text);
 	font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
@@ -76,7 +105,7 @@ main {
 
 aside {
 	padding: 10px;
-	background: #ccc;
+	background: var(--panel);
 	flex: 1;
 }
 
@@ -121,25 +150,25 @@ table {
 }
 thead {
 	min-height: 50px;
-    border-bottom: 1px solid #000;
+    border-bottom: 1px solid var(--rule);
     text-align: left;
 }
 thead tr {
-	background: #ccc;
+	background: var(--table-head);
 }
 thead tr th {
 	padding: 4px 4px;
-	border-bottom: 1px solid #000;
+	border-bottom: 1px solid var(--rule);
 }
 tbody td {
 	padding: 4px 4px;
 }
 tbody tr:nth-child(odd) {
-	background: #efefef;
+	background: var(--row-alt);
 }
 
 code {
-	background: #efefef;
+	background: var(--code-background);
 	padding: 4px;
 	white-space: nowrap;
 }
@@ -156,12 +185,15 @@ footer {
 footer a {
 	color: #e1ad01;
 }
+main a {
+	color: var(--link);
+}
 .error {
 	flex-basis: 100%;
 	margin: 20px 0 0;
 	padding: 10px;
-	background: #fde2e1;
-	color: #8a1c13;
+	background: var(--error-background);
+	color: var(--error-text);
 }
 
 .hint {
@@ -191,7 +223,7 @@ footer a {
 
 /* The search box (static/js/query-input.js): the query colored word by word, hover a word to swap it.
    Colors are grouped by meaning: blues for the unit, orange for how many, greens for the equipment,
-   grey for filler words. "Dark mode" (.query-dark) swaps the palette. */
+   grey for filler words. Dark mode (theme-dark) swaps the palette. */
 .query-editor {
 	position: relative;
 	--query-background: #fff;
@@ -208,7 +240,7 @@ footer a {
 	--query-hover: #fdf1c7;
 	--query-menu-border: #ccc;
 }
-.query-editor.query-dark {
+.theme-dark .query-editor {
 	--query-background: #1c1c1c;
 	--query-text: #eee;
 	--query-placeholder: #888;
@@ -223,7 +255,7 @@ footer a {
 	--query-hover: #3a3320;
 	--query-menu-border: #444;
 }
-.query-dark .tok-quantity { color: #fff; }
+.theme-dark .tok-quantity { color: #fff; }
 .query-input {
 	background: var(--query-background);
 	color: var(--query-text);
@@ -237,11 +269,11 @@ footer a {
 	cursor: text;
 	outline: none;
 }
-.query-dark .query-input {
+.theme-dark .query-input {
 	box-shadow: inset 0 0 0 1px #444;
 }
 .query-input:focus,
-.query-dark .query-input:focus {
+.theme-dark .query-input:focus {
 	box-shadow: 0 0 0 2px #e1ad01;
 }
 .query-input:empty::before {

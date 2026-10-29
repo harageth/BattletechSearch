@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Battletech Search</title>
     <link rel="stylesheet" th:href="@{/main.css}">
+    <!-- dark mode (query-input.js) before the page is drawn, so it doesn't flash white -->
+    <script>try { if (localStorage.getItem('battletech-search.theme') === 'dark') document.documentElement.classList.add('theme-dark'); } catch (e) {}</script>
     <!-- the parser the build generates imports "antlr4"; this is where the browser finds it
          (antlr4@4.13.2 dist/antlr4.web.mjs, renamed .js so it is served as JavaScript) -->
     <script type="importmap">{"imports": {"antlr4": "/vendor/antlr4/antlr4.web.js"}}</script>

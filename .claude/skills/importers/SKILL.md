@@ -54,6 +54,18 @@ All of these were checked against the code. The "Data:" lines are from the basel
 26. **Mixed-tech mechs with both versions of a weapon in one location get one tech for all of them.** `slotTech` gives every weapon in a location the tech of the first prefixed slot that matches. The Kodiak (Cale) (`Turning Points/JTP Dieron`) has 3 `CLERMediumLaser` and 2 `ISERMediumLaser` slots in the left arm, and all 5 become Clan. Its unprefixed IS weapons (Heavy PPC, AC/10) also become Clan, like bug 11's limitation on Clan-chassis vehicles. Not fixed yet.
 19. **Some mech weapons have no location.** `Location` has no values for quad, tripod or LAM locations such as `Front Left Leg`. At the pinned commit, 30 weapons get a null location.
 
+27. **Sarna links land on disambiguation pages** (planned 2026-10-28; separate PR after #12, user decision). `LinkBuilder.buildSarnaUnitURI` guesses `sarna.net/wiki/<name>#<designation>`. That's only right when Sarna's title is the bare name. Shared names get a qualifier: the right pages are `Avalanche_(OmniMech)` and `Apollo_(BattleMech)`, and `Mad Cat` redirects to `Timber Wolf (Mad Cat)`. MegaMek files and the MUL carry no Sarna links. **Agreed plan:**
+   - store the page per unit in a new `unit.sarna_page` column
+   - fill it with an admin action on the localhost-only management port, never during the import, so imports don't depend on Sarna being up
+   - the action uses Sarna's MediaWiki API (`https://www.sarna.net/w/api.php?action=query&format=json&redirects=1&titles=A|B|...`, up to 50 titles per request, slowly, with a user agent naming the project). For each chassis it tries the qualified title for the unit type first (`(BattleMech)`, `(OmniMech)`, `(IndustrialMech)`, `(Combat Vehicle)`, ...), then the bare name, following redirects
+   - a hand-kept override file covers what that can't resolve
+   - search results use `sarna_page` and fall back to today's guess
+
+   Checked 2026-10-28:
+   - the batch title query works
+   - `prop=pageprops` / `prop=categories` return an internal API error on Sarna, so the API can't say whether a bare title is itself a disambiguation page (e.g. `Bulldog`); the override file is for those
+   - `Atlas (BattleMech)` doesn't exist but `Atlas` does
+
 ### Mechs (`ReadMechMTF`, `.mtf`)
 5. ~~Mixed-tech mechs get no tech.~~ **Fixed:** `Tech.fromTechBase` maps `Mixed (IS Chassis)` / `Mixed (Clan Chassis)` to `MIXED_TECH`. At the pinned commit: IS 2708, Clan 1178, Mixed 377.
 6. ~~Per-weapon tech isn't read.~~ **Fixed:** weapon lines have no prefix, so `readMtfWeapons` looks for a slot in the same location named with a `CL` / `Clan ` / `IS` prefix that matches the weapon (letters and digits only, so `Ultra AC/10` = `CLUltraAC10`). If there's a match, that's the tech; otherwise it's the chassis tech. Mixed mechs' weapons come out 1,246 Clan and 802 IS.

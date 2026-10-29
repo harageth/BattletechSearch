@@ -51,20 +51,21 @@ class QueryEditor {
     this.render();
   }
 
-  /** A "Dark mode" checkbox under the form; the choice is remembered in this browser. */
+  /**
+   * A "Dark mode" checkbox under the form, for the whole page (theme-dark on <html>). The choice is
+   * remembered in this browser; a script in the page head applies it before the page is drawn.
+   */
   addThemeSwitch() {
     const label = document.createElement('label');
     label.className = 'query-theme';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.checked = readSetting(THEME_KEY) === 'dark';
+    checkbox.checked = document.documentElement.classList.contains('theme-dark');
     label.append(checkbox, ' Dark mode');
-    const apply = () => this.wrapper.classList.toggle('query-dark', checkbox.checked);
     checkbox.addEventListener('change', () => {
-      apply();
+      document.documentElement.classList.toggle('theme-dark', checkbox.checked);
       writeSetting(THEME_KEY, checkbox.checked ? 'dark' : 'light');
     });
-    apply();
     (this.input.form ?? this.wrapper).append(label);
   }
 
@@ -244,6 +245,8 @@ class QueryEditor {
     this.closeMenu();
     this.field.focus();
     this.render(caret);
+    // every swap searches right away
+    this.input.form?.requestSubmit();
   }
 
   closeMenu() {
@@ -255,17 +258,10 @@ class QueryEditor {
   }
 }
 
-const THEME_KEY = 'battletech-search.query-theme';
+// also read by the script in templates/fragments/search-form.html
+const THEME_KEY = 'battletech-search.theme';
 
 // storage can be missing or blocked (private windows); the setting is only a convenience
-function readSetting(name) {
-  try {
-    return window.localStorage.getItem(name);
-  } catch {
-    return null;
-  }
-}
-
 function writeSetting(name, value) {
   try {
     window.localStorage.setItem(name, value);
