@@ -13,8 +13,10 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
@@ -90,13 +92,24 @@ public class QueryVisitor implements BattletechVisitor {
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
+      // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20", and a family term
+      // ("lrms") finds every weapon in it, counted together
+      List<Equipment> found = findEquipment(lookup);
+      String family = EquipmentNames.familyOfSingular(lookup);
+      if(found.isEmpty() && family != null) {
+        // a family in the singular: "1 atm", "at least 2 laser"
+        lookup = family;
+        found = findEquipment(lookup);
+      }
+      if(found.isEmpty() && lookup.endsWith("s")) {
+        // a plural: "2 lrm 20s", "4 medium lasers"
+        lookup = lookup.substring(0, lookup.length() - 1);
+        found = findEquipment(lookup);
+      }
       if(tech == null) {
-        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20
+        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20, and so are "cllrm20s"
         tech = EquipmentNames.techOf(lookup);
       }
-      // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20"
-      List<Equipment> found = equipRepo.findAllByNameInOrSlang(
-          EquipmentNames.equivalentNames(EquipmentNames.canonical(lookup)), lookup);
       List<Equipment> matches = found;
       if(tech != null) {
         Tech wanted = tech;
@@ -131,6 +144,16 @@ public class QueryVisitor implements BattletechVisitor {
     unit.setMechEquipment(decorators);
 
     return unit;
+  }
+
+  /** Equipment by a normalized search name: any of its names, slang, or every weapon of a family term. */
+  private List<Equipment> findEquipment(String lookup) {
+    Set<String> family = EquipmentNames.familyMembers(lookup);
+    Set<String> names = new LinkedHashSet<>();
+    for(String canonical : family.isEmpty() ? Set.of(EquipmentNames.canonical(lookup)) : family) {
+      names.addAll(EquipmentNames.equivalentNames(canonical));
+    }
+    return equipRepo.findAllByNameInOrSlang(names, lookup);
   }
 
   @Override

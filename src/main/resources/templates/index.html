@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/search-form :: head}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+    <main>
+        <aside>
+            <p>Here is an example query:</p>
+            <code>light units with at most 2 mediumlaser and at least 1 srm6</code>
+            <p class="hint">Hover over a word to swap it for another, or add a section with + unit or + weapon.</p>
+        </aside>
+        <form th:replace="~{fragments/search-form :: form}"></form>
+    </main>
+    <footer>
+        <small>BattleTech is a registered trademark of The Topps Company, Inc. This is an unofficial fan project, not affiliated with Topps or Catalyst Game Labs. Unit data from <a href="https://megamek.org/">MegaMek</a> (CC BY-NC-SA 4.0).</small>
+    </footer>
+</body>
+
+</html>

@@ -68,13 +68,13 @@ class AdminEndpointsTest {
 
   @Test
   void addedSlangIsSearchable() throws IOException {
-    assertThat(postAdmin("slang", Map.of("equipmentName", "ppc", "terms", "particle cannon, ppcs"))
+    assertThat(postAdmin("slang", Map.of("equipmentName", "ppc", "terms", "particle cannon, ppc gun"))
         .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
     List<Map<String, Object>> ppc = searchService.performQuery("mechs with at least 4 ppc");
     assertThat(ppc).isNotEmpty();
     assertThat(searchService.performQuery("mechs with at least 4 particle cannon")).isEqualTo(ppc);
-    assertThat(searchService.performQuery("mechs with at least 4 ppcs")).isEqualTo(ppc);
+    assertThat(searchService.performQuery("mechs with at least 4 ppc gun")).isEqualTo(ppc);
   }
 
   @Test

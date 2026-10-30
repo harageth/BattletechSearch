@@ -86,6 +86,33 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void familyTermsListTheirWeapons() {
+    // by the folder MegaMek keeps the weapon in; torpedoes aren't LRMs, streaks are both
+    assertThat(EquipmentNames.familyMembers("lrms"))
+        .contains("lrm20", "streaklrm20", "enhancedlrm10", "extendedlrm20")
+        .doesNotContain("lrt20", "mrm10");
+    assertThat(EquipmentNames.familyMembers("streaks")).contains("streaksrm6", "streaklrm20").doesNotContain("srm6");
+    assertThat(EquipmentNames.familyMembers("ppcs")).contains("ppc", "erppc").doesNotContain("plasmarifle");
+    assertThat(EquipmentNames.familyOfSingular("atm")).isEqualTo("atms");
+    assertThat(EquipmentNames.familyOfSingular("torpedo")).isEqualTo("torpedoes");
+    assertThat(EquipmentNames.familyOfSingular("gaussrifle")).isEqualTo("gaussrifles");
+    assertThat(EquipmentNames.familyOfSingular("atms")).isNull();
+    assertThat(EquipmentNames.familyMembers("atms")).contains("atm3", "atm12", "improvedatm6").doesNotContain("mml5");
+    assertThat(EquipmentNames.familyMembers("machineguns")).contains("machinegun").doesNotContain("machinegunarray");
+    assertThat(EquipmentNames.familyMembers("mediumlaser")).isEmpty();
+    // as typed, one-shot versions folded into the weapon
+    assertThat(EquipmentNames.families().get("lrms")).contains("lrm 20").doesNotContain("lrm 20 (os)");
+    assertThat(EquipmentNames.families().keySet()).contains("gauss rifles", "torpedoes");
+  }
+
+  @Test
+  void typedNames() {
+    assertThat(EquipmentNames.typed("LRM 10 (OS)")).isEqualTo("lrm 10");
+    assertThat(EquipmentNames.typed("Gauss Rifle Ammo [Clan]")).isEqualTo("gauss rifle ammo");
+    assertThat(EquipmentNames.typed(" Heavy  PPC ")).isEqualTo("heavy ppc");
+  }
+
+  @Test
   void tagsAreDroppedFromTheName() {
     // the tech goes in its own column
     assertThat(EquipmentNames.normalize("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo("ammolrm-20artemis-capable");

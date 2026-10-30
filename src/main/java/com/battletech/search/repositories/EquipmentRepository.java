@@ -14,6 +14,9 @@ public interface EquipmentRepository extends CrudRepository<Equipment, UUID> {
 
   public List<Equipment> findByNameIn(Collection<String> names);
 
+  @Query("select distinct e.name from Equipment e")
+  public List<String> findAllNames();
+
   // names are every stored spelling of the canonical name (EquipmentNames.equivalentNames), slang
   // the term as typed (normalized)
   @Query("from Equipment e where e.name in :names OR e.id IN (select es.equipment.id from EquipmentSlang es where es.slang = :slang)")

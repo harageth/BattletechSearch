@@ -1,0 +1,12 @@
+{
+  "name": "battletech-search",
+  "private": true,
+  "description": "Only for the JavaScript tests; Maven installs Node and runs them (./mvnw test)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"src/test/js/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "antlr4": "4.13.2"
+  }
+}

@@ -26,6 +26,21 @@ class SearchControllerTest {
   SearchService searchService;
 
   @Test
+  void bothPagesGetTheSearchBox() throws Exception {
+    when(searchService.performQuery("mechs with 2 ppc")).thenReturn(List.of());
+
+    for (String page : new String[] {"/", "/search/?query=mechs with 2 ppc"}) {
+      mvc.perform(get(page))
+          .andExpect(status().isOk())
+          .andExpect(content().string(containsString("<script type=\"importmap\">")))
+          .andExpect(content().string(containsString("src=\"/js/query-input.js\"")))
+          // the plain input the script enhances, which also works without it
+          .andExpect(content().string(containsString("name=\"query\"")))
+          .andExpect(content().string(containsString("data-query-input")));
+    }
+  }
+
+  @Test
   void rendersResults() throws Exception {
     when(searchService.performQuery("mechs with 2 ppc"))
         .thenReturn(List.of(Map.of("name", "Awesome", "designation", "AWS-8Q")));

@@ -207,6 +207,21 @@ class QueryVisitorTest {
   }
 
   @Test
+  void aPluralKeepsTheTechBuiltIntoItsName() {
+    Equipment isLrm = equipment("lrm20", Tech.INNER_SPHERE);
+    Equipment clanLrm = equipment("lrm20", Tech.CLAN);
+    when(equipRepo.findAllByNameInOrSlang(named("lrm20"), anyString())).thenReturn(List.of(isLrm, clanLrm));
+    // like the real data, no equipment is spelled as the plural
+    when(equipRepo.findAllByNameInOrSlang(named("cllrm20s"), anyString())).thenReturn(List.of());
+
+    // "cllrm20" is MegaMek's Clan LRM 20, so its plural is Clan only too
+    assertThat(chunk(parse("mechs with 2 cllrm20s"), 0).getEquipment()).isSameAs(clanLrm);
+    assertThat(chunk(parse("mechs with 2 cllrm20s"), 0).getDecoratedEquipment()).isNull();
+    // a typed tech still wins
+    assertThat(chunk(parse("mechs with 2 is cllrm20s"), 0).getEquipment()).isSameAs(isLrm);
+  }
+
+  @Test
   void equipmentNotMadeInATechMatchesNoUnits() {
     // only an IS plasma rifle exists, so "clan plasma rifle" finds no units rather than failing to parse
     when(equipRepo.findAllByNameInOrSlang(named("plasmarifle"), anyString()))

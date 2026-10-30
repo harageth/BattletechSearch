@@ -24,6 +24,11 @@ public class SearchController {
     this.searchService = searchService;
   }
 
+  @GetMapping("/")
+  public String index() {
+    return "index";
+  }
+
   // this should be a post mapping with a body value
   @GetMapping("/search/")
   public ModelAndView search(@RequestParam("query") String query) throws IOException {
