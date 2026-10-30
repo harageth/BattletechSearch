@@ -7,6 +7,7 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.MechEquipmentRepository;
 import com.battletech.search.repositories.UnitRepository;
 import com.battletech.search.utils.EquipmentNames;
+import com.battletech.search.utils.ImportProblems;
 import com.battletech.search.utils.ReadMegaMek;
 import com.battletech.search.utils.ReadPDF;
 import java.io.File;
@@ -15,8 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,8 +53,14 @@ public class UnitService {
     this.pdfPath = pdfPath;
   }
 
-  /** How an import went; a re-import of unchanged files only updates. */
-  public record ImportResult(int added, int updated, int skipped, int failed) {
+  /**
+   * How an import went; a re-import of unchanged files only updates. problems counts what the
+   * readers couldn't read or had to drop, per kind (the log has each one, with its file).
+   */
+  public record ImportResult(int added, int updated, int skipped, int failed, Map<ImportProblems.Kind, Integer> problems) {
+    public ImportResult(int added, int updated, int skipped, int failed) {
+      this(added, updated, skipped, failed, Map.of());
+    }
   }
 
   public ImportResult persistVehicles() throws IOException {
@@ -72,31 +82,44 @@ public class UnitService {
       throw new IllegalStateException("No import directory configured; set MEGAMEK_MECHS_PATH / MEGAMEK_VEHICLES_PATH");
     }
     int[] counts = new int[4]; // added, updated, skipped, failed
+    ImportProblems problems = new ImportProblems();
+    // reported once each; most are expected (Artemis-capable ammo, infantry bays)
+    Set<String> unknownNames = new HashSet<>();
     try (Stream<Path> files = Files.walk(Paths.get(directory))) {
       files.filter(file -> file.toString().endsWith(extension)).forEach(file -> {
+        ImportProblems.InFile fileProblems = problems.in(file.toFile());
         try {
-          Unit unit = reader.read(file.toFile());
+          Unit unit = reader.read(file.toFile(), fileProblems);
           if (unit == null) {
-            // the reader already logged why it skipped this file
+            // the reader already reported why it skipped this file
             counts[2]++;
             return;
           }
           if (unit.getMulId() == null) {
             // only units in the Master Unit List, the official list
             counts[3]++;
-            log.warn("Unable to import {}: it has no MUL id", file);
+            fileProblems.report(ImportProblems.Kind.NO_MUL_ID, unit.getName() + " " + unit.getDesignation());
             return;
+          }
+          for (UnitEquipment equip : unit.getMechEquipment()) {
+            String name = equip.getEquipment().getName();
+            if (!EquipmentNames.isKnown(name) && unknownNames.add(EquipmentNames.normalize(name))) {
+              fileProblems.report(ImportProblems.Kind.UNKNOWN_EQUIPMENT_NAME, name);
+            }
           }
           boolean updated = transaction.execute(status -> save(unit));
           counts[updated ? 1 : 0]++;
         } catch (Exception e) {
           counts[3]++;
+          // the stack trace finds the parser bug; most show up as NPEs
           log.warn("Unable to import {}", file, e);
+          problems.count(ImportProblems.Kind.FAILED, file.toFile(), e.toString());
         }
       });
     }
-    ImportResult result = new ImportResult(counts[0], counts[1], counts[2], counts[3]);
-    log.info("Imported {}: {}", directory, result);
+    ImportResult result = new ImportResult(counts[0], counts[1], counts[2], counts[3], problems.counts());
+    log.info("Imported {}: {} added, {} updated, {} skipped, {} failed. Problems: {}", directory, result.added(),
+        result.updated(), result.skipped(), result.failed(), problems.summary());
     return result;
   }
 
@@ -138,6 +161,6 @@ public class UnitService {
 
   @FunctionalInterface
   interface UnitReader {
-    Unit read(File file) throws IOException;
+    Unit read(File file, ImportProblems.InFile problems) throws IOException;
   }
 }

@@ -19,17 +19,23 @@ import com.battletech.search.model.WeightClass;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Parses real MegaMek files copied from MegaMek/mm-data (see the importers skill for the pinned
  * commit). When fixing a bug from the importers skill, add a test here with the correct result.
  */
 class ReadMegaMekTest {
+
+  private static ImportProblems.InFile problems() {
+    return new ImportProblems().in(new File("test.mtf"));
+  }
 
   private static File fixture(String path) {
     try {
@@ -115,7 +121,7 @@ class ReadMegaMekTest {
     slots.put("right torso", List.of("ISLBXAC10", "ISLBXAC10", "IS Ammo LB 10-X AC", "ISCASE"));
     slots.put("left torso", List.of("Targeting Computer", "Targeting Computer", "CLCASE"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
         .containsExactly(
             tuple("ammolb10-xac", Tech.INNER_SPHERE),
@@ -130,7 +136,7 @@ class ReadMegaMekTest {
     slots.put("left torso", List.of("CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)", "ISNarc Pods", "ISiNarc Pods (OMNIPOD)"));
     slots.put("right torso", List.of("Communications Equipment:SIZE:3.0", "MediumShield", "Lance"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
         .containsExactly(
             tuple("rotaryac5ammo", Tech.CLAN),
@@ -150,7 +156,7 @@ class ReadMegaMekTest {
         "MechanicalJumpBooster:SIZE:4.0", "Targeting Computer"));
     slots.put("left torso", List.of("MechanicalJumpBooster:SIZE:4.0", "Communications Equipment:SIZE:1.0"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getJumpBoost)
         .containsExactly(
             tuple("communicationsequipment", 3.0, null),
@@ -168,7 +174,7 @@ class ReadMegaMekTest {
     Map<String, List<String>> slots = Map.of("left torso",
         List.of("CLLRM20 (T) (OMNIPOD)", "CLLRM20 (T) (OMNIPOD)", "CLArtemisIV (T) (OMNIPOD)"));
 
-    ReadMegaMek.attachMtfFireControl(weapons, slots);
+    ReadMegaMek.attachMtfFireControl(weapons, slots, problems());
 
     assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(FireControl.ARTEMIS_IV);
   }
@@ -177,12 +183,55 @@ class ReadMegaMekTest {
   void vehicleSizesGoOnTheItemNotTheName() {
     assertThat(ReadMegaMek.convertToEquipment(
             List.of("Communications Equipment:SIZE:4.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"),
-            Tech.INNER_SPHERE, Location.BODY))
+            Tech.INNER_SPHERE, Location.BODY, problems()))
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod)
         .containsExactly(
             tuple("communications equipment", 4.0, false),
             // a drone carrier's size is drones, which isn't kept yet
             tuple("dronecarriercontrolsystem", 0.0, true));
+  }
+
+  @Test
+  void whatCantBeReadIsReported() {
+    ImportProblems problems = new ImportProblems();
+    ImportProblems.InFile inFile = problems.in(new File("Tarantula ZPH-1.mtf"));
+
+    // a quad's leg isn't a Location yet
+    ReadMegaMek.readMtfSlotEquipment(Map.of("front left leg", List.of("Jump Jet")), Tech.INNER_SPHERE, inFile);
+    // nothing for the Artemis to go on
+    ReadMegaMek.attachMtfFireControl(List.of(weapon("mediumlaser", "Left Torso")),
+        Map.of("left torso", List.of("Medium Laser", "ISArtemisIV")), inFile);
+    // a drone carrier's drones aren't kept
+    ReadMegaMek.convertToEquipment(List.of("ISDroneCarrierControlSystem:SIZE:6.0"), Tech.INNER_SPHERE, Location.BODY, inFile);
+    ReadMegaMek.parseUuid("not-a-uuid", inFile);
+
+    assertThat(problems.of(ImportProblems.Kind.UNKNOWN_LOCATION)).containsExactly("Tarantula ZPH-1.mtf: Jump Jet in front left leg");
+    assertThat(problems.of(ImportProblems.Kind.FIRE_CONTROL_WITHOUT_LAUNCHER))
+        .containsExactly("Tarantula ZPH-1.mtf: ISArtemisIV in left torso");
+    assertThat(problems.of(ImportProblems.Kind.SIZE_NOT_KEPT))
+        .containsExactly("Tarantula ZPH-1.mtf: dronecarriercontrolsystem size 6.0");
+    assertThat(problems.counts()).containsEntry(ImportProblems.Kind.INVALID_UUID, 1);
+    assertThat(problems.summary()).contains("UNKNOWN_LOCATION 1", "FIRE_CONTROL_WITHOUT_LAUNCHER 1");
+  }
+
+  @Test
+  void vehicleSectionsTheReaderSkipsAreReported(@TempDir Path dir) throws IOException {
+    // a superheavy tank's side sections and a VTOL's rotor aren't read yet
+    Path file = dir.resolve("Superheavy.blk");
+    Files.writeString(file, String.join("\n", "<UnitType>", "Tank", "</UnitType>", "<Name>", "Superheavy", "</Name>",
+        "<Model></Model>", "<type>", "IS Level 2", "</type>", "<motion_type>", "Tracked", "</motion_type>",
+        "<cruiseMP>", "3", "</cruiseMP>", "<armor>", "10", "</armor>", "<tonnage>", "150.0", "</tonnage>",
+        "<Front Equipment>", "Medium Laser", "</Front Equipment>",
+        "<Front Left Equipment>", "Light Machine Gun", "</Front Left Equipment>",
+        "<Rear Right Equipment>", "</Rear Right Equipment>", ""));
+    ImportProblems problems = new ImportProblems();
+
+    Unit tank = ReadMegaMek.ReadVehicleBlk(file.toFile(), problems.in(file.toFile()));
+
+    assertThat(tank.getMechEquipment()).extracting(equip -> equip.getEquipment().getName()).containsExactly("medium laser");
+    // only the section with something in it
+    assertThat(problems.of(ImportProblems.Kind.UNREAD_SECTION))
+        .containsExactly("Superheavy.blk: <front left equipment> [Light Machine Gun]");
   }
 
   private static List<UnitEquipment> named(Unit unit, String name) {
@@ -214,7 +263,7 @@ class ReadMegaMekTest {
     Map<String, List<String>> slots = Map.of("left torso",
         List.of("CLLRT15", "CLLRT15", "CLArtemisV (OMNIPOD)", "CLArtemisV (OMNIPOD)", "CLLRT15", "CLLRT15"));
 
-    ReadMegaMek.attachMtfFireControl(weapons, slots);
+    ReadMegaMek.attachMtfFireControl(weapons, slots, problems());
 
     assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(FireControl.ARTEMIS_V, null);
   }
@@ -225,7 +274,7 @@ class ReadMegaMekTest {
     Map<String, List<String>> slots = Map.of("left torso",
         List.of("CLStreakSRM6", "Improved LRM 20", "CLArtemisIV"));
 
-    ReadMegaMek.attachMtfFireControl(weapons, slots);
+    ReadMegaMek.attachMtfFireControl(weapons, slots, problems());
 
     assertThat(weapons).extracting(UnitEquipment::getFireControl).containsExactly(null, FireControl.ARTEMIS_IV);
   }
@@ -253,7 +302,7 @@ class ReadMegaMekTest {
     slots.put("left torso", List.of("Jump Jet", "Jump Jet", "Improved Jump Jet"));
     slots.put("right torso", List.of("Improved Jump Jet", "Improved Jump Jet", "Improved Jump Jet"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
         .extracting(equip -> equip.getEquipment().getName())
         .containsExactly("jumpjet", "jumpjet", "improvedjumpjet", "improvedjumpjet");
   }

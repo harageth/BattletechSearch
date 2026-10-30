@@ -6,6 +6,7 @@ import com.battletech.search.TestcontainersConfiguration;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.repositories.UnitRepository;
 import com.battletech.search.services.UnitService.ImportResult;
+import com.battletech.search.utils.ImportProblems;
 import com.battletech.search.utils.ReadMegaMek;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -67,7 +68,10 @@ class UnitServiceImportTest {
 
   @Test
   void importsMechsWithTheirIds() throws IOException {
-    assertThat(importMechs()).isEqualTo(new ImportResult(9, 0, 0, 2));
+    ImportResult result = importMechs();
+    assertThat(result).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(9, 0, 0, 2));
+    // the Goliath GOL-1M and the Hybrid Rifleman have no MUL id
+    assertThat(result.problems()).containsEntry(ImportProblems.Kind.NO_MUL_ID, 2);
 
     Unit atlas = unitRepo.findByMegamekUuid(ATLAS).orElseThrow();
     assertThat(atlas.getName()).isEqualTo("Atlas");
@@ -84,7 +88,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).isEqualTo(new ImportResult(0, 9, 0, 2));
+    assertThat(importMechs()).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(0, 9, 0, 2));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind
@@ -100,7 +104,8 @@ class UnitServiceImportTest {
     ImportResult result = unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
 
     // Air Car is a SupportTank
-    assertThat(result).isEqualTo(new ImportResult(6, 0, 1, 0));
+    assertThat(result).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(6, 0, 1, 0));
+    assertThat(result.problems()).containsEntry(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE, 1);
     Unit bulldog = unitRepo.findByMegamekUuid(UUID.fromString("019f583e-e260-75d2-84ad-b6927336283b")).orElseThrow();
     assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
     assertThat(bulldog.getMulId()).isEqualTo(439);
