@@ -15,6 +15,14 @@ export const EMPTY_VOCABULARY = Object.freeze({
   techs: {}, fireControls: [], families: {}, equipment: {},
 });
 
+/**
+ * /api/vocabulary with an empty list for anything it lacks: a response cached before a deployment
+ * can miss a list this script expects (withWords).
+ */
+export function withDefaults(loaded) {
+  return { ...EMPTY_VOCABULARY, ...loaded };
+}
+
 /** Letters and digits only, lowercase: how names are compared ("LRM-20" and "lrm 20" are the same). */
 export function key(text) {
   return text.toLowerCase().replace(/[^a-z0-9]/g, '');

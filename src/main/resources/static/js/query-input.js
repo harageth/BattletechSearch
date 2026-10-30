@@ -6,7 +6,7 @@
 // The "+ unit" / "+ weapon" buttons add a section of blanks ("<comparator> <quantity> <weapon>"). Each
 // blank's list opens in turn, and the search runs once the last is filled. Escape, or searching early,
 // leaves the rest as their defaults.
-import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY } from './query-analysis.js';
+import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY, withDefaults } from './query-analysis.js';
 
 let vocabulary = EMPTY_VOCABULARY;
 const editors = [];
@@ -15,7 +15,7 @@ fetch('/api/vocabulary')
   .then(response => (response.ok ? response.json() : null))
   .then(loaded => {
     if (loaded) {
-      vocabulary = loaded;
+      vocabulary = withDefaults(loaded);
       editors.forEach(editor => editor.refresh());
     }
   })
