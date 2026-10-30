@@ -187,6 +187,10 @@
           <url>${env.DB_URL}</url>
           <user>${env.DB_USER}</user>
           <password>${env.DB_PASSWORD}</password>
+          <locations>
+            <location>filesystem:src/main/resources/db/migration</location>
+            <location>filesystem:src/main/resources/db/data</location>
+          </locations>
         </configuration>
         <dependencies>
           <dependency>

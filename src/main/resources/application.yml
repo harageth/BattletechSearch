@@ -6,6 +6,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  flyway:
+    # db/data loads the imported units; the tests leave it out (src/test/resources/config)
+    locations: classpath:db/migration, classpath:db/data
 
 # Admin endpoints (/actuator/...) run on their own port that only listens on this machine
 management:

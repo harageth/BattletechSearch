@@ -21,13 +21,14 @@ Maven does not need to be installed; use the included wrapper (`./mvnw`, or `mvn
    ```
    ./mvnw spring-boot:run
    ```
-   The ANTLR grammar is compiled automatically during the build, and Flyway creates the schema on first start.
-1. Import the units. They come from MegaMek's data files ([mm-data](https://github.com/MegaMek/mm-data)), so a new database has none until you run the import. Restart the app with `MEGAMEK_MECHS_PATH` and `MEGAMEK_VEHICLES_PATH` set (see below), then import mechs, then vehicles (a few minutes in all):
-   ```
-   curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "mechs"}'
-   curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "vehicles"}'
-   ```
+   The ANTLR grammar is compiled automatically during the build. On first start, Flyway creates the schema and loads the units (`db/data`), imported from MegaMek's data files ([mm-data](https://github.com/MegaMek/mm-data)).
 1. Open http://localhost:8080/
+
+To refresh the units from a MegaMek checkout, restart the app with `MEGAMEK_MECHS_PATH` and `MEGAMEK_VEHICLES_PATH` set (see below), then import mechs, then vehicles (a few minutes in all). Units are matched on MegaMek's uuid, so this updates them in place:
+```
+curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "mechs"}'
+curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "vehicles"}'
+```
 
 To run the tests: `./mvnw verify`. Docker must be running, but `docker compose` doesn't need to be: the tests start their own throwaway Postgres via Testcontainers and import the fixture units in `src/test/resources/megamek` into it.
 
