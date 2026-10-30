@@ -11,7 +11,7 @@ import BattletechParser from './grammar/me/BattletechParser.js';
 
 /** Before /api/vocabulary loads: everything still gets a role, nothing has alternatives. */
 export const EMPTY_VOCABULARY = Object.freeze({
-  weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [],
+  weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [], withWords: [],
   techs: {}, fireControls: [], families: {}, equipment: {},
 });
 
@@ -33,8 +33,8 @@ class RecordingErrorListener extends ErrorListener {
 
 /**
  * The query's words with their roles: weight-class, unit, with, comparator, quantity, tech,
- * fire-control, equipment, operator, unknown (a weight class that isn't one), error, or slot (a
- * blank a template left, "<quantity>", with its name in slot).
+ * fire-control, equipment, operator, comma (between weight classes), unknown (a weight class that
+ * isn't one), error, or slot (a blank a template left, "<quantity>", with its name in slot).
  * Multi-word phrases ("at least", "ultra light", "lrm 20") are one token. Positions are character
  * offsets into text, stop exclusive.
  *
@@ -210,23 +210,23 @@ function visit(context, tokens, text, vocabulary) {
     children.filter(isError).forEach(node => terminal(node, context, tokens, text));
     return;
   }
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    if (!isTerminal(child)) {
-      visit(child, tokens, text, vocabulary);
-    } else if (context.ruleIndex === BattletechParser.RULE_line && child.symbol.type === BattletechParser.WORD && !isError(child)) {
-      // the weight class: every word before the unit, "ultra light" as one
-      const words = [child];
-      while (i + 1 < children.length && isTerminal(children[i + 1]) && !isError(children[i + 1])
-          && children[i + 1].symbol.type === BattletechParser.WORD) {
-        words.push(children[++i]);
-      }
+  if (context.ruleIndex === BattletechParser.RULE_weightClass) {
+    // one weight class, "ultra light" as one; "medium or heavy" is two of these
+    const words = children.filter(child => isTerminal(child) && !isError(child));
+    if (words.length > 0) {
       const weightClass = span(words, text, 'weight-class');
       // as WeightClass.fromString reads it: any case, but "ultralight" and "ultra-light" aren't one
       const spelled = name => name.toLowerCase().replace(/\s+/g, ' ');
       const known = vocabulary.weightClasses.length === 0
           || vocabulary.weightClasses.some(name => spelled(name) === spelled(weightClass.text));
       tokens.push(known ? weightClass : { ...weightClass, role: 'unknown' });
+    }
+    children.filter(isError).forEach(node => terminal(node, context, tokens, text));
+    return;
+  }
+  for (const child of children) {
+    if (!isTerminal(child)) {
+      visit(child, tokens, text, vocabulary);
     } else {
       terminal(child, context, tokens, text);
     }
@@ -248,6 +248,8 @@ function terminal(node, context, tokens, text) {
     role = 'error';
   } else if (symbol.type === BattletechParser.STOPWORD) {
     role = 'with';
+  } else if (symbol.type === BattletechParser.COMMA) {
+    role = 'comma';
   } else if (symbol.type === BattletechParser.QUANTITY) {
     role = 'quantity';
   } else {
@@ -324,6 +326,9 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
       return others(vocabulary.comparatorsAfter.includes(typed) ? vocabulary.comparatorsAfter : vocabulary.comparatorsBefore);
     case 'operator':
       return others(vocabulary.operators);
+    case 'with':
+      // "with", "having", "that have", ...
+      return others(vocabulary.withWords);
     case 'tech': {
       // one word per other tech: "clan" offers "inner sphere", not "is" too
       const current = Object.entries(vocabulary.techs).find(([word]) => word === typed)?.[1];

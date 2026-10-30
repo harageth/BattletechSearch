@@ -46,6 +46,10 @@ public class EquipmentDecorator extends UnitEquipment {
     if(quantity.equalsIgnoreCase("multiple")) {
       this.quantity = 1;
       this.comparison = Comparison.GREATER_THAN;
+    }else if(quantity.equalsIgnoreCase("any")) {
+      // "any lasers": at least one, whatever comparator is in front
+      this.quantity = 1;
+      this.comparison = Comparison.EQUAL_OR_GREATER;
     }else if(comparison == null) {
       this.quantity = QuantityConverter.toInt(quantity);
       this.comparison = Comparison.EQUAL;

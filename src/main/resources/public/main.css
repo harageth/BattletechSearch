@@ -285,6 +285,7 @@ main a {
 .tok-unit { color: var(--query-unit); font-weight: bold; }
 .tok-with { color: var(--query-filler); }
 .tok-operator { color: var(--query-filler); }
+.tok-comma { color: var(--query-filler); }
 .tok-comparator { color: var(--query-amount); }
 .tok-quantity { color: var(--query-amount); font-weight: bold; }
 .tok-tech { color: var(--query-equipment-prefix); }

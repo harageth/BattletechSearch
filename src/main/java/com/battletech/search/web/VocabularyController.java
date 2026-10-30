@@ -36,7 +36,7 @@ public class VocabularyController {
    */
   public record Vocabulary(List<String> weightClasses, List<UnitWord> units,
       List<String> comparatorsBefore, List<String> comparatorsAfter, List<String> operators,
-      Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
+      List<String> withWords, Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
       Map<String, List<String>> equipment) {
   }
 
@@ -61,7 +61,7 @@ public class VocabularyController {
     });
     Vocabulary vocabulary = new Vocabulary(QueryVocabulary.weightClasses(), QueryVocabulary.units(),
         QueryVocabulary.comparatorsBefore(), QueryVocabulary.comparatorsAfter(),
-        QueryVocabulary.operators(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
+        QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
         families, equipment);
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);

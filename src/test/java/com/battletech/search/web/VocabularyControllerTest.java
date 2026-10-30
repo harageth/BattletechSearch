@@ -33,6 +33,7 @@ class VocabularyControllerTest {
     assertThat(vocabulary.units()).isEqualTo(QueryVocabulary.units());
     assertThat(vocabulary.comparatorsBefore()).contains("at least", "no more than");
     assertThat(vocabulary.comparatorsAfter()).containsExactly("or more", "or fewer", "or less");
+    assertThat(vocabulary.withWords()).isEqualTo(QueryVocabulary.withWords());
     assertThat(vocabulary.techs()).containsEntry("clan", Tech.CLAN).containsEntry("is", Tech.INNER_SPHERE);
     assertThat(vocabulary.fireControls()).contains("artemis", "apollo");
   }

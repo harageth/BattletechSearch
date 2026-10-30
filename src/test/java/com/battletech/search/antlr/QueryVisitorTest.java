@@ -75,7 +75,7 @@ class QueryVisitorTest {
     UnitDecorator unit = parse("light units with at most 2 mediumlaser and at least 1 srm6");
 
     assertThat(unit.getDecoratedUnit().getClass()).isEqualTo(Unit.class);
-    assertThat(unit.getDecoratedUnit().getWeightClass()).isEqualTo(WeightClass.LIGHT);
+    assertThat(unit.getWeightClasses()).containsExactly(WeightClass.LIGHT);
     assertThat(unit.getMechEquipment()).hasSize(2);
 
     EquipmentDecorator first = chunk(unit, 0);
@@ -129,11 +129,60 @@ class QueryVisitorTest {
 
   @Test
   void weightClasses() {
-    assertThat(parse("assault mechs with at least 1 ppc").getDecoratedUnit().getWeightClass())
-        .isEqualTo(WeightClass.ASSAULT);
-    assertThat(parse("ultra light mechs with at least 1 ppc").getDecoratedUnit().getWeightClass())
-        .isEqualTo(WeightClass.ULTRA_LIGHT);
-    assertThat(parse("mechs with at least 1 ppc").getDecoratedUnit().getWeightClass()).isNull();
+    assertThat(parse("assault mechs with at least 1 ppc").getWeightClasses()).containsExactly(WeightClass.ASSAULT);
+    assertThat(parse("ultra light mechs with at least 1 ppc").getWeightClasses()).containsExactly(WeightClass.ULTRA_LIGHT);
+    assertThat(parse("mechs with at least 1 ppc").getWeightClasses()).isEmpty();
+    assertThat(parse("assault mechs with at least 1 ppc").getQuery()).contains("AND weight_class IN ('ASSAULT')");
+  }
+
+  @Test
+  void severalWeightClasses() {
+    assertThat(parse("medium or heavy mechs with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.MEDIUM, WeightClass.HEAVY);
+    assertThat(parse("light or ultra light or medium units with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.ULTRA_LIGHT, WeightClass.MEDIUM);
+    // "and" reads the same: a light and a medium mech are both "light and medium mechs"
+    assertThat(parse("light and medium mechs with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.MEDIUM);
+    assertThat(parse("medium or heavy mechs with at least 1 ppc").getQuery())
+        .contains("AND weight_class IN ('MEDIUM', 'HEAVY')");
+    // commas, with or without "or" after the last one
+    assertThat(parse("light, medium or heavy mechs with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.MEDIUM, WeightClass.HEAVY);
+    assertThat(parse("light, medium, or heavy mechs with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.MEDIUM, WeightClass.HEAVY);
+    assertThat(parse("light,medium,heavy mechs with at least 1 ppc").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.MEDIUM, WeightClass.HEAVY);
+    assertThatThrownBy(() -> parse("light, mechs with at least 1 ppc"))
+        .hasMessage("Unable to parse query: expected a weight class like 'heavy' before 'mechs' (character 8)."
+            + " Try something like 'mechs with at least 2 ppc'.");
+    assertThatThrownBy(() -> parse("medium or mechs with at least 1 ppc"))
+        .hasMessage("Unable to parse query: expected a weight class like 'heavy' before 'mechs' (character 11)."
+            + " Try something like 'mechs with at least 2 ppc'.");
+  }
+
+  @Test
+  void otherWordsForWith() {
+    // the mocked equipment gets a new id per lookup
+    String ids = "'[0-9a-f-]{36}'";
+    String with = parse("mechs with 2 medium lasers").getQuery().replaceAll(ids, "ID");
+    for (String query : List.of("mechs having 2 medium lasers", "mechs that have 2 medium lasers",
+        "mechs which have 2 medium lasers", "mechs carrying 2 medium lasers", "mechs armed with 2 medium lasers",
+        "heavy mechs having 2 medium lasers", "mechs that   have 2 medium lasers", "mechs armed\twith 2 medium lasers")) {
+      assertThat(parse(query).getMechEquipment()).as(query).hasSize(1);
+    }
+    assertThat(parse("mechs having 2 medium lasers").getQuery().replaceAll(ids, "ID")).isEqualTo(with);
+  }
+
+  @Test
+  void anyMeansAtLeastOne() {
+    EquipmentDecorator any = chunk(parse("mechs with any ppc"), 0);
+    assertThat(any.getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(any.getQuantity()).isEqualTo(1);
+    assertThat(chunk(parse("mechs with ANY ppc"), 0).getQuantity()).isEqualTo(1);
+    EquipmentDecorator second = chunk(parse("mechs with at least 2 ppc and any lasers"), 1);
+    assertThat(second.getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(second.getQuantity()).isEqualTo(1);
   }
 
   @Test
@@ -141,6 +190,10 @@ class QueryVisitorTest {
     assertThat(chunk(parse("mechs with exactly 3 ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL);
     assertThat(chunk(parse("mechs with = 3 ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL);
     assertThat(chunk(parse("mechs with greater than 3 ppc"), 0).getComparison()).isEqualTo(Comparison.GREATER_THAN);
+    // any spacing inside a comparator
+    assertThat(chunk(parse("mechs with at   least 3 ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(chunk(parse("mechs with no  more   than 3 ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
+    assertThat(chunk(parse("mechs with 3 or\tfewer ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
     assertThat(chunk(parse("mechs with less than 3 ppc"), 0).getComparison()).isEqualTo(Comparison.LESS_THAN);
     assertThat(chunk(parse("mechs with fewer than 3 ppc"), 0).getComparison()).isEqualTo(Comparison.LESS_THAN);
     assertThat(chunk(parse("mechs with at most 3 ppc"), 0).getComparison()).isEqualTo(Comparison.EQUAL_OR_LESS);
