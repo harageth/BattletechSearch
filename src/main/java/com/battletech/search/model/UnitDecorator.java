@@ -16,6 +16,8 @@ import lombok.Data;
 public class UnitDecorator extends Unit {
   Unit decoratedUnit;
   String decoratedUnitType;
+  // "medium or heavy mechs": a unit in any of them; empty for any weight
+  List<WeightClass> weightClasses = List.of();
 
   public UnitDecorator() { }
   public UnitDecorator(String decoratedUnitType) { this.decoratedUnitType = decoratedUnitType; }
@@ -31,11 +33,6 @@ public class UnitDecorator extends Unit {
   @Override
   public List<UnitEquipment> getMechEquipment() {
     return decoratedUnit.getMechEquipment();
-  }
-
-  @Override
-  public void setWeightClass(WeightClass weightClass) {
-    decoratedUnit.setWeightClass(weightClass);
   }
 
   @Override
@@ -67,8 +64,11 @@ public class UnitDecorator extends Unit {
       builder.append("(dtype = 'Tank' OR dtype = 'Vtol' OR dtype = 'Mech') ");
     }
 
-    if(decoratedUnit.weightClass != null) {
-      builder.append(" AND weight_class = '" +decoratedUnit.getWeightClass().toString() + "' ");
+    if(!weightClasses.isEmpty()) {
+      // built from the enum, not user text
+      builder.append(" AND weight_class IN (")
+          .append(weightClasses.stream().map(weightClass -> "'" + weightClass.name() + "'").collect(Collectors.joining(", ")))
+          .append(") ");
     }
     boolean bool = decoratedUnit.getMechEquipment().isEmpty();
     if(decoratedUnit.getMechEquipment() != null && !decoratedUnit.getMechEquipment().isEmpty()) {

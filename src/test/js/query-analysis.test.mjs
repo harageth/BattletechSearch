@@ -2,7 +2,7 @@
 // scripts next to the parser it generates from the grammar.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY } from '../../../target/classes/static/js/query-analysis.js';
+import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY, withDefaults } from '../../../target/classes/static/js/query-analysis.js';
 
 // the shape GET /api/vocabulary returns, cut down
 const vocabulary = {
@@ -16,6 +16,7 @@ const vocabulary = {
   comparatorsBefore: ['at least', 'at most', 'exactly', 'fewer than'],
   comparatorsAfter: ['or more', 'or fewer', 'or less'],
   operators: ['and', 'or'],
+  withWords: ['with', 'having', 'that have', 'armed with'],
   techs: { 'inner sphere': 'INNER_SPHERE', clan: 'CLAN', is: 'INNER_SPHERE' },
   fireControls: ['artemis iv', 'artemis v', 'artemis', 'apollo'],
   families: {
@@ -49,6 +50,41 @@ test('colors each part of a query', () => {
 test('multi-word weight classes are one token', () => {
   assert.deepEqual(roles('ultra light units with 1 ppc'),
       ['ultra light:weight-class', 'units:unit', 'with:with', '1:quantity', 'ppc:equipment']);
+});
+
+test('several weight classes, and any as a quantity', () => {
+  const query = 'medium or heavy mechs with at least 2 lrms and any lasers';
+  assert.deepEqual(roles(query),
+      ['medium:weight-class', 'or:operator', 'heavy:weight-class', 'mechs:unit', 'with:with', 'at least:comparator',
+        '2:quantity', 'lrms:equipment', 'and:operator', 'any:quantity', 'lasers:equipment']);
+  assert.equal(analyze(query, vocabulary).error, null);
+  assert.deepEqual(roles('light or ultra light units with 1 ppc').slice(0, 3),
+      ['light:weight-class', 'or:operator', 'ultra light:weight-class']);
+  assert.deepEqual(roles('light, medium, or heavy mechs with 1 ppc').slice(0, 6),
+      ['light:weight-class', ',:comma', 'medium:weight-class', ',:comma', 'or:operator', 'heavy:weight-class']);
+  assert.equal(analyze('light, medium, or heavy mechs with 1 ppc', vocabulary).error, null);
+  assert.deepEqual(texts(alternatives(token(query, 'heavy'), vocabulary)),
+      ['ultra light', 'light', 'medium', 'assault', 'ultra heavy']);
+});
+
+test('other words for with', () => {
+  assert.deepEqual(roles('mechs that have 2 medium lasers'), ['mechs:unit', 'that have:with', '2:quantity', 'medium lasers:equipment']);
+  assert.deepEqual(roles('mechs armed with 1 ppc'), ['mechs:unit', 'armed with:with', '1:quantity', 'ppc:equipment']);
+  // any spacing inside a phrase
+  assert.deepEqual(roles('mechs that   have at  least 1 ppc'),
+      ['mechs:unit', 'that   have:with', 'at  least:comparator', '1:quantity', 'ppc:equipment']);
+  assert.deepEqual(texts(alternatives(token('mechs that   have 1 ppc', 'that   have'), vocabulary)), ['with', 'having', 'armed with']);
+  assert.deepEqual(texts(alternatives(token('mechs having 1 ppc', 'having'), vocabulary)), ['with', 'that have', 'armed with']);
+});
+
+test('a word list cached before a deployment can lack a list', () => {
+  const { withWords, ...cached } = vocabulary;
+  const loaded = withDefaults(cached);
+  assert.deepEqual(loaded.withWords, []);
+  assert.deepEqual(loaded.operators, vocabulary.operators);
+  // every token still gets its alternatives without throwing
+  assert.deepEqual(alternatives(token('mechs having 1 ppc', 'having'), loaded), []);
+  analyze('light mechs with 1 ppc', loaded).tokens.forEach(found => alternatives(found, loaded));
 });
 
 test('a weight class that is not one is unknown', () => {

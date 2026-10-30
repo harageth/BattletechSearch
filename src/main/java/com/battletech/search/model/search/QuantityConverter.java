@@ -8,6 +8,7 @@ import java.util.Map;
 public class QuantityConverter {
   private static final Map<String, Integer> NUMBER_WORDS = Map.ofEntries(
       Map.entry("a", 1),
+      Map.entry("any", 1),
       Map.entry("one", 1),
       Map.entry("single", 1),
       Map.entry("two", 2),

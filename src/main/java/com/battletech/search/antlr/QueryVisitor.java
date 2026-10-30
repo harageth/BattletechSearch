@@ -6,6 +6,7 @@ import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.model.FireControl;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.Tech;
+import com.battletech.search.model.UnitDecorator;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
@@ -16,6 +17,7 @@ import com.battletech.search.utils.UnitBuilder;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
@@ -25,6 +27,8 @@ import me.BattletechParser.LineContext;
 import me.BattletechParser.LogicaloperatorContext;
 import me.BattletechParser.QueryContext;
 import me.BattletechParser.UnitContext;
+import me.BattletechParser.WeightClassContext;
+import me.BattletechParser.WeightClassesContext;
 import me.BattletechVisitor;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
@@ -54,6 +58,18 @@ public class QueryVisitor implements BattletechVisitor {
     return null;
   }
 
+  /** "medium or heavy": each weight class named, in order; ones that aren't a weight class are left out. */
+  @Override
+  public List<WeightClass> visitWeightClasses(WeightClassesContext ctx) {
+    return ctx.weightClass().stream().map(this::visitWeightClass).filter(Objects::nonNull).distinct().toList();
+  }
+
+  /** Weight classes can be more than one word, e.g. "ultra light"; null if it isn't one. */
+  @Override
+  public WeightClass visitWeightClass(WeightClassContext ctx) {
+    return WeightClass.fromString(ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" ")));
+  }
+
   /** The name as typed, words separated by spaces ("lrm 20"); normalized before the lookup. */
   @Override
   public Object visitEquipmentName(EquipmentNameContext ctx) {
@@ -62,14 +78,12 @@ public class QueryVisitor implements BattletechVisitor {
 
   @Override
   public Object visitLine(LineContext ctx) {
-    Unit unit = (Unit)visitUnit(ctx.unit());
+    UnitDecorator unit = (UnitDecorator) visitUnit(ctx.unit());
 
     // need to iterate through each set of quantity/equipment
     List<EquipmentChunkContext> equipment = ctx.equipmentChunk();
-    if(!ctx.WORD().isEmpty()) {
-      // weight classes can be more than one word, e.g. "ultra light"
-      String weightClass = ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" "));
-      unit.setWeightClass(WeightClass.fromString(weightClass));
+    if(ctx.weightClasses() != null) {
+      unit.setWeightClasses(visitWeightClasses(ctx.weightClasses()));
     }
     List<UnitEquipment> decorators = new LinkedList<UnitEquipment>();
 

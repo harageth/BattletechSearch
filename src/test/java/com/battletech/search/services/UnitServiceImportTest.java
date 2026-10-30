@@ -231,6 +231,19 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void severalWeightClassesAndAny() throws IOException {
+    importMechs();
+    entityManager.flush();
+
+    // the Mad Cat Prime is a heavy with two LRMs and five lasers; the Atlas is an assault
+    assertThat(search("medium or heavy mechs with at least 2 lrms and any lasers"))
+        .contains("Mad Cat Prime").doesNotContain("Atlas AS7-D");
+    assertThat(search("heavy or assault mechs with any lasers")).contains("Mad Cat Prime", "Atlas AS7-D");
+    assertThat(search("light, heavy, or assault mechs with any lasers")).contains("Mad Cat Prime", "Atlas AS7-D");
+    assertThat(search("mechs with any lasers")).isEqualTo(search("mechs with at least 1 lasers"));
+  }
+
+  @Test
   void onlyImportsUnitsInTheMasterUnitList() throws IOException {
     // the Goliath GOL-1M and the Hybrid Rifleman (Sneede II) have no MUL id
     assertThat(importMechs().failed()).isEqualTo(2);

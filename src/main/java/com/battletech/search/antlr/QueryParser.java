@@ -6,10 +6,13 @@ import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.EquipmentSlangRepository;
 import me.BattletechLexer;
 import me.BattletechParser;
+import me.BattletechParser.WeightClassContext;
+import me.BattletechParser.WeightClassesContext;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
@@ -40,6 +43,7 @@ public class QueryParser {
   static class ThrowingErrorListener extends BaseErrorListener {
     static final ThrowingErrorListener INSTANCE = new ThrowingErrorListener();
     static final String EQUIPMENT = "an equipment name";
+    static final String WEIGHT_CLASS = "a weight class like 'heavy'";
 
     @Override
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
@@ -57,7 +61,9 @@ public class QueryParser {
       Token previous = index > 0 ? tokens.get(index - 1) : null;
       // After "2" or "2 or fewer" only an equipment name fits, but when ANTLR fails while choosing
       // between the equipmentChunk alternatives its expected set still includes a quantity.
-      String expected = followsQuantity(tokens, index) ? EQUIPMENT : describe(parser.getExpectedTokens());
+      String expected = followsQuantity(tokens, index) ? EQUIPMENT
+          : followsWeightClassOperator(parser, previous) ? WEIGHT_CLASS
+          : describe(parser.getExpectedTokens());
       if (token.getType() == Token.EOF) {
         if (previous == null) {
           throw new FailedParseException("Unable to parse query: the query is empty. " + EXAMPLE);
@@ -94,6 +100,15 @@ public class QueryParser {
         previous--;
       }
       return previous >= 0 && tokens.get(previous).getType() == BattletechParser.QUANTITY;
+    }
+
+    /** Whether this is right after the "or" or "," in "light, medium or heavy", where only a weight class fits. */
+    private static boolean followsWeightClassOperator(Parser parser, Token previous) {
+      ParserRuleContext context = parser.getContext();
+      return previous != null
+          && (previous.getType() == BattletechParser.OR || previous.getType() == BattletechParser.AND
+              || previous.getType() == BattletechParser.COMMA)
+          && (context instanceof WeightClassesContext || context instanceof WeightClassContext);
     }
 
     private static boolean isComparator(int type) {

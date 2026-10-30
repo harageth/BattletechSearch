@@ -44,6 +44,8 @@ public final class QueryVocabulary {
       "at least", "at most", "exactly", "no more than", "greater than", "fewer than", "less than");
   static final List<String> COMPARATORS_AFTER = List.of("or more", "or fewer", "or less");
   static final List<String> OPERATORS = List.of("and", "or");
+  // between the unit and the weapons; all the same STOPWORD token
+  static final List<String> WITH_WORDS = List.of("with", "having", "that have", "which have", "carrying", "armed with");
 
   private QueryVocabulary() {
   }
@@ -66,6 +68,10 @@ public final class QueryVocabulary {
 
   public static List<String> operators() {
     return OPERATORS;
+  }
+
+  public static List<String> withWords() {
+    return WITH_WORDS;
   }
 
   public static Map<String, Tech> techs() {

@@ -44,6 +44,28 @@ class QueryVocabularyTest {
   }
 
   @Test
+  void wordsForWithAreOneStopword() {
+    assertThat(QueryVocabulary.withWords()).contains("with", "having", "that have", "which have", "carrying", "armed with");
+    for (String with : QueryVocabulary.withWords()) {
+      assertThat(tokenTypes(with)).as(with).containsExactly(BattletechLexer.STOPWORD);
+      assertThat(tokenTypes(with.toUpperCase())).as(with).containsExactly(BattletechLexer.STOPWORD);
+    }
+  }
+
+  @Test
+  void multiWordPhrasesTakeAnySpacing() {
+    List<String> phrases = new java.util.ArrayList<>(QueryVocabulary.comparatorsBefore());
+    phrases.addAll(QueryVocabulary.comparatorsAfter());
+    phrases.addAll(QueryVocabulary.withWords());
+    for (String phrase : phrases) {
+      assertThat(tokenTypes(phrase.replace(" ", "    "))).as(phrase).isEqualTo(tokenTypes(phrase));
+      assertThat(tokenTypes(phrase.replace(" ", " \t "))).as(phrase).isEqualTo(tokenTypes(phrase));
+    }
+    // a line break still ends the line
+    assertThat(tokenTypes("at\nleast")).hasSize(3);
+  }
+
+  @Test
   void operators() {
     assertThat(QueryVocabulary.operators().stream().map(QueryVocabularyTest::tokenTypes))
         .containsExactly(List.of(BattletechLexer.AND), List.of(BattletechLexer.OR));
