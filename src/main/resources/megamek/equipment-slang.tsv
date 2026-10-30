@@ -1,4 +1,47 @@
 # Hand-maintained shorthand for equipment names, on top of the generated equipment-aliases.tsv:
-# shorthand<TAB>MegaMek display name. Like the aliases, these are meant to move into equipment_slang later.
+# shorthand<TAB>MegaMek display name. Loaded into the slang tables after each import
+# (services/SlangLoader); a line here also settles a key listed in ambiguous_slang. Several lines for
+# one term link every item they name; the importer names a unit file's item after the first.
 ams	Anti-Missile System
 jj	Jump Jet
+c3i	Improved C3 Computer (C3I)
+improved c3 computer	Improved C3 Computer (C3I)
+c3 master	C3 Computer (Master)
+c3 slave computer	C3 Computer (Slave)
+c3 boosted master	C3 Boosted System (Master)
+c3 boosted slave	C3 Boosted System (Slave)
+escape pod	Combat Vehicle Escape Pod
+jet booster	VTOL Jet Booster
+b-pods	Anti-BattleArmor Pods (B-Pods)
+a-pods	Anti-Personnel Pods (A-Pods)
+# keys MegaMek gives to more than one item (2026-10-30): the unit type sorts out which one a unit has
+mechanical jump booster	Mech Mechanical Jump Boosters
+mechanical jump booster	Mechanical Jump Booster [BA]
+machine gun ammo	Machine Gun Ammo [Full]
+machine gun ammo	Machine Gun Ammo [Half]
+light machine gun ammo	Light Machine Gun Ammo [Full]
+light machine gun ammo	Light Machine Gun Ammo [Half]
+heavy machine gun ammo	Heavy Machine Gun Ammo [Full]
+heavy machine gun ammo	Heavy Machine Gun Ammo [Half]
+ammo streak-5	Streak LRM 5 Ammo
+clan ammo streak-5	Streak LRM 5 Ammo
+gauss rifle magshot	Magshot
+gauss rifle magshot	Gauss Rifle [Magshot]
+gauss rifle magshot	Gauss Rifle (Magshot)
+magshot gauss rifle	Magshot
+magshot gauss rifle	Gauss Rifle [Magshot]
+magshot gauss rifle	Gauss Rifle (Magshot)
+pulse laser rifle	Pulse Laser Rifle (Inner Sphere)
+pulse laser rifle	Pulse Laser Rifle [Clan]
+vibro sword	Blade (Vibro-sword, I.S.)
+vibro sword	Blade (Vibro-sword) [Clan]
+vibro sword	Vibroblade (Large)
+vibro sword	Vibroblade (Medium)
+vibro sword	Vibroblade (Small)
+# every size of mech vibroblade
+vibroblades	Vibroblade (Large)
+vibroblades	Vibroblade (Medium)
+vibroblades	Vibroblade (Small)
+vibroblade	Vibroblade (Large)
+vibroblade	Vibroblade (Medium)
+vibroblade	Vibroblade (Small)

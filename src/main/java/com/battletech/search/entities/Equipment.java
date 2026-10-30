@@ -16,6 +16,8 @@ public class Equipment {
   @GeneratedValue
   UUID id;
   String name;
+  // MegaMek's name for showing to people ("LB 10-X AC"); name is the normalized match key
+  String displayName;
   @Enumerated(EnumType.STRING)
   Tech tech;
   int shortRange;

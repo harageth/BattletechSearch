@@ -1,8 +1,12 @@
 package com.battletech.search.entities;
 
+import com.battletech.search.model.CockpitType;
+import com.battletech.search.model.GyroType;
 import com.battletech.search.model.Heatsinks;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
+import com.battletech.search.model.LamType;
 import com.battletech.search.model.Locomotion;
+import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.model.Movement;
 import com.battletech.search.model.Tech;
 import jakarta.persistence.Embedded;
@@ -16,8 +20,16 @@ import lombok.Data;
 public class Mech extends Unit {
   @Enumerated(EnumType.STRING)
   Locomotion locomotion;
-  String engine;
-  String structure;
+  @Enumerated(EnumType.STRING)
+  GyroType gyro;
+  @Enumerated(EnumType.STRING)
+  CockpitType cockpit;
+  // LAMs only
+  @Enumerated(EnumType.STRING)
+  LamType lamType;
+  // QuadVees only: Tracked or Wheeled in vehicle mode
+  @Enumerated(EnumType.STRING)
+  MotiveSystem quadVeeMotive;
   String myomer;
   String ejection;
 

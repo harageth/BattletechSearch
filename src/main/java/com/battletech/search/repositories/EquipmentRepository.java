@@ -14,14 +14,11 @@ public interface EquipmentRepository extends CrudRepository<Equipment, UUID> {
 
   public List<Equipment> findByNameIn(Collection<String> names);
 
-  @Query("select distinct e.name from Equipment e")
-  public List<String> findAllNames();
+  @Override
+  public List<Equipment> findAll();
 
-  // names are every stored spelling of the canonical name (EquipmentNames.equivalentNames), slang
-  // the term as typed (normalized)
-  @Query("from Equipment e where e.name in :names OR e.id IN (select es.equipment.id from EquipmentSlang es where es.slang = :slang)")
-  public List<Equipment> findAllByNameInOrSlang(Collection<String> names, String slang);
-
-  //@Query("from Equipment e where e.name = :name AND e.tech = :tech OR e.id IN (select es.equipment.id from EquipmentSlang es where es.slang = :name)")
-  //public List<Equipment> findAllBySlangOrEquipmentNameAndTech(String name, Tech tech);
+  // name is the normalized search name, lookup its slang key (EquipmentNames.slangKey): equipment
+  // stored under that name, and every row the slang term stands for
+  @Query("from Equipment e where e.name = :name OR e IN (select se from Slang s join s.equipment se where s.lookup = :lookup)")
+  public List<Equipment> findAllByNameOrSlang(String name, String lookup);
 }

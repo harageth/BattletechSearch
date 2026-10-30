@@ -2,7 +2,11 @@ package com.battletech.search.model;
 
 public enum Locomotion {
   BIPED("BIPED"),
-  QUAD("QUAD");
+  QUAD("QUAD"),
+  TRIPOD("TRIPOD"),
+  // land-air mech
+  LAM("LAM"),
+  QUADVEE("QUADVEE");
 
   private String text;
 

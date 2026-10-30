@@ -3,9 +3,11 @@ package com.battletech.search.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.battletech.search.SearchFixtures;
 import com.battletech.search.TestcontainersConfiguration;
 import com.battletech.search.model.search.FailedParseException;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,11 +18,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 /**
- * End-to-end search results against the baseline unit data loaded by Flyway.
- * These pin current behavior so refactors can be checked against it.
+ * End-to-end search results against the fixture units (SearchFixtures: src/test/resources/megamek),
+ * imported the way the admin import does it, slang included.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, SearchFixtures.class})
 class SearchServiceTest {
   @Autowired
   SearchService service;
@@ -37,67 +39,54 @@ class SearchServiceTest {
 
   @Test
   void weightClassWithAndedComparators() throws IOException {
+    // the Jenner JR7-D is light with four medium lasers but no SRM 6
     assertThat(search("light units with at most 2 mediumlaser and at least 1 srm6"))
-        .containsExactlyInAnyOrder(
-            "Commando COM-5S",
-            "Commando COM-3A",
-            "Commando COM-2D",
-            "Cossack C-SK1",
-            "Longshot LNG-1B",
-            "packrat lrpv pkr-t5 (ml)",
-            "pegasus scout hover tank (standard)",
-            "Raven RVN-3L",
-            "Raven RVN-4X",
-            "Raven RVN-2X",
-            "Raven RVN-3X",
-            "Raven RVN-1X");
+        .containsExactly("Commando COM-2D");
   }
 
   @Test
   void atLeast() throws IOException {
-    assertThat(search("mechs with at least 4 ppc"))
-        .containsExactlyInAnyOrder("Annihilator ANH-1E", "Awesome AWS-9Q (Klatt)", "Awesome AWS-9Q");
-    // includes mechs whose PPCs the baseline stores as "particlecannon" (e.g. Devastator DVS-2)
-    assertThat(search("mechs with at least 2 ppc")).hasSize(66);
+    assertThat(search("mechs with at least 4 ppc")).containsExactly("Annihilator ANH-1E");
+    assertThat(search("mechs with at least 2 ppc"))
+        .containsExactlyInAnyOrder("Annihilator ANH-1E", "Awesome AWS-8Q", "Warhammer WHM-6R");
   }
 
   @Test
   void weightClassAndUnitType() throws IOException {
     assertThat(search("assault mechs with at least 3 ppc"))
-        .containsExactlyInAnyOrder(
-            "Annihilator ANH-1E",
-            "Awesome AWS-8Q",
-            "Awesome AWS-8Q (Buck)",
-            "Awesome AWS-9Q (Klatt)",
-            "Awesome AWS-9Q",
-            "Titan TI-1Ar");
-    assertThat(search("heavy mechs with less than 2 ppc")).hasSize(36);
+        .containsExactlyInAnyOrder("Annihilator ANH-1E", "Awesome AWS-8Q");
+    assertThat(search("heavy mechs with less than 2 ppc"))
+        .contains("Black Knight BL-6-KNT").doesNotContain("Warhammer WHM-6R");
   }
 
   @Test
   void exactlyAndGreaterThan() throws IOException {
     assertThat(search("mechs with exactly 4 largelaser")).containsExactly("Charger CGR-SB 'Challenger'");
-    assertThat(search("mechs with greater than 5 erlargelaser")).containsExactly("Supernova (Standard)");
+    assertThat(search("mechs with greater than 5 erlargelaser")).containsExactly("Supernova 5");
   }
 
   @Test
   void andOr() throws IOException {
     assertThat(search("mechs with at least 4 ppc and at least 2 mediumlaser"))
         .containsExactly("Annihilator ANH-1E");
-    assertThat(search("units with at least 6 mediumlaser or at least 3 largelaser")).hasSize(44);
+    assertThat(search("units with at least 4 mediumlaser or at least 3 largelaser"))
+        .contains("Annihilator ANH-1E", "Atlas AS7-D", "Blackjack BJ-1", "Jenner JR7-D", "Charger CGR-SB 'Challenger'")
+        .doesNotContain("Rifleman RFL-3N");
   }
 
   @Test
   void vehicleUnitTypes() throws IOException {
-    assertThat(search("vtol with at least 1 mediumlaser")).hasSize(18);
-    assertThat(search("vehicle with at least 2 lrm20")).hasSize(27);
+    assertThat(search("vtol with at least 1 mediumlaser")).containsExactly("Cavalry Attack Helicopter (BA)");
+    assertThat(search("vehicle with at least 2 lrm20")).contains("DI Morgan Assault Tank (LRM)");
   }
 
   @Test
   void resultsAreOrderedByName() throws IOException {
-    List<Map<String, Object>> rows = service.performQuery("mechs with at least 2 ppc");
+    List<Map<String, Object>> rows = service.performQuery("mechs with at least 1 mediumlaser");
     List<String> names = rows.stream().map(row -> (String) row.get("name")).collect(Collectors.toList());
-    assertThat(names).isSortedAccordingTo(String::compareTo);
+    // the database's collation skips spaces: "Blackjack" before "Black Knight"
+    assertThat(names).hasSizeGreaterThan(2)
+        .isSortedAccordingTo(Comparator.comparing(name -> name.replace(" ", "").toLowerCase()));
   }
 
   @Test
@@ -110,7 +99,7 @@ class SearchServiceTest {
   @Test
   void quantityWithoutComparatorMeansExactly() throws IOException {
     assertThat(search("mechs with 4 largelaser")).isEqualTo(search("mechs with exactly 4 largelaser"));
-    assertThat(search("units with 2 ppc")).isNotEmpty();
+    assertThat(search("units with 2 ppc")).containsExactly("Warhammer WHM-6R");
   }
 
   @Test
@@ -122,14 +111,14 @@ class SearchServiceTest {
   }
 
   @Test
-  void findsEquipmentStoredUnderOlderSpellings() throws IOException {
-    // the baseline stores the Blackjack BJ-1's AC/2s as "autocannon/2" and others as "ac/2"
-    assertThat(search("mechs with at least 2 ppc")).contains("Devastator DVS-2");
+  void findsEquipmentByAnyOfItsMegaMekNames() throws IOException {
+    // MegaMek's other names for a weapon are slang terms for it
     assertThat(search("mechs with exactly 2 ac 2")).contains("Blackjack BJ-1");
     assertThat(search("mechs with exactly 2 autocannon 2")).isEqualTo(search("mechs with exactly 2 ac 2"));
-    // "lbxac10" and "lb10-xac", "mg" and "machinegun" are both in the baseline too
-    assertThat(search("units with at least 1 lb 10-x ac")).containsAll(search("units with at least 1 lbxac10"));
-    assertThat(search("units with at least 1 machine gun")).containsAll(search("units with at least 1 mg"));
+    assertThat(search("units with at least 1 lb 10-x ac")).contains("Centurion CN9-D")
+        .isEqualTo(search("units with at least 1 lbxac10"));
+    assertThat(search("units with at least 2 machine gun")).contains("Warhammer WHM-6R")
+        .isEqualTo(search("units with at least 2 mg"));
   }
 
   @Test
@@ -138,9 +127,9 @@ class SearchServiceTest {
     assertThat(lrm20).isNotEmpty();
     assertThat(search("units with at least 2 lrm 20")).isEqualTo(lrm20);
     assertThat(search("units with at least 2 LRM 20")).isEqualTo(lrm20);
-    assertThat(search("mechs with exactly 2 srm 6")).isEqualTo(search("mechs with exactly 2 srm6"));
-    assertThat(search("mechs with at least 2 lrm 20 and at least 2 srm 6"))
-        .isEqualTo(search("mechs with at least 2 lrm20 and at least 2 srm6"));
+    assertThat(search("mechs with exactly 1 srm 6")).isEqualTo(search("mechs with exactly 1 srm6"));
+    assertThat(search("mechs with at least 1 lrm 20 and at least 1 srm 6"))
+        .isEqualTo(search("mechs with at least 1 lrm20 and at least 1 srm6"));
   }
 
   @Test
@@ -163,18 +152,13 @@ class SearchServiceTest {
 
   @Test
   void tanksAreVehiclesExceptVtols() throws IOException {
-    List<String> tanks = search("tanks with at least 2 lrm20");
-    List<String> vtols = search("vtol with at least 2 lrm20");
+    List<String> tanks = search("tanks with at least 1 mediumlaser");
+    List<String> vtols = search("vtol with at least 1 mediumlaser");
 
     assertThat(tanks).isNotEmpty();
-    assertThat(search("vehicle with at least 2 lrm20"))
+    assertThat(vtols).isNotEmpty();
+    assertThat(search("vehicle with at least 1 mediumlaser"))
         .containsExactlyInAnyOrderElementsOf(Stream.concat(tanks.stream(), vtols.stream()).toList());
-  }
-
-  @Test
-  void baselineVehiclesHaveNoMotiveType() throws IOException {
-    // the V2 baseline predates motive types; imported units have them (see UnitServiceImportTest)
-    assertThat(search("tracked with at least 2 lrm20")).isEmpty();
   }
 
   @Test

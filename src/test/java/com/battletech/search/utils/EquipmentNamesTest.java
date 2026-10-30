@@ -57,22 +57,6 @@ class EquipmentNamesTest {
   }
 
   @Test
-  void readsTheTechANameCarries() {
-    assertThat(EquipmentNames.techOf("Gauss Rifle Ammo [Clan]")).isEqualTo(Tech.CLAN);
-    assertThat(EquipmentNames.techOf("Anti-Missile System Ammo [IS]")).isEqualTo(Tech.INNER_SPHERE);
-    assertThat(EquipmentNames.techOf("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo(Tech.CLAN);
-    // MegaMek prefixes, also lowercased the way searches arrive
-    assertThat(EquipmentNames.techOf("ISAC20")).isEqualTo(Tech.INNER_SPHERE);
-    assertThat(EquipmentNames.techOf("isac20")).isEqualTo(Tech.INNER_SPHERE);
-    assertThat(EquipmentNames.techOf("cllrm20")).isEqualTo(Tech.CLAN);
-    assertThat(EquipmentNames.techOf("Clan Gauss Ammo")).isEqualTo(Tech.CLAN);
-    // no tech of their own
-    assertThat(EquipmentNames.techOf("ac/20")).isNull();
-    assertThat(EquipmentNames.techOf("Gauss Rifle Ammo")).isNull();
-    assertThat(EquipmentNames.techOf("lrm20")).isNull();
-  }
-
-  @Test
   void splitsALeadingTechWord() {
     assertThat(EquipmentNames.splitTechWord("Clan Sniper Rounds"))
         .isEqualTo(new EquipmentNames.TechWord(Tech.CLAN, "sniper rounds"));
@@ -83,26 +67,6 @@ class EquipmentNamesTest {
     // only whole words, and not the whole term
     assertThat(EquipmentNames.splitTechWord("claw")).isEqualTo(new EquipmentNames.TechWord(null, "claw"));
     assertThat(EquipmentNames.splitTechWord("clan")).isEqualTo(new EquipmentNames.TechWord(null, "clan"));
-  }
-
-  @Test
-  void familyTermsListTheirWeapons() {
-    // by the folder MegaMek keeps the weapon in; torpedoes aren't LRMs, streaks are both
-    assertThat(EquipmentNames.familyMembers("lrms"))
-        .contains("lrm20", "streaklrm20", "enhancedlrm10", "extendedlrm20")
-        .doesNotContain("lrt20", "mrm10");
-    assertThat(EquipmentNames.familyMembers("streaks")).contains("streaksrm6", "streaklrm20").doesNotContain("srm6");
-    assertThat(EquipmentNames.familyMembers("ppcs")).contains("ppc", "erppc").doesNotContain("plasmarifle");
-    assertThat(EquipmentNames.familyOfSingular("atm")).isEqualTo("atms");
-    assertThat(EquipmentNames.familyOfSingular("torpedo")).isEqualTo("torpedoes");
-    assertThat(EquipmentNames.familyOfSingular("gaussrifle")).isEqualTo("gaussrifles");
-    assertThat(EquipmentNames.familyOfSingular("atms")).isNull();
-    assertThat(EquipmentNames.familyMembers("atms")).contains("atm3", "atm12", "improvedatm6").doesNotContain("mml5");
-    assertThat(EquipmentNames.familyMembers("machineguns")).contains("machinegun").doesNotContain("machinegunarray");
-    assertThat(EquipmentNames.familyMembers("mediumlaser")).isEmpty();
-    // as typed, one-shot versions folded into the weapon
-    assertThat(EquipmentNames.families().get("lrms")).contains("lrm 20").doesNotContain("lrm 20 (os)");
-    assertThat(EquipmentNames.families().keySet()).contains("gauss rifles", "torpedoes");
   }
 
   @Test
@@ -117,16 +81,6 @@ class EquipmentNamesTest {
     // the tech goes in its own column
     assertThat(EquipmentNames.normalize("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo("ammolrm-20artemis-capable");
     assertThat(EquipmentNames.canonical("Gauss Rifle Ammo [Clan]")).isEqualTo(EquipmentNames.canonical("Gauss Rifle Ammo"));
-  }
-
-  @Test
-  void listsOlderSpellingsOfACanonicalName() {
-    assertThat(EquipmentNames.equivalentNames("ac/2")).first().isEqualTo("ac/2");
-    assertThat(EquipmentNames.equivalentNames("ac/2")).contains("autocannon/2", "ac2");
-    assertThat(EquipmentNames.equivalentNames("lb10-xac")).contains("lbxac10");
-    assertThat(EquipmentNames.equivalentNames("machinegun")).contains("mg");
-    // unknown names are just themselves
-    assertThat(EquipmentNames.equivalentNames("nonexistentgun")).containsExactly("nonexistentgun");
   }
 
   @Test
@@ -146,6 +100,9 @@ class EquipmentNamesTest {
     assertThat(EquipmentNames.canonical("jj")).isEqualTo("jumpjet");
     assertThat(EquipmentNames.canonical("Jump Jet")).isEqualTo("jumpjet");
     assertThat(EquipmentNames.canonical("VehicleJumpJet")).isEqualTo("jumpjet");
+    // a term on several lines names a unit file's item after the first
+    assertThat(EquipmentNames.canonical("MechanicalJumpBooster")).isEqualTo("mechmechanicaljumpboosters");
+    assertThat(EquipmentNames.canonical("Machine Gun Ammo")).isEqualTo("machinegunammo[full]");
   }
 
   @Test
@@ -159,5 +116,23 @@ class EquipmentNamesTest {
     assertThat(EquipmentNames.normalize("Flamer (Vehicle)")).isEqualTo("flamer(vehicle)");
     assertThat(EquipmentNames.normalize("Anti-BattleArmor Pods (B-Pods)")).isEqualTo("anti-battlearmorpods(b-pods)");
     assertThat(EquipmentNames.normalize("Rifle (Cannon, Heavy)")).isEqualTo("rifle(cannon,heavy)");
+  }
+
+  @Test
+  void displayNamesAreMegaMeksWhateverTheFileWrote() {
+    assertThat(EquipmentNames.displayName("Autocannon/20")).isEqualTo("AC/20");
+    assertThat(EquipmentNames.displayName("ISAC20")).isEqualTo("AC/20");
+    assertThat(EquipmentNames.displayName("Medium Laser (R)")).isEqualTo("Medium Laser");
+    assertThat(EquipmentNames.displayName("CLLRM20:OMNI")).isEqualTo("LRM 20");
+    assertThat(EquipmentNames.displayName("Communications Equipment:SIZE:3.0")).isEqualTo("Communications Equipment");
+    // names MegaMek doesn't list keep the file's spelling, without prefix and tags
+    assertThat(EquipmentNames.displayName("IS Ammo LRM-20 Artemis-capable")).isEqualTo("Ammo LRM-20 Artemis-capable");
+    assertThat(EquipmentNames.displayName("Ammo LRM-20 (Clan) Artemis-capable")).isEqualTo("Ammo LRM-20 Artemis-capable");
+  }
+
+  @Test
+  void slangKeysAreLettersAndDigits() {
+    assertThat(EquipmentNames.slangKey("LB 10-X AC")).isEqualTo("lb10xac");
+    assertThat(EquipmentNames.slangKey("ac/20")).isEqualTo(EquipmentNames.slangKey("AC 20"));
   }
 }

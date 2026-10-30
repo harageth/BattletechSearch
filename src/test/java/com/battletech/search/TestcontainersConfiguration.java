@@ -6,7 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
- * Starts a throwaway Postgres for Spring tests; Flyway loads the schema and baseline unit data into it.
+ * Starts a throwaway Postgres for Spring tests; Flyway creates the schema in it, without the imported
+ * units (src/test/resources/config/application.properties).
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {

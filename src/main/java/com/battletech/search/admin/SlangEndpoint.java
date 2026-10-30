@@ -2,12 +2,13 @@ package com.battletech.search.admin;
 
 import com.battletech.search.services.EquipmentService;
 import java.util.List;
+import org.springframework.boot.actuate.endpoint.InvalidEndpointRequestException;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
 import org.springframework.stereotype.Component;
 
 /**
- * POST /actuator/slang {"equipmentName": "mediumlaser", "terms": "ml, medium laser"}
+ * POST /actuator/slang {"equipmentName": "medium laser", "terms": "ml, medium l"}
  * on the management port.
  */
 @Component
@@ -23,6 +24,10 @@ public class SlangEndpoint {
   // that the conversion service splits (and trims) into the array
   @WriteOperation
   public void addSlang(String equipmentName, String[] terms) {
-    equipService.addSlangToEquipment(equipmentName, List.of(terms));
+    try {
+      equipService.addSlangToEquipment(equipmentName, List.of(terms));
+    } catch (IllegalArgumentException e) {
+      throw new InvalidEndpointRequestException(e.getMessage(), e.getMessage());
+    }
   }
 }

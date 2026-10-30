@@ -2,6 +2,7 @@ package com.battletech.search.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.battletech.search.SearchFixtures;
 import com.battletech.search.TestcontainersConfiguration;
 import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.model.Tech;
@@ -16,9 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
-/** The search box's word lists and scripts, from the real server against the baseline data. */
+/** The search box's word lists and scripts, from the real server against the fixture units. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, SearchFixtures.class})
 class VocabularyControllerTest {
   @Autowired
   TestRestTemplate rest;
@@ -44,9 +45,9 @@ class VocabularyControllerTest {
     assertThat(vocabulary.families()).containsKeys("lasers", "lrms", "srms", "streaks", "ppcs", "autocannons");
     assertThat(vocabulary.families().get("lrms")).contains("lrm 20", "lrm 10").doesNotContain("lrt 20");
     assertThat(vocabulary.families().get("ppcs")).contains("ppc", "er ppc");
-    assertThat(vocabulary.equipment().get("streak srm 6")).containsExactly("srms", "streaks");
-    // only what a query can type: "Flamer (Vehicle)" has parentheses
-    assertThat(vocabulary.families().get("flamers")).contains("flamer").doesNotContain("flamer (vehicle)");
+    assertThat(vocabulary.equipment().get("streak srm 4")).containsExactlyInAnyOrder("srms", "streaks");
+    // only what a query can type: "Flamer (Vehicle)" has parentheses, so it's offered as "vehicleflamer"
+    assertThat(vocabulary.families().get("flamers")).contains("vehicleflamer").doesNotContain("flamer (vehicle)");
     assertThat(vocabulary.families().values()).allSatisfy(members ->
         assertThat(members).allMatch(QueryVocabulary::isTypeable));
   }

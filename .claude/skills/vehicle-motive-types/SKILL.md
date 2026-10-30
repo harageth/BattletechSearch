@@ -5,13 +5,13 @@ description: Use when changing vehicle motive systems (tracked, wheeled, hover, 
 
 # Vehicle motive types
 
-MegaMek's `<motion_type>` is imported for tanks and searchable. The V2 baseline data predates it, so baseline vehicles have no motive type until the data is regenerated (see the importers skill, "Regenerating data").
+MegaMek's `<motion_type>` is imported for tanks and searchable. (The V2 baseline data, which predated it, was removed on 2026-10-30.)
 
 ## Decided: "tank" means every ground vehicle
 
 The user decided on 2026-10-27 that `tank` means **every ground vehicle**: every `Tank` row (dtype `Tank`) but not VTOLs. `tracked`, `wheeled` and `hovercraft` narrow it down.
 
-MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those aren't ground vehicles, plain `tank` excludes them (`MotiveSystem.WATER`). Rows with no motive type (the baseline) stay included. That exclusion was my reading of "ground vehicles"; the user hasn't confirmed it. `vehicle` still means every Tank and VTOL, boats included.
+MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those aren't ground vehicles, plain `tank` excludes them (`MotiveSystem.WATER`). Rows with no motive type stay included (there are none since the baseline was removed). That exclusion was my reading of "ground vehicles"; the user hasn't confirmed it. `vehicle` still means every Tank and VTOL, boats included.
 
 ## How it works
 
@@ -27,7 +27,6 @@ MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those ar
 - `QueryVisitorTest.tanksAreAllGroundVehicles`, `motiveTypesNarrowTanks`: parsing and the generated SQL.
 - `ReadMegaMekTest.readsMotiveTypes`: the importer.
 - `UnitServiceImportTest.searchesImportedVehiclesByMotiveType`: imports fixtures, then searches `tracked` / `hovercraft` / `tanks` end to end.
-- `SearchServiceTest.baselineVehiclesHaveNoMotiveType`: on baseline data `tracked …` returns nothing. Replace this test when the data is regenerated.
 
 ## Ideas not done
 
