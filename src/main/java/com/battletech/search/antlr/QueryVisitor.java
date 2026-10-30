@@ -11,14 +11,11 @@ import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.model.search.LogicalOperator;
 import com.battletech.search.repositories.EquipmentRepository;
-import com.battletech.search.repositories.EquipmentSlangRepository;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
@@ -39,12 +36,10 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class QueryVisitor implements BattletechVisitor {
   Vocabulary vocab;
-  EquipmentSlangRepository slangRepo;
   EquipmentRepository equipRepo;
 
-  public QueryVisitor(Vocabulary vocab, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
+  public QueryVisitor(Vocabulary vocab, EquipmentRepository equipRepo) {
     this.vocab = vocab;
-    this.slangRepo = slangRepo;
     this.equipRepo = equipRepo;
   }
 
@@ -106,23 +101,14 @@ public class QueryVisitor implements BattletechVisitor {
       if(fireControl != null) {
         lookup = fireControl.launcher();
       }
-      // validate equipment type; "ac 20" and "autocannon 20" both find "ac/20", and a family term
-      // ("lrms") finds every weapon in it, counted together
+      // validate equipment type by its name or slang: "ac 20" and "autocannon 20" both find "ac/20",
+      // a family term ("lrms", or "atm" in the singular) every weapon in it, counted together, and a
+      // MegaMek name with its tech built in ("cllrm20") only that tech
       List<Equipment> found = findEquipment(lookup);
-      String family = EquipmentNames.familyOfSingular(lookup);
-      if(found.isEmpty() && family != null) {
-        // a family in the singular: "1 atm", "at least 2 laser"
-        lookup = family;
-        found = findEquipment(lookup);
-      }
       if(found.isEmpty() && lookup.endsWith("s")) {
         // a plural: "2 lrm 20s", "4 medium lasers"
         lookup = lookup.substring(0, lookup.length() - 1);
         found = findEquipment(lookup);
-      }
-      if(tech == null) {
-        // a MegaMek name with its tech built in: "cllrm20" is a Clan LRM 20, and so are "cllrm20s"
-        tech = EquipmentNames.techOf(lookup);
       }
       List<Equipment> matches = found;
       if(tech != null) {
@@ -160,14 +146,12 @@ public class QueryVisitor implements BattletechVisitor {
     return unit;
   }
 
-  /** Equipment by a normalized search name: any of its names, slang, or every weapon of a family term. */
+  /**
+   * Equipment by a normalized search name: stored under that name, or what its slang term (a MegaMek
+   * name, a family, shorthand) stands for.
+   */
   private List<Equipment> findEquipment(String lookup) {
-    Set<String> family = EquipmentNames.familyMembers(lookup);
-    Set<String> names = new LinkedHashSet<>();
-    for(String canonical : family.isEmpty() ? Set.of(EquipmentNames.canonical(lookup)) : family) {
-      names.addAll(EquipmentNames.equivalentNames(canonical));
-    }
-    return equipRepo.findAllByNameInOrSlang(names, lookup);
+    return equipRepo.findAllByNameOrSlang(lookup, EquipmentNames.slangKey(lookup));
   }
 
   @Override

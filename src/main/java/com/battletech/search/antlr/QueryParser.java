@@ -3,7 +3,6 @@ package com.battletech.search.antlr;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.repositories.EquipmentRepository;
-import com.battletech.search.repositories.EquipmentSlangRepository;
 import me.BattletechLexer;
 import me.BattletechParser;
 import me.BattletechParser.WeightClassContext;
@@ -26,7 +25,7 @@ import org.antlr.v4.runtime.misc.IntervalSet;
 public class QueryParser {
   static final String EXAMPLE = "Try something like 'mechs with at least 2 ppc'.";
 
-  public static Unit parse(String query, EquipmentSlangRepository slangRepo, EquipmentRepository equipRepo) {
+  public static Unit parse(String query, EquipmentRepository equipRepo) {
     BattletechLexer lexer = new BattletechLexer(CharStreams.fromString(query));
     lexer.removeErrorListeners();
     lexer.addErrorListener(ThrowingErrorListener.INSTANCE);
@@ -35,7 +34,7 @@ public class QueryParser {
     parser.removeErrorListeners();
     parser.addErrorListener(ThrowingErrorListener.INSTANCE);
 
-    QueryVisitor visitor = new QueryVisitor(lexer.getVocabulary(), slangRepo, equipRepo);
+    QueryVisitor visitor = new QueryVisitor(lexer.getVocabulary(), equipRepo);
     return (Unit) visitor.visitQuery(parser.query());
   }
 

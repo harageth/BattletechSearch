@@ -6,14 +6,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.battletech.search.model.Tech;
 import lombok.extern.slf4j.Slf4j;
@@ -24,42 +23,35 @@ import lombok.extern.slf4j.Slf4j;
  *
  * MegaMek also names the same equipment differently in different places: .mtf weapon lines use
  * display names ("AC/20"), .blk files and critical slots use internal names ("Autocannon/20",
- * "ISAC20"). {@link #canonical} maps those to the display name using
+ * "ISAC20"). {@link #canonical} maps those to the display name for the importer, using
  * megamek/equipment-aliases.tsv, generated from MegaMek's source by
- * scripts/GenerateEquipmentAliases.java. These mappings are meant to move into the slang data
- * (equipment_slang) later.
+ * scripts/GenerateEquipmentAliases.java. Search doesn't use it: the same files are loaded into the
+ * slang tables after each import (SlangTerms, services/SlangLoader).
  */
 @Slf4j
 public final class EquipmentNames {
+  public static final String ALIASES = "/megamek/equipment-aliases.tsv";
+  public static final String FAMILIES = "/megamek/equipment-family-slang.tsv";
+  public static final String SHORTHAND = "/megamek/equipment-slang.tsv";
+
   // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret.
   // Annotations that name a different item, like "(Vehicle)" or "(B-Pods)", are kept.
   private static final Pattern MOUNTING = Pattern.compile("\\s*\\((r|os|i-os|ios|st)\\)", Pattern.CASE_INSENSITIVE);
   // "Gauss Rifle Ammo [Clan]", "Ammo LRM-20 (Clan) Artemis-capable": a tech tag. The name drops it
-  // (tech is stored separately) and techOf reads it.
+  // (tech is stored separately).
   private static final Pattern TECH_SUFFIX = Pattern.compile("\\s*[\\[(](is|clan)[\\])]", Pattern.CASE_INSENSITIVE);
+  // how a file marks a unit's item rather than the item: "Cargo:SIZE:1.0", "CLLRM20:OMNI"
+  private static final Pattern ITEM_SUFFIX = Pattern.compile(":(omni|size).*$", Pattern.CASE_INSENSITIVE);
 
   /**
-   * @param prefixTech lookup keys that only exist with a tech prefix ("isac20", "cllrm20") -> that
-   *     tech; keys that are also a name on their own (e.g. "claw") aren't in it
+   * @param aliases lookup key -> normalized display name, for keys with only one (the hand-written
+   *     shorthand wins over the generated table)
+   * @param displays normalized display name -> the display name as MegaMek writes it, tags removed
    */
-  private record AliasTable(Map<String, String> aliases, Map<String, Set<String>> equivalents,
-      Map<String, Tech> prefixTech) {
+  private record AliasTable(Map<String, String> aliases, Map<String, String> displays) {
   }
 
-  private static final AliasTable GENERATED = loadAliases("/megamek/equipment-aliases.tsv");
-  // letters and digits of an alias or display name -> normalized display name; the hand-written
-  // shorthand ("ams", "jj") wins over the generated table
-  private static final Map<String, String> ALIASES = new HashMap<>(GENERATED.aliases());
-  static {
-    ALIASES.putAll(loadAliases("/megamek/equipment-slang.tsv").aliases());
-  }
-  // normalized display name -> every normalized spelling equipment may be stored under. Data
-  // imported before the alias table has "autocannon/2" next to "ac/2"; until it's regenerated a
-  // search has to find both.
-  private static final Map<String, Set<String>> EQUIVALENTS = GENERATED.equivalents();
-  // a family term as typed ("gauss rifles") -> the display names of its weapons as typed
-  // ("heavy gauss rifle"), from megamek/equipment-family-slang.tsv
-  private static final Map<String, Set<String>> FAMILIES = loadFamilies("/megamek/equipment-family-slang.tsv");
+  private static final AliasTable TABLE = loadAliases();
 
   private EquipmentNames() {
   }
@@ -69,89 +61,54 @@ public final class EquipmentNames {
    * ("LRM 10 (OS)" -> "lrm 10"). {@link #normalize} of it is the canonical name.
    */
   public static String typed(String display) {
-    return TECH_SUFFIX.matcher(MOUNTING.matcher(display).replaceAll("")).replaceAll("")
-        .strip().replaceAll("\\s+", " ").toLowerCase();
-  }
-
-  /** Every family term as typed ("lrms", "gauss rifles") -> its weapons as typed. */
-  public static Map<String, Set<String>> families() {
-    return FAMILIES;
-  }
-
-  /**
-   * The canonical names of the weapons in a family, for a normalized search name ("gaussrifles");
-   * empty if it isn't a family term.
-   */
-  public static Set<String> familyMembers(String name) {
-    for (Map.Entry<String, Set<String>> family : FAMILIES.entrySet()) {
-      if (normalize(family.getKey()).equals(name)) {
-        Set<String> members = new LinkedHashSet<>();
-        family.getValue().forEach(member -> members.add(normalize(member)));
-        return members;
-      }
-    }
-    return Set.of();
-  }
-
-  /**
-   * The normalized family term this is the singular of ("atm" -> "atms", "torpedo" -> "torpedoes"),
-   * or null. Search only reads it as the family when no weapon has the name: "ppc" is the PPC.
-   */
-  public static String familyOfSingular(String name) {
-    for (String term : FAMILIES.keySet()) {
-      String family = normalize(term);
-      String singular = family.substring(0, family.length() - (family.endsWith("oes") ? 2 : 1));
-      if (singular.equals(name)) {
-        return family;
-      }
-    }
-    return null;
+    return withoutTags(display).replaceAll("\\s+", " ").toLowerCase();
   }
 
   public static String normalize(String name) {
     return TECH_SUFFIX.matcher(MOUNTING.matcher(name).replaceAll("")).replaceAll("").toLowerCase().replaceAll("\\s", "");
   }
 
-  /**
-   * The tech a name itself says, or null: a tag ("Gauss Rifle Ammo [Clan]") or a prefix that the
-   * name needs ("ISAC20", "cllrm20", as typed in a search). A name that merely starts with those
-   * letters ("Claw") says nothing.
-   */
-  public static Tech techOf(String name) {
-    Matcher tag = TECH_SUFFIX.matcher(name);
-    if (tag.find()) {
-      return tag.group(1).equalsIgnoreCase("clan") ? Tech.CLAN : Tech.INNER_SPHERE;
-    }
-    return GENERATED.prefixTech().get(key(MOUNTING.matcher(name).replaceAll("")));
+  /** The name without mounting notes and tech tags, case kept: "LRM 10 (OS)" -> "LRM 10". */
+  public static String withoutTags(String name) {
+    return MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("").strip();
+  }
+
+  /** What slang is looked up by: the letters and digits, lowercase. "LB 10-X AC" -> "lb10xac". */
+  public static String slangKey(String name) {
+    return name.toLowerCase().replaceAll("[^a-z0-9]", "");
   }
 
   /** The normalized MegaMek display name for any of its names, or just the normalized name. */
   public static String canonical(String name) {
     // "Gauss Rifle Ammo [Clan]": cleaned the same way as the table's keys
-    String unmounted = MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("");
-    String canonical = ALIASES.get(key(unmounted));
+    String unmounted = withoutTags(name);
+    String canonical = TABLE.aliases().get(slangKey(unmounted));
     if (canonical == null) {
       // "ISAC20" as MegaMek writes it, prefix still on
-      canonical = ALIASES.get(key(stripTechPrefix(unmounted)));
+      canonical = TABLE.aliases().get(slangKey(stripTechPrefix(unmounted)));
     }
     return canonical != null ? canonical : normalize(name);
   }
 
   /** Whether the alias table knows this name (or it's a known display name). */
   public static boolean isKnown(String name) {
-    String unmounted = MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("");
-    return ALIASES.containsKey(key(unmounted)) || ALIASES.containsKey(key(stripTechPrefix(unmounted)));
+    String unmounted = withoutTags(name);
+    return TABLE.aliases().containsKey(slangKey(unmounted))
+        || TABLE.aliases().containsKey(slangKey(stripTechPrefix(unmounted)));
   }
 
   /**
-   * Every normalized name equipment with this canonical name may be stored under: the canonical
-   * name first, then older spellings ("ac/2" -> "autocannon/2", "ac2").
+   * The name to show people for equipment a file wrote this way: MegaMek's display name
+   * ("Autocannon/20" -> "AC/20"), or for names MegaMek doesn't list, the file's spelling without
+   * prefix, tags and size.
    */
-  public static Set<String> equivalentNames(String canonical) {
-    Set<String> names = new LinkedHashSet<>();
-    names.add(canonical);
-    names.addAll(EQUIVALENTS.getOrDefault(canonical, Set.of()));
-    return names;
+  public static String displayName(String written) {
+    String item = ITEM_SUFFIX.matcher(written).replaceAll("");
+    String display = TABLE.displays().get(canonical(item));
+    if (display != null) {
+      return display;
+    }
+    return stripTechPrefix(withoutTags(item)).replaceAll("\\s+", " ");
   }
 
   // a leading tech word as people type it (lowercase, spaced); longest first
@@ -197,98 +154,79 @@ public final class EquipmentNames {
     return name;
   }
 
-  private static String key(String name) {
-    return name.toLowerCase().replaceAll("[^a-z0-9]", "");
+  /**
+   * One way to look up a line of the alias file: the key, the normalized display name it stands
+   * for, the spelling it came from, and the tech its MegaMek prefix says (null without one).
+   */
+  public record AliasKey(String key, String display, String term, Tech prefixTech) {
   }
 
-  private static Map<String, Set<String>> loadFamilies(String resource) {
-    Map<String, Set<String>> families = new LinkedHashMap<>();
+  /**
+   * The lookup keys of an alias line (alias, display name): both names, each with and without a
+   * tech prefix. Searches arrive lowercased ("isac20"), where the case-sensitive prefix check can't
+   * strip it, so the prefixed key is kept too. The display name comes first.
+   */
+  public static List<AliasKey> aliasKeys(String alias, String display) {
+    String canonical = normalize(display);
+    List<AliasKey> keys = new ArrayList<>();
+    // the display name is a key too, so "lb 10-x ac" finds "LB 10-X AC"
+    for (String name : new String[] {display, alias}) {
+      String clean = withoutTags(name);
+      String stripped = stripTechPrefix(clean);
+      keys.add(new AliasKey(slangKey(stripped), canonical, stripped, null));
+      if (!stripped.equals(clean)) {
+        keys.add(new AliasKey(slangKey(clean), canonical, clean, clean.startsWith("IS") ? Tech.INNER_SPHERE : Tech.CLAN));
+      }
+    }
+    return keys;
+  }
+
+  /** The rows of a tab-separated resource, without comments and blank lines; empty if it's missing. */
+  public static List<String[]> readTsv(String resource) {
+    List<String[]> rows = new ArrayList<>();
     try (InputStream in = EquipmentNames.class.getResourceAsStream(resource)) {
       if (in == null) {
-        log.warn("No equipment families at {}", resource);
-        return families;
+        log.warn("No equipment names at {}", resource);
+        return rows;
       }
       BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
       String line;
       while ((line = reader.readLine()) != null) {
-        if (line.startsWith("#") || line.isBlank()) {
-          continue;
+        if (!line.startsWith("#") && !line.isBlank()) {
+          rows.add(line.split("\t"));
         }
-        String[] columns = line.split("\t");
-        // "LRM 10" and "LRM 10 (OS)" are the same weapon to search
-        families.computeIfAbsent(columns[0], k -> new LinkedHashSet<>()).add(typed(columns[1]));
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-    return families;
+    return rows;
   }
 
-  private static AliasTable loadAliases(String resource) {
-    // lookup key -> display names, and stored spelling -> display names
+  private static AliasTable loadAliases() {
+    // lookup key -> display names
     Map<String, Set<String>> candidates = new HashMap<>();
-    Map<String, Set<String>> spellings = new HashMap<>();
-    // prefixed key -> techs of its prefix, and keys that also occur without a prefix
-    Map<String, Set<Tech>> prefixedKeys = new HashMap<>();
-    Set<String> plainKeys = new HashSet<>();
-    try (InputStream in = EquipmentNames.class.getResourceAsStream(resource)) {
-      if (in == null) {
-        log.warn("No equipment alias table at {}", resource);
-        return new AliasTable(Map.of(), Map.of(), Map.of());
+    Map<String, String> displays = new HashMap<>();
+    for (String[] row : readTsv(ALIASES)) {
+      displays.putIfAbsent(normalize(row[1]), withoutTags(row[1]));
+      for (AliasKey key : aliasKeys(row[0], row[1])) {
+        candidates.computeIfAbsent(key.key(), k -> new HashSet<>()).add(key.display());
       }
-      BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-      String line;
-      while ((line = reader.readLine()) != null) {
-        if (line.startsWith("#") || line.isBlank()) {
-          continue;
-        }
-        String[] columns = line.split("\t");
-        String display = normalize(TECH_SUFFIX.matcher(columns[1]).replaceAll(""));
-        // the display name is a key too, so "lb 10-x ac" finds "LB 10-X AC"
-        for (String alias : new String[] {columns[0], columns[1]}) {
-          String clean = MOUNTING.matcher(TECH_SUFFIX.matcher(alias).replaceAll("")).replaceAll("");
-          String stripped = stripTechPrefix(clean);
-          // with and without the prefix: searches arrive lowercased ("isac20"), where the
-          // case-sensitive prefix check can't strip it
-          // (often the same key; the candidate set ignores the repeat)
-          for (String key : List.of(key(stripped), key(clean))) {
-            candidates.computeIfAbsent(key, k -> new HashSet<>()).add(display);
-          }
-          plainKeys.add(key(stripped));
-          if (!stripped.equals(clean)) {
-            prefixedKeys.computeIfAbsent(key(clean), k -> new HashSet<>())
-                .add(clean.startsWith("IS") ? Tech.INNER_SPHERE : Tech.CLAN);
-          }
-          // how an importer without this table would have stored it, prefix stripped
-          spellings.computeIfAbsent(normalize(stripped), k -> new HashSet<>()).add(display);
-        }
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
     Map<String, String> aliases = new HashMap<>();
-    int ambiguous = 0;
-    for (Map.Entry<String, Set<String>> entry : candidates.entrySet()) {
-      if (entry.getValue().size() == 1) {
-        aliases.put(entry.getKey(), entry.getValue().iterator().next());
-      } else {
-        // the same name for different equipment; leave it alone rather than guess
-        ambiguous++;
+    candidates.forEach((key, names) -> {
+      // the same name for different equipment; the slang load keeps those for someone to decide
+      if (names.size() == 1) {
+        aliases.put(key, names.iterator().next());
+      }
+    });
+    // a term on several lines: a unit file's item is named after the first
+    Set<String> shorthandKeys = new HashSet<>();
+    for (String[] row : readTsv(SHORTHAND)) {
+      if (shorthandKeys.add(slangKey(row[0]))) {
+        aliases.put(slangKey(row[0]), normalize(row[1]));
       }
     }
-    Map<String, Set<String>> equivalents = new HashMap<>();
-    spellings.forEach((spelling, displays) -> {
-      if (displays.size() == 1) {
-        equivalents.computeIfAbsent(displays.iterator().next(), k -> new LinkedHashSet<>()).add(spelling);
-      }
-    });
-    Map<String, Tech> prefixTech = new HashMap<>();
-    prefixedKeys.forEach((key, techs) -> {
-      if (techs.size() == 1 && !plainKeys.contains(key)) {
-        prefixTech.put(key, techs.iterator().next());
-      }
-    });
-    log.debug("Loaded {} equipment aliases, skipped {} ambiguous ones", aliases.size(), ambiguous);
-    return new AliasTable(aliases, equivalents, prefixTech);
+    log.debug("Loaded {} equipment aliases", aliases.size());
+    return new AliasTable(aliases, displays);
   }
 }

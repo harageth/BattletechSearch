@@ -8,15 +8,18 @@ import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
 import org.springframework.stereotype.Component;
 
 /**
- * POST /actuator/import {"source": "mechs" | "vehicles" | "recognition-guide"} on the management
- * port. Mechs and vehicles come from MEGAMEK_MECHS_PATH / MEGAMEK_VEHICLES_PATH; importing again
- * updates units already stored (matched on their MegaMek uuid) instead of duplicating them.
+ * POST /actuator/import {"source": "mechs" | "vehicles" | "slang" | "recognition-guide"} on the
+ * management port. Mechs and vehicles come from MEGAMEK_MECHS_PATH / MEGAMEK_VEHICLES_PATH;
+ * importing again updates units already stored (matched on their MegaMek uuid) instead of
+ * duplicating them. The slang is loaded again after each, or on its own with "slang" (after
+ * editing megamek/equipment-slang.tsv).
  */
 @Component
 @Endpoint(id = "import")
 public class ImportEndpoint {
   static final String MECHS = "mechs";
   static final String VEHICLES = "vehicles";
+  static final String SLANG = "slang";
   static final String RECOGNITION_GUIDE = "recognition-guide";
 
   private final UnitService unitService;
@@ -32,12 +35,14 @@ public class ImportEndpoint {
         return unitService.persistMechs();
       case VEHICLES:
         return unitService.persistVehicles();
+      case SLANG:
+        return unitService.loadSlang();
       case RECOGNITION_GUIDE:
         unitService.importRecognitionGuide();
         return "Imported " + source;
       default:
         throw new InvalidEndpointRequestException("Unknown import source: " + source,
-            "Unknown import source; supported: " + MECHS + ", " + VEHICLES + ", " + RECOGNITION_GUIDE);
+            "Unknown import source; supported: " + MECHS + ", " + VEHICLES + ", " + SLANG + ", " + RECOGNITION_GUIDE);
     }
   }
 }

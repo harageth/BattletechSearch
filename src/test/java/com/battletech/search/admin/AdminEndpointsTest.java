@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.battletech.search.TestcontainersConfiguration;
-import com.battletech.search.services.SearchService;
+import com.battletech.search.services.SlangLoader;
 import com.battletech.search.services.UnitService;
 import com.battletech.search.services.UnitService.ImportResult;
 import java.io.IOException;
@@ -18,10 +18,8 @@ import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,7 +30,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /** Runs the real app on random ports: search on the public port, admin endpoints on the management port. */
@@ -48,48 +45,11 @@ class AdminEndpointsTest {
   @Autowired
   TestRestTemplate rest;
 
-  @Autowired
-  SearchService searchService;
-
-  @Autowired
-  JdbcTemplate jdbcTemplate;
-
   @MockitoBean
   UnitService unitService;
 
-  @AfterEach
-  void removeSlang() {
-    jdbcTemplate.update("DELETE FROM equipment_slang WHERE slang IN ('particle cannon', 'ppcs')");
-  }
-
   private ResponseEntity<String> postAdmin(String endpoint, Map<String, Object> body) {
     return rest.postForEntity("http://127.0.0.1:" + managementPort + "/actuator/" + endpoint, body, String.class);
-  }
-
-  @Test
-  void addedSlangIsSearchable() throws IOException {
-    assertThat(postAdmin("slang", Map.of("equipmentName", "ppc", "terms", "particle cannon, ppc gun"))
-        .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-
-    List<Map<String, Object>> ppc = searchService.performQuery("mechs with at least 4 ppc");
-    assertThat(ppc).isNotEmpty();
-    assertThat(searchService.performQuery("mechs with at least 4 particle cannon")).isEqualTo(ppc);
-    assertThat(searchService.performQuery("mechs with at least 4 ppc gun")).isEqualTo(ppc);
-  }
-
-  @Test
-  void slangIsFilteredByTechInSearches() throws IOException {
-    // stored as "bigppc" on every ER PPC; the tech word in a search filters it
-    assertThat(postAdmin("slang", Map.of("equipmentName", "ER PPC [Clan]", "terms", "clan big ppc"))
-        .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-
-    List<Map<String, Object>> clanErPpc = searchService.performQuery("mechs with at least 1 clan er ppc");
-    assertThat(clanErPpc).isNotEmpty();
-    assertThat(searchService.performQuery("mechs with at least 1 clan big ppc")).isEqualTo(clanErPpc);
-    assertThat(searchService.performQuery("mechs with at least 1 is big ppc"))
-        .isEqualTo(searchService.performQuery("mechs with at least 1 is er ppc"));
-    assertThat(searchService.performQuery("mechs with at least 1 big ppc"))
-        .isEqualTo(searchService.performQuery("mechs with at least 1 er ppc"));
   }
 
   @Test
@@ -109,6 +69,14 @@ class AdminEndpointsTest {
     when(unitService.persistVehicles()).thenReturn(new ImportResult(2, 0, 1, 0));
     assertThat(postAdmin("import", Map.of("source", "vehicles")).getStatusCode()).isEqualTo(HttpStatus.OK);
     verify(unitService).persistVehicles();
+  }
+
+  @Test
+  void loadsTheSlangOnItsOwn() {
+    when(unitService.loadSlang()).thenReturn(new SlangLoader.Loaded(10, 2));
+    ResponseEntity<String> slang = postAdmin("import", Map.of("source", "slang"));
+    assertThat(slang.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(slang.getBody()).contains("\"terms\":10", "\"ambiguous\":2");
   }
 
   @Test

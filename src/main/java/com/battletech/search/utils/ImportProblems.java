@@ -34,7 +34,8 @@ public class ImportProblems {
     UNSUPPORTED_UNIT_TYPE(false, "unit type the importer skips"),
     // known gaps and expected names
     SIZE_NOT_KEPT(false, "size of a variable-size item that isn't stored yet (drones, MASH theaters, ...)"),
-    UNKNOWN_EQUIPMENT_NAME(false, "equipment name missing from the MegaMek alias table; stored as written");
+    UNKNOWN_EQUIPMENT_NAME(false, "equipment name missing from the MegaMek alias table; stored as written"),
+    AMBIGUOUS_SLANG(false, "name MegaMek uses for more than one item; no slang term, listed in ambiguous_slang to decide by hand");
 
     private final boolean warning;
     private final String description;

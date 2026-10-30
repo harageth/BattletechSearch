@@ -2,19 +2,24 @@ package com.battletech.search.web;
 
 import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.antlr.QueryVocabulary.UnitWord;
+import com.battletech.search.entities.Equipment;
+import com.battletech.search.entities.Slang;
+import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
-import com.battletech.search.repositories.EquipmentRepository;
+import com.battletech.search.repositories.SlangRepository;
 import com.battletech.search.utils.EquipmentNames;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,10 +29,15 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class VocabularyController {
-  private final EquipmentRepository equipRepo;
+  private static final Pattern NUMBER = Pattern.compile("\\d+");
+  // "lrm 5" before "lrm 10": by the words, then the first number
+  private static final Comparator<String> BY_NAME = Comparator.<String, String>comparing(name -> NUMBER.matcher(name).replaceAll(""))
+      .thenComparingInt(VocabularyController::firstNumber);
 
-  public VocabularyController(EquipmentRepository equipRepo) {
-    this.equipRepo = equipRepo;
+  private final SlangRepository slangRepo;
+
+  public VocabularyController(SlangRepository slangRepo) {
+    this.slangRepo = slangRepo;
   }
 
   /**
@@ -41,29 +51,37 @@ public class VocabularyController {
   }
 
   @GetMapping("/api/vocabulary")
+  @Transactional(readOnly = true)
   public ResponseEntity<Vocabulary> vocabulary() {
-    // stored under older spellings too until the data is regenerated ("autocannon/2")
-    Set<String> stored = equipRepo.findAllNames().stream().map(EquipmentNames::canonical)
-        .collect(Collectors.toSet());
     Map<String, List<String>> families = new LinkedHashMap<>();
     Map<String, List<String>> equipment = new LinkedHashMap<>();
-    EquipmentNames.families().forEach((term, members) -> {
+    // family terms only link equipment some unit has
+    List<Slang> terms = new ArrayList<>(slangRepo.findByKind(SlangKind.FAMILY));
+    terms.sort(Comparator.comparing(Slang::getTerm));
+    for (Slang family : terms) {
       // as a query can name them: "blazer" for the Binary Laser (Blazer) Cannon
-      List<String> searchable = members.stream()
-          .filter(member -> stored.contains(EquipmentNames.normalize(member)))
+      List<String> searchable = family.getEquipment().stream()
+          .map(member -> EquipmentNames.typed(member.getDisplayName() != null ? member.getDisplayName() : member.getName()))
           .map(QueryVocabulary::typedName)
           .filter(Objects::nonNull)
+          .distinct()
+          .sorted(BY_NAME)
           .toList();
       if (!searchable.isEmpty()) {
-        families.put(term, searchable);
-        searchable.forEach(member -> equipment.computeIfAbsent(member, k -> new ArrayList<>()).add(term));
+        families.put(family.getTerm(), searchable);
+        searchable.forEach(member -> equipment.computeIfAbsent(member, k -> new ArrayList<>()).add(family.getTerm()));
       }
-    });
+    }
     Vocabulary vocabulary = new Vocabulary(QueryVocabulary.weightClasses(), QueryVocabulary.units(),
         QueryVocabulary.comparatorsBefore(), QueryVocabulary.comparatorsAfter(),
         QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
         families, equipment);
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);
+  }
+
+  private static int firstNumber(String name) {
+    Matcher number = NUMBER.matcher(name);
+    return number.find() ? Integer.parseInt(number.group()) : 0;
   }
 }

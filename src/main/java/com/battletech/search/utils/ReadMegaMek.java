@@ -106,6 +106,7 @@ public class ReadMegaMek {
 
     if(value.get("transporters") != null && !value.get("transporters").get(0).isEmpty()){
       Equipment equip = new Equipment("infantry bay", chassisTech);
+      equip.setDisplayName("Infantry Bay");
       equip.setTonnage(0.5);
       UnitEquipment infantryBay = new UnitEquipment();
       infantryBay.setEquipment(equip);
@@ -125,6 +126,8 @@ public class ReadMegaMek {
       UnitEquipment value = new UnitEquipment();
       value.setEquipment(new Equipment());
       value.setLocation(location);
+      // as written, for the display name (UnitService)
+      value.getEquipment().setDisplayName(equip);
       equip = equip.toLowerCase();
       // "communications equipment:size:4.0": the size goes on this unit's item, not in the name
       Double size = sizeOf(equip);
@@ -507,8 +510,9 @@ public class ReadMegaMek {
           String name = line.substring(0, split);
           String location = line.substring(split + 2);
           Tech tech = slotTech(slots.getOrDefault(location.toLowerCase(), List.of()), name);
-          String weapon = EquipmentNames.normalize(name);
-          weapons.add(new UnitEquipment(new Equipment(weapon, tech != null ? tech : chassisTech), location));
+          Equipment weapon = new Equipment(EquipmentNames.normalize(name), tech != null ? tech : chassisTech);
+          weapon.setDisplayName(name);
+          weapons.add(new UnitEquipment(weapon, location));
           reportUnknownLocation(location, name, problems);
         }
         return weapons;
@@ -746,7 +750,7 @@ public class ReadMegaMek {
         } else if(comparable.contains("ammo") || isNarcPods(comparable)
             // a variable-size item repeats its size in every slot; two of different sizes are two items
             || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable + ":" + name.size()))) {
-          UnitEquipment item = new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), location);
+          UnitEquipment item = new UnitEquipment(slotEquipment(name, tech), location);
           setSize(item, name.name(), name.size(), problems);
           equipment.add(item);
           reportUnknownLocation(location, name.name(), problems);
@@ -758,10 +762,17 @@ public class ReadMegaMek {
       Tech tech = name.tech() != null ? name.tech() : chassisTech;
       for(int i = 0; i < count / SLOTS_PER_ITEM.get(comparable); i++) {
         // recorded at the first location it's in
-        equipment.add(new UnitEquipment(new Equipment(EquipmentNames.normalize(name.name()), tech), countedLocations.get(comparable)));
+        equipment.add(new UnitEquipment(slotEquipment(name, tech), countedLocations.get(comparable)));
         reportUnknownLocation(countedLocations.get(comparable), name.name(), problems);
       }
     });
+    return equipment;
+  }
+
+  // the slot's name normalized, and as written for the display name (UnitService)
+  private static Equipment slotEquipment(SlotName name, Tech tech) {
+    Equipment equipment = new Equipment(EquipmentNames.normalize(name.name()), tech);
+    equipment.setDisplayName(name.name());
     return equipment;
   }
 

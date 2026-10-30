@@ -21,10 +21,15 @@ Maven does not need to be installed; use the included wrapper (`./mvnw`, or `mvn
    ```
    ./mvnw spring-boot:run
    ```
-   The ANTLR grammar is compiled automatically during the build, and Flyway creates the schema and loads the unit data on first start.
+   The ANTLR grammar is compiled automatically during the build, and Flyway creates the schema on first start.
+1. Import the units. They come from MegaMek's data files ([mm-data](https://github.com/MegaMek/mm-data)), so a new database has none until you run the import. Restart the app with `MEGAMEK_MECHS_PATH` and `MEGAMEK_VEHICLES_PATH` set (see below), then import mechs, then vehicles (a few minutes in all):
+   ```
+   curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "mechs"}'
+   curl -X POST http://localhost:8081/actuator/import -H "Content-Type: application/json" -d '{"source": "vehicles"}'
+   ```
 1. Open http://localhost:8080/
 
-To run the tests: `./mvnw verify`. Docker must be running, but `docker compose` doesn't need to be: the tests start their own throwaway Postgres via Testcontainers and load the baseline data into it.
+To run the tests: `./mvnw verify`. Docker must be running, but `docker compose` doesn't need to be: the tests start their own throwaway Postgres via Testcontainers and import the fixture units in `src/test/resources/megamek` into it.
 
 The build also downloads Node into `target/node` and runs the search box's JavaScript tests (`src/test/js`). Nothing else needs installing. Skip them with `-Dskip.npm`.
 
@@ -49,14 +54,14 @@ Admin actions are [Spring Boot Actuator](https://docs.spring.io/spring-boot/refe
 | Endpoint | Purpose |
 | --- | --- |
 | `GET http://localhost:8081/actuator/health` | Health check |
-| `POST http://localhost:8081/actuator/import` | Run an import. Body: `{"source": "mechs"}` or `{"source": "vehicles"}` (from `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH`; re-running updates units instead of duplicating them), or `{"source": "recognition-guide"}` (experimental PDF import) |
-| `POST http://localhost:8081/actuator/slang` | Add slang for an equipment name. Body: `{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}`. Terms are comma-separated. |
+| `POST http://localhost:8081/actuator/import` | Run an import. Body: `{"source": "mechs"}` or `{"source": "vehicles"}` (from `MEGAMEK_MECHS_PATH` / `MEGAMEK_VEHICLES_PATH`; re-running updates units instead of duplicating them, and reloads the slang), `{"source": "slang"}` (reload the slang from `src/main/resources/megamek/*.tsv`), or `{"source": "recognition-guide"}` (experimental PDF import) |
+| `POST http://localhost:8081/actuator/slang` | Add slang for equipment some unit has, in this database only (lines in `equipment-slang.tsv` are for everyone). Body: `{"equipmentName": "medium laser", "terms": "ml, medium l"}`. Terms are comma-separated. |
 
 For example:
 
 ```
 curl -X POST http://localhost:8081/actuator/slang -H "Content-Type: application/json" \
-  -d '{"equipmentName": "mediumlaser", "terms": "ml, medium laser"}'
+  -d '{"equipmentName": "medium laser", "terms": "ml, medium l"}'
 ```
 
 ## Using an existing database

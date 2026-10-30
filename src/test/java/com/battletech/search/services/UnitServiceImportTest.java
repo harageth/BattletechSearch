@@ -24,8 +24,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Imports the fixture files into the real schema. Rolled back after each test, so the baseline data
- * other tests pin is untouched.
+ * Imports the fixture files into an empty database (the migrations leave no units). Rolled back
+ * after each test, so each starts empty.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -69,7 +69,7 @@ class UnitServiceImportTest {
   @Test
   void importsMechsWithTheirIds() throws IOException {
     ImportResult result = importMechs();
-    assertThat(result).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(9, 0, 0, 2));
+    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(9, 0, 0, 2));
     // the Goliath GOL-1M and the Hybrid Rifleman have no MUL id
     assertThat(result.problems()).containsEntry(ImportProblems.Kind.NO_MUL_ID, 2);
 
@@ -88,7 +88,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(0, 9, 0, 2));
+    assertThat(importMechs()).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(0, 9, 0, 2));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind
@@ -104,7 +104,7 @@ class UnitServiceImportTest {
     ImportResult result = unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
 
     // Air Car is a SupportTank
-    assertThat(result).usingRecursiveComparison().ignoringFields("problems").isEqualTo(new ImportResult(6, 0, 1, 0));
+    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(6, 0, 1, 0));
     assertThat(result.problems()).containsEntry(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE, 1);
     Unit bulldog = unitRepo.findByMegamekUuid(UUID.fromString("019f583e-e260-75d2-84ad-b6927336283b")).orElseThrow();
     assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
@@ -164,10 +164,8 @@ class UnitServiceImportTest {
     assertThat(search("units with exactly 2 autocannon 2")).contains("Bulldog Medium Tank (AC2)");
     // the Mad Cat's "Machine Gun" lines and the Bulldog's "Machine Gun" are the same equipment
     assertThat(search("units with exactly 2 machine gun")).contains("Mad Cat Prime", "Bulldog Medium Tank (AC2)");
-    // imported units only use the display names (the baseline data still has the old ones)
-    assertThat(count("SELECT count(*) FROM equipment e JOIN unit_equipment ue ON ue.equipment_id = e.id"
-        + " JOIN unit_mech_equipment ume ON ume.mech_equipment_id = ue.id JOIN unit u ON u.id = ume.unit_id"
-        + " WHERE u.megamek_uuid IS NOT NULL AND e.name IN ('autocannon/2', 'autocannon/20', 'mg')")).isZero();
+    // imported units only use the display names
+    assertThat(count("SELECT count(*) FROM equipment WHERE name IN ('autocannon/2', 'autocannon/20', 'mg')")).isZero();
   }
 
   @Test
@@ -280,12 +278,54 @@ class UnitServiceImportTest {
   }
 
   @Test
-  void heatSinksAreStoredByName() throws IOException {
-    // V3_4 turned the baseline's ordinals into names: 1 = DOUBLE, 2 = INNER_SPHERE
-    assertThat(count("SELECT count(*) FROM unit WHERE dtype = 'Mech' AND megamek_uuid IS NULL"
-        + " AND type = 'DOUBLE' AND tech_type = 'INNER_SPHERE'")).isEqualTo(1557);
-    assertThat(count("SELECT count(*) FROM unit WHERE type ~ '^[0-9]+$' OR tech_type ~ '^[0-9]+$'")).isZero();
+  void theBaselineUnitsAreGone() {
+    // V3_7 removed the units of the V2 dump, their equipment rows and equipment only they used
+    assertThat(count("SELECT count(*) FROM unit")).isZero();
+    assertThat(count("SELECT count(*) FROM unit_equipment")).isZero();
+    assertThat(count("SELECT count(*) FROM equipment")).isZero();
+  }
 
+  @Test
+  void storesDisplayNames() throws IOException {
+    importMechs();
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+
+    // MegaMek's display name, whichever name the file used: the Bulldog writes "Autocannon/2"
+    assertThat(jdbcTemplate.queryForList("SELECT DISTINCT display_name FROM equipment WHERE name IN ('ac/2', 'ac/20')",
+        String.class)).containsExactlyInAnyOrder("AC/2", "AC/20");
+    assertThat(count("SELECT count(*) FROM equipment WHERE display_name IS NULL")).isZero();
+  }
+
+  @Test
+  void loadsTheSlangAfterTheUnits() throws IOException {
+    ImportResult result = importMechs();
+    entityManager.flush();
+    assertThat(result.slangTerms()).isPositive();
+    // only for stored equipment, linked to its rows: the Atlas' LRM 20 is IS, the Viking IIC's Clan
+    assertThat(jdbcTemplate.queryForList("SELECT e.tech FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
+        + " JOIN equipment e ON e.id = se.equipment_id WHERE s.lookup = 'cllrm20'", String.class)).containsExactly("CLAN");
+    assertThat(count("SELECT count(*) FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
+        + " JOIN equipment e ON e.id = se.equipment_id WHERE s.lookup = 'lrms' AND e.name = 'lrm20'")).isEqualTo(2);
+    assertThat(count("SELECT count(*) FROM slang WHERE kind = 'FAMILY'")).isPositive();
+    // the shorthand file settles every key MegaMek gives to two items, so nothing waits in ambiguous_slang
+    // (SlangTermsTest covers keys left undecided)
+    assertThat(result.problems()).doesNotContainKey(ImportProblems.Kind.AMBIGUOUS_SLANG);
+    assertThat(count("SELECT count(*) FROM ambiguous_slang")).isZero();
+  }
+
+  @Test
+  void slangAddedByHandSurvivesAnImport() throws IOException {
+    importMechs();
+    jdbcTemplate.update("INSERT INTO slang (id, term, lookup, kind) VALUES (gen_random_uuid(), 'boom stick', 'boomstick', 'USER')");
+    jdbcTemplate.update("INSERT INTO slang_equipment (slang_id, equipment_id) SELECT s.id, e.id FROM slang s, equipment e"
+        + " WHERE s.lookup = 'boomstick' AND e.name = 'ac/20'");
+    importMechs();
+
+    assertThat(search("units with exactly 1 boom stick")).contains("Atlas AS7-D");
+  }
+
+  @Test
+  void heatSinksAreStoredByName() throws IOException {
     importMechs();
     // the Atlas AS7-D has 20 single heat sinks
     assertThat(jdbcTemplate.queryForList("SELECT type, tech_type, heatsink_quantity FROM unit WHERE megamek_uuid = '"

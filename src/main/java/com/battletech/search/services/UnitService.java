@@ -34,19 +34,21 @@ public class UnitService {
   private final UnitRepository unitRepo;
   private final EquipmentRepository equipRepo;
   private final MechEquipmentRepository mechEquipRepo;
+  private final SlangLoader slangLoader;
   private final TransactionTemplate transaction;
   private final String mechsPath;
   private final String vehiclesPath;
   private final String pdfPath;
 
   public UnitService(UnitRepository unitRepo, EquipmentRepository equipRepo,
-      MechEquipmentRepository mechEquipRepo, PlatformTransactionManager transactionManager,
+      MechEquipmentRepository mechEquipRepo, SlangLoader slangLoader, PlatformTransactionManager transactionManager,
       @Value("${battletech.import.mechs-path}") String mechsPath,
       @Value("${battletech.import.vehicles-path}") String vehiclesPath,
       @Value("${battletech.import.pdf-path}") String pdfPath) {
     this.unitRepo = unitRepo;
     this.equipRepo = equipRepo;
     this.mechEquipRepo = mechEquipRepo;
+    this.slangLoader = slangLoader;
     this.transaction = new TransactionTemplate(transactionManager);
     this.mechsPath = mechsPath;
     this.vehiclesPath = vehiclesPath;
@@ -54,12 +56,14 @@ public class UnitService {
   }
 
   /**
-   * How an import went; a re-import of unchanged files only updates. problems counts what the
-   * readers couldn't read or had to drop, per kind (the log has each one, with its file).
+   * How an import went; a re-import of unchanged files only updates. slangTerms is how many slang
+   * terms the slang load after it made. problems counts what the readers couldn't read or had to
+   * drop, per kind (the log has each one, with its file), and the ambiguous slang keys.
    */
-  public record ImportResult(int added, int updated, int skipped, int failed, Map<ImportProblems.Kind, Integer> problems) {
+  public record ImportResult(int added, int updated, int skipped, int failed, int slangTerms,
+      Map<ImportProblems.Kind, Integer> problems) {
     public ImportResult(int added, int updated, int skipped, int failed) {
-      this(added, updated, skipped, failed, Map.of());
+      this(added, updated, skipped, failed, 0, Map.of());
     }
   }
 
@@ -77,7 +81,7 @@ public class UnitService {
    * added. A file that fails to import is logged and skipped; so is a unit without a MUL id, which
    * counts as failed.
    */
-  ImportResult persistUnits(String directory, String extension, UnitReader reader) throws IOException {
+  public ImportResult persistUnits(String directory, String extension, UnitReader reader) throws IOException {
     if (directory == null || directory.isBlank()) {
       throw new IllegalStateException("No import directory configured; set MEGAMEK_MECHS_PATH / MEGAMEK_VEHICLES_PATH");
     }
@@ -117,10 +121,20 @@ public class UnitService {
         }
       });
     }
-    ImportResult result = new ImportResult(counts[0], counts[1], counts[2], counts[3], problems.counts());
-    log.info("Imported {}: {} added, {} updated, {} skipped, {} failed. Problems: {}", directory, result.added(),
-        result.updated(), result.skipped(), result.failed(), problems.summary());
-    return result;
+    log.info("Imported {}: {} added, {} updated, {} skipped, {} failed. Problems: {}", directory, counts[0],
+        counts[1], counts[2], counts[3], problems.summary());
+    // slang links the stored equipment, so it's loaded once the units are in
+    SlangLoader.Loaded slang = slangLoader.load();
+    Map<ImportProblems.Kind, Integer> problemCounts = problems.counts();
+    if (slang.ambiguous() > 0) {
+      problemCounts.put(ImportProblems.Kind.AMBIGUOUS_SLANG, slang.ambiguous());
+    }
+    return new ImportResult(counts[0], counts[1], counts[2], counts[3], slang.terms(), problemCounts);
+  }
+
+  /** Loads the slang again on its own, e.g. after a line was added to megamek/equipment-slang.tsv. */
+  public SlangLoader.Loaded loadSlang() {
+    return slangLoader.load();
   }
 
   /** Saves the unit, replacing the stored one with the same MegaMek uuid. Returns whether it replaced one. */
@@ -129,11 +143,20 @@ public class UnitService {
       if(equip.getEquipment().getTech() == null) {
         equip.getEquipment().setTech(unit.getTech());
       }
-      // one name per equipment, whichever MegaMek name the file used ("Autocannon/20" -> "ac/20")
+      // one name per equipment, whichever MegaMek name the file used ("Autocannon/20" -> "ac/20"),
+      // and MegaMek's display name for showing ("AC/20")
+      String written = equip.getEquipment().getDisplayName() != null
+          ? equip.getEquipment().getDisplayName() : equip.getEquipment().getName();
       equip.getEquipment().setName(EquipmentNames.canonical(equip.getEquipment().getName()));
+      equip.getEquipment().setDisplayName(EquipmentNames.displayName(written));
       List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
           equip.getEquipment().getTech());
       Equipment equipment = exists.isEmpty() ? equipRepo.save(equip.getEquipment()) : exists.get(0);
+      if (equipment.getDisplayName() == null) {
+        // stored before display names were
+        equipment.setDisplayName(equip.getEquipment().getDisplayName());
+        equipment = equipRepo.save(equipment);
+      }
       equip.setEquipment(equipment);
     }
 
@@ -160,7 +183,7 @@ public class UnitService {
   }
 
   @FunctionalInterface
-  interface UnitReader {
+  public interface UnitReader {
     Unit read(File file, ImportProblems.InFile problems) throws IOException;
   }
 }
