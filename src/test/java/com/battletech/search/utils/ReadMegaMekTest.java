@@ -9,11 +9,17 @@ import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.ArmorType;
+import com.battletech.search.model.CockpitType;
+import com.battletech.search.model.EngineType;
 import com.battletech.search.model.FireControl;
+import com.battletech.search.model.GyroType;
 import com.battletech.search.model.Heatsinks.HeatsinkType;
 import com.battletech.search.model.Location;
+import com.battletech.search.model.LamType;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.MotiveSystem;
+import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
 import java.io.File;
@@ -71,7 +77,8 @@ class ReadMegaMekTest {
     assertThat(atlas.getEra()).isEqualTo("2755");
     assertThat(atlas.getRulesLevel()).isEqualTo(1);
     assertThat(atlas.getLocomotion()).isEqualTo(Locomotion.BIPED);
-    assertThat(atlas.getEngine()).isEqualTo("300 Fusion Engine");
+    assertThat(atlas).extracting(Mech::getEngineType, Mech::getEngineTech, Mech::getEngineRating)
+        .containsExactly(EngineType.FUSION, Tech.INNER_SPHERE, 300);
     assertThat(atlas.getMovement().getWalk()).isEqualTo(3);
     assertThat(atlas.getMovement().getJump()).isZero();
     assertThat(atlas.getHeatsinks().getHeatsinkQuantity()).isEqualTo(20);
@@ -196,8 +203,8 @@ class ReadMegaMekTest {
     ImportProblems problems = new ImportProblems();
     ImportProblems.InFile inFile = problems.in(new File("Tarantula ZPH-1.mtf"));
 
-    // a quad's leg isn't a Location yet
-    ReadMegaMek.readMtfSlotEquipment(Map.of("front left leg", List.of("Jump Jet")), Tech.INNER_SPHERE, inFile);
+    // no mech has wings
+    ReadMegaMek.readMtfSlotEquipment(Map.of("left wing", List.of("Jump Jet")), Tech.INNER_SPHERE, inFile);
     // nothing for the Artemis to go on
     ReadMegaMek.attachMtfFireControl(List.of(weapon("mediumlaser", "Left Torso")),
         Map.of("left torso", List.of("Medium Laser", "ISArtemisIV")), inFile);
@@ -205,7 +212,7 @@ class ReadMegaMekTest {
     ReadMegaMek.convertToEquipment(List.of("ISDroneCarrierControlSystem:SIZE:6.0"), Tech.INNER_SPHERE, Location.BODY, inFile);
     ReadMegaMek.parseUuid("not-a-uuid", inFile);
 
-    assertThat(problems.of(ImportProblems.Kind.UNKNOWN_LOCATION)).containsExactly("Tarantula ZPH-1.mtf: Jump Jet in front left leg");
+    assertThat(problems.of(ImportProblems.Kind.UNKNOWN_LOCATION)).containsExactly("Tarantula ZPH-1.mtf: Jump Jet in left wing");
     assertThat(problems.of(ImportProblems.Kind.FIRE_CONTROL_WITHOUT_LAUNCHER))
         .containsExactly("Tarantula ZPH-1.mtf: ISArtemisIV in left torso");
     assertThat(problems.of(ImportProblems.Kind.SIZE_NOT_KEPT))
@@ -215,23 +222,42 @@ class ReadMegaMekTest {
   }
 
   @Test
-  void vehicleSectionsTheReaderSkipsAreReported(@TempDir Path dir) throws IOException {
-    // a superheavy tank's side sections and a VTOL's rotor aren't read yet
+  void superheavySidesRotorAndSlotlessSectionsAreRead(@TempDir Path dir) throws IOException {
     Path file = dir.resolve("Superheavy.blk");
     Files.writeString(file, String.join("\n", "<UnitType>", "Tank", "</UnitType>", "<Name>", "Superheavy", "</Name>",
         "<Model></Model>", "<type>", "IS Level 2", "</type>", "<motion_type>", "Tracked", "</motion_type>",
         "<cruiseMP>", "3", "</cruiseMP>", "<armor>", "10", "</armor>", "<tonnage>", "150.0", "</tonnage>",
         "<Front Equipment>", "Medium Laser", "</Front Equipment>",
         "<Front Left Equipment>", "Light Machine Gun", "</Front Left Equipment>",
-        "<Rear Right Equipment>", "</Rear Right Equipment>", ""));
+        "<Rear Right Equipment>", "</Rear Right Equipment>",
+        "<Rotor Equipment>", "Mast Mount", "</Rotor Equipment>",
+        "<slotless_equipment>", "CLCASE", "</slotless_equipment>", ""));
     ImportProblems problems = new ImportProblems();
 
     Unit tank = ReadMegaMek.ReadVehicleBlk(file.toFile(), problems.in(file.toFile()));
 
-    assertThat(tank.getMechEquipment()).extracting(equip -> equip.getEquipment().getName()).containsExactly("medium laser");
+    assertThat(tank.getMechEquipment()).extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation)
+        .containsExactly(tuple("medium laser", Location.FRONT), tuple("light machine gun", Location.FRONT_LEFT),
+            tuple("mast mount", Location.ROTOR), tuple("case", Location.BODY));
+    assertThat(problems.counts()).isEmpty();
+  }
+
+  @Test
+  void vehicleSectionsTheReaderSkipsAreReported(@TempDir Path dir) throws IOException {
+    // only on fixed-wing support vehicles, which are skipped; checked on a tank to see the report
+    Path file = dir.resolve("Winged.blk");
+    Files.writeString(file, String.join("\n", "<UnitType>", "Tank", "</UnitType>", "<Name>", "Winged", "</Name>",
+        "<Model></Model>", "<type>", "IS Level 2", "</type>", "<motion_type>", "Tracked", "</motion_type>",
+        "<cruiseMP>", "3", "</cruiseMP>", "<armor>", "10", "</armor>", "<tonnage>", "50.0", "</tonnage>",
+        "<Left Wing Equipment>", "Light Machine Gun", "</Left Wing Equipment>",
+        "<Nose Equipment>", "</Nose Equipment>", ""));
+    ImportProblems problems = new ImportProblems();
+
+    ReadMegaMek.ReadVehicleBlk(file.toFile(), problems.in(file.toFile()));
+
     // only the section with something in it
     assertThat(problems.of(ImportProblems.Kind.UNREAD_SECTION))
-        .containsExactly("Superheavy.blk: <front left equipment> [Light Machine Gun]");
+        .containsExactly("Winged.blk: <left wing equipment> [Light Machine Gun]");
   }
 
   private static List<UnitEquipment> named(Unit unit, String name) {
@@ -334,6 +360,99 @@ class ReadMegaMekTest {
     assertThat(madCat.getLocomotion()).isEqualTo(Locomotion.BIPED);
 
     assertThat(mech("Goliath GOL-1M.mtf").getLocomotion()).isEqualTo(Locomotion.QUAD);
+    // the first word of every Config: at the pinned commit
+    assertThat(List.of("Tripod OmniMek", "LAM", "QuadVee OmniMek")).extracting(config -> Locomotion.fromString(config.split(" ")[0]))
+        .containsExactly(Locomotion.TRIPOD, Locomotion.LAM, Locomotion.QUADVEE);
+  }
+
+  @Test
+  void readsMechComponents() throws IOException {
+    // type, tech, rating / armor and structure with their tech / gyro and cockpit
+    assertThat(mech("Mad Cat (Timber Wolf) Prime.mtf")).extracting(Mech::getEngineType, Mech::getEngineTech,
+            Mech::getEngineRating, Mech::getArmorType, Mech::getArmorTech, Mech::getStructureType, Mech::getStructureTech,
+            Mech::getGyro, Mech::getCockpit)
+        .containsExactly(EngineType.XL, Tech.CLAN, 375, ArmorType.FERRO_FIBROUS, Tech.CLAN, StructureType.ENDO_STEEL,
+            Tech.CLAN, GyroType.STANDARD, CockpitType.STANDARD);
+    // mixed tech: "Fusion Engine(IS)", "Ferro-Fibrous(Clan)", and "Standard" structure takes the IS chassis tech
+    assertThat(mech("Hybrid Rifleman RFL-3N (Sneede II).mtf")).extracting(Mech::getEngineType, Mech::getEngineTech,
+            Mech::getArmorType, Mech::getArmorTech, Mech::getStructureType, Mech::getStructureTech)
+        .containsExactly(EngineType.FUSION, Tech.INNER_SPHERE, ArmorType.FERRO_FIBROUS, Tech.CLAN, StructureType.STANDARD,
+            Tech.INNER_SPHERE);
+    assertThat(mech("Flamberge D.mtf")).extracting(Mech::getEngineType, Mech::getEngineTech, Mech::getArmorTech)
+        .containsExactly(EngineType.XL, Tech.CLAN, Tech.INNER_SPHERE);
+    assertThat(mech("Deep Lord RCL-Z1M MilitiaMech.mtf")).extracting(Mech::getEngineType, Mech::getEngineRating,
+            Mech::getStructureType, Mech::getCockpit)
+        .containsExactly(EngineType.FUEL_CELL, 195, StructureType.INDUSTRIAL, CockpitType.INDUSTRIAL);
+    assertThat(mech("Akuma AKU-2X.mtf").getGyro()).isEqualTo(GyroType.COMPACT);
+    assertThat(mech("Atlas AS7-D.mtf").getLamType()).isNull();
+  }
+
+  @Test
+  void readsLamAndQuadVeeComponents() {
+    ImportProblems problems = new ImportProblems();
+    Mech lam = new Mech();
+    lam.setLocomotion(Locomotion.LAM);
+    ReadMegaMek.readMtfComponents(lam, Map.of("engine", "405 Large XXL (Clan) Engine", "armor", "Patchwork",
+        "structure", "Hybrid", "lam", "Bimodal", "cockpit", "Small Cockpit"), Tech.INNER_SPHERE, problems.in(new File("Lam.mtf")));
+    Mech quadVee = new Mech();
+    quadVee.setLocomotion(Locomotion.QUADVEE);
+    ReadMegaMek.readMtfComponents(quadVee, Map.of("engine", "300 XL Engine", "armor", "Standard(Clan)",
+        "structure", "Clan Standard", "motive", "Wheel"), Tech.CLAN, problems.in(new File("QuadVee.mtf")));
+
+    // a large engine is its type with a rating over 400; patchwork and hybrid take the chassis tech
+    assertThat(lam).extracting(Mech::getEngineType, Mech::getEngineTech, Mech::getEngineRating, Mech::getArmorType,
+            Mech::getArmorTech, Mech::getStructureType, Mech::getLamType, Mech::getCockpit)
+        .containsExactly(EngineType.XXL, Tech.CLAN, 405, ArmorType.PATCHWORK, Tech.INNER_SPHERE, StructureType.HYBRID,
+            LamType.BIMODAL, CockpitType.SMALL);
+    assertThat(quadVee.getQuadVeeMotive()).isEqualTo(MotiveSystem.Wheeled);
+    assertThat(quadVee.getEngineTech()).isEqualTo(Tech.CLAN);
+    assertThat(problems.counts()).isEmpty();
+  }
+
+  @Test
+  void unknownComponentsAreReported() {
+    ImportProblems problems = new ImportProblems();
+    Mech mech = new Mech();
+    ReadMegaMek.readMtfComponents(mech, Map.of("engine", "300 Warp Engine", "armor", "Standard(Inner Sphere)",
+        "structure", "IS Standard", "gyro", "Spinning Gyro"), Tech.INNER_SPHERE, problems.in(new File("Odd.mtf")));
+
+    assertThat(mech.getEngineType()).isNull();
+    assertThat(problems.of(ImportProblems.Kind.UNKNOWN_COMPONENT))
+        .containsExactly("Odd.mtf: engine 300 Warp Engine", "Odd.mtf: gyro Spinning Gyro");
+  }
+
+  @Test
+  void readsVehicleComponents() throws IOException {
+    // ICE, hover: 8 MP x 50 tons - 235 suspension
+    assertThat(vehicle("Condor Heavy Hover Tank (Davion).blk")).extracting(Unit::getEngineType, Unit::getEngineTech,
+            Unit::getEngineRating, Unit::getArmorType, Unit::getArmorTech, Unit::getStructureType, Unit::getStructureTech)
+        .containsExactly(EngineType.ICE, Tech.INNER_SPHERE, 165, ArmorType.STANDARD, Tech.INNER_SPHERE,
+            StructureType.STANDARD, Tech.INNER_SPHERE);
+    // tracked: no suspension
+    assertThat(vehicle("DI Morgan Assault Tank (LRM).blk")).extracting(Unit::getEngineType, Unit::getEngineRating,
+            Unit::getArmorType)
+        .containsExactly(EngineType.XL, 300, ArmorType.HEAVY_FERRO_FIBROUS);
+    // Clan chassis with an IS engine (<clan_engine>false); armor tech level -1 is the chassis tech
+    assertThat(vehicle("Chalchiuhtotolin Support Tank (Bombast Laser).blk")).extracting(Unit::getEngineType,
+            Unit::getEngineTech, Unit::getEngineRating, Unit::getArmorType, Unit::getArmorTech)
+        .containsExactly(EngineType.FUSION, Tech.INNER_SPHERE, 230, ArmorType.FERRO_FIBROUS, Tech.CLAN);
+    // VTOL: 9 x 21 - 140 = 49, up to a multiple of 5
+    assertThat(vehicle("Warrior H-7 Attack Helicopter.blk").getEngineRating()).isEqualTo(50);
+  }
+
+  @Test
+  void quadAndTripodLegsAreLocations() {
+    ImportProblems problems = new ImportProblems();
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    slots.put("front left leg", List.of("Jump Jet"));
+    slots.put("rear right leg", List.of("IS Ammo SRM-6"));
+    slots.put("center leg", List.of("CASE"));
+
+    List<UnitEquipment> equipment = ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems.in(new File("Quad.mtf")));
+
+    assertThat(equipment).extracting(UnitEquipment::getLocation)
+        .containsExactlyInAnyOrder(Location.FRONT_LEFT_LEG, Location.REAR_RIGHT_LEG, Location.CENTER_LEG);
+    assertThat(problems.counts()).isEmpty();
   }
 
   @Test

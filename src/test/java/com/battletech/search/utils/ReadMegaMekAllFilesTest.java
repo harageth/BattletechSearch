@@ -18,10 +18,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
  * Parses every file in a MegaMek mm-data checkout. Only runs when MEGAMEK_MECHS_PATH /
  * MEGAMEK_VEHICLES_PATH are set, e.g. to check a new mm-data commit before re-importing.
  *
- * Besides files that fail, it checks the problems the readers report (ImportProblems) against the
- * ones known at the pinned commit, so a new kind of misread shows up here instead of silently in the
- * data. When a fix removes a known problem, or a new mm-data commit changes the numbers, update the
- * expected counts after reading the printed summary.
+ * Besides files that fail, it checks the readers report no warnings (ImportProblems): none at the
+ * pinned commit, so a new kind of misread shows up here instead of silently in the data. The printed
+ * summary lists them, and the info kinds (known gaps).
  */
 class ReadMegaMekAllFilesTest {
 
@@ -65,18 +64,13 @@ class ReadMegaMekAllFilesTest {
   @EnabledIfEnvironmentVariable(named = "MEGAMEK_MECHS_PATH", matches = ".+")
   void everyMechParses() throws IOException {
     ImportProblems problems = parseAll(System.getenv("MEGAMEK_MECHS_PATH"), ".mtf", ReadMegaMek::ReadMechMTF);
-    // known at mm-data d195e17: quad / tripod leg locations (bug 19) and LAM / QuadVee / Tripod configs
-    assertThat(warnings(problems)).isEqualTo(Map.of(
-        Kind.UNKNOWN_LOCATION, 205,
-        Kind.UNKNOWN_CONFIG, 47));
+    assertThat(warnings(problems)).isEmpty();
   }
 
   @Test
   @EnabledIfEnvironmentVariable(named = "MEGAMEK_VEHICLES_PATH", matches = ".+")
   void everyVehicleParses() throws IOException {
     ImportProblems problems = parseAll(System.getenv("MEGAMEK_VEHICLES_PATH"), ".blk", ReadMegaMek::ReadVehicleBlk);
-    // known at mm-data d195e17: superheavy side sections, VTOL rotor and slotless equipment
-    assertThat(warnings(problems)).isEqualTo(Map.of(
-        Kind.UNREAD_SECTION, 15));
+    assertThat(warnings(problems)).isEmpty();
   }
 }

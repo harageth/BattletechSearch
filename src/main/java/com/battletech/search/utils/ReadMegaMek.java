@@ -5,12 +5,18 @@ import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.ArmorType;
+import com.battletech.search.model.CockpitType;
+import com.battletech.search.model.EngineType;
 import com.battletech.search.model.FireControl;
+import com.battletech.search.model.GyroType;
+import com.battletech.search.model.LamType;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.entities.Mech;
 import com.battletech.search.model.Movement;
+import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
 import com.battletech.search.entities.Unit;
 import java.io.BufferedReader;
@@ -85,56 +91,15 @@ public class ReadMegaMek {
     for (String armorValue : value.get("armor")) {
       totalArmor = totalArmor + Integer.parseInt(armorValue);
     }
-    if (value.get("armor_type") != null) {
-      int armorType = Integer.parseInt(value.get("armor_type").get(0));
-    } else {
-      // in here we set the default of 0
-    }
-    if (value.get("internal_type") != null) {
-      int internal_type = Integer.parseInt(value.get("internal_type").get(0));
-    }else {
-      // set default internal structure
-    }
-    // the equipment sections read below; any other "... equipment" section is reported
-    Set<String> read = new HashSet<>();
-    if(value.get("front equipment") != null) {
-      read.add("front equipment");
-      vee.setMechEquipment(convertToEquipment(value.get("front equipment"), chassisTech, Location.FRONT, problems));
-    }
-    if(value.get("right equipment") != null) {
-      read.add("right equipment");
-      vee.setMechEquipment(convertToEquipment(value.get("right equipment"), chassisTech, Location.RIGHT, problems));
-    }
-    if(value.get("left equipment") != null) {
-      read.add("left equipment");
-      vee.setMechEquipment(convertToEquipment(value.get("left equipment"), chassisTech, Location.LEFT, problems));
-    }
-    if(value.get("rear equipment") != null) {
-      read.add("rear equipment");
-      vee.setMechEquipment(convertToEquipment(value.get("rear equipment"), chassisTech, Location.REAR, problems));
-    }
-    if(value.get("body equipment") != null) {
-      read.add("body equipment");
-      vee.setMechEquipment(convertToEquipment(value.get("body equipment"), chassisTech, Location.BODY, problems));
-    }
-    if(value.get("rear turret equipment") != null) {
-      if(value.get("front turret equipment") != null) {
-        read.add("front turret equipment");
-        vee.setMechEquipment(
-            convertToEquipment(value.get("front turret equipment"), chassisTech, Location.FRONTTURRET, problems));
+    readBlkComponents(vee, value, chassisTech, problems);
+    VEHICLE_SECTIONS.forEach((tag, location) -> {
+      if(value.get(tag) != null) {
+        vee.setMechEquipment(convertToEquipment(value.get(tag), chassisTech, location, problems));
       }
-      read.add("rear turret equipment");
-      vee.setMechEquipment(
-          convertToEquipment(value.get("rear turret equipment"), chassisTech, Location.REARTURRET, problems));
-    }else {
-      if(value.get("turret equipment") != null) {
-        read.add("turret equipment");
-        vee.setMechEquipment(
-            convertToEquipment(value.get("turret equipment"), chassisTech, Location.FRONTTURRET, problems));
-      }
-    }
+    });
+    // any other "... equipment" section is reported (wings, nose and aft are on skipped aircraft)
     value.forEach((tag, items) -> {
-      if(tag.endsWith("equipment") && !read.contains(tag) && !items.isEmpty()) {
+      if(tag.endsWith("equipment") && !VEHICLE_SECTIONS.containsKey(tag) && !items.isEmpty()) {
         problems.report(ImportProblems.Kind.UNREAD_SECTION, "<" + tag + "> " + items);
       }
     });
@@ -299,8 +264,7 @@ public class ReadMegaMek {
     mech.setEra(fields.get("era")); // now a year, e.g. 2755
     mech.setRulesLevel(Integer.parseInt(requiredField(fields, "rules level", filePath)));
     mech.setWeight(Integer.parseInt(requiredField(fields, "mass", filePath)));
-    mech.setEngine(fields.get("engine"));
-    mech.setStructure(fields.get("structure"));
+    readMtfComponents(mech, fields, Tech.chassisTech(techBase), problems);
     mech.setMyomer(fields.get("myomer"));
     // tech has to be set first; heat sinks copy it
     String heatSinks = requiredField(fields, "heat sinks", filePath);
@@ -321,6 +285,181 @@ public class ReadMegaMek {
     equipment.addAll(readMtfSlotEquipment(slots, chassisTech, problems));
     mech.setMechEquipment(equipment);
     return mech;
+  }
+
+  /**
+   * Engine, armor and structure from MegaMek's codes, read the way its BLKTankFile / BLKVTOLFile do:
+   * a missing <engine_type> is fusion, <armor_type> standard and <internal_type> standard. The engine
+   * rating isn't in the file; it comes from cruise MP, tonnage and the suspension factor.
+   */
+  static void readBlkComponents(Vehicle vee, Map<String, List<String>> value, Tech chassisTech,
+      ImportProblems.InFile problems) {
+    String engineCode = first(value, "engine_type");
+    vee.setEngineType(EngineType.fromBlkCode(engineCode == null ? 0 : Integer.parseInt(engineCode)));
+    if(vee.getEngineType() == null) {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "engine_type " + engineCode);
+    }
+    // only there when the engine's tech differs from the chassis
+    String clanEngine = first(value, "clan_engine");
+    vee.setEngineTech(clanEngine == null ? chassisTech
+        : Boolean.parseBoolean(clanEngine) ? Tech.CLAN : Tech.INNER_SPHERE);
+    String motion = first(value, "motion_type");
+    vee.setEngineRating(engineRating(vee.getEngineType(), vee.getMovement().getWalk(),
+        Double.parseDouble(value.get("tonnage").get(0)), motion == null ? null : MotiveSystem.fromString(motion)));
+
+    String armorCode = first(value, "armor_type");
+    vee.setArmorType(ArmorType.fromCode(armorCode == null ? 0 : Integer.parseInt(armorCode)));
+    if(vee.getArmorType() == null) {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "armor_type " + armorCode);
+    }
+    String armorTechLevel = first(value, "armor_tech_level");
+    Tech armorTech = armorTechLevel == null ? null : techOfLevel(Integer.parseInt(armorTechLevel));
+    vee.setArmorTech(armorTech != null ? armorTech : chassisTech);
+
+    String structureCode = first(value, "internal_type");
+    vee.setStructureType(StructureType.fromCode(structureCode == null ? 0 : Integer.parseInt(structureCode)));
+    if(vee.getStructureType() == null) {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "internal_type " + structureCode);
+    }
+    vee.setStructureTech(chassisTech);
+  }
+
+  /** MegaMek's TechConstants level: Clan or IS, or null for unknown / both (-1, T_TW_ALL). */
+  private static Tech techOfLevel(int level) {
+    return switch (level) {
+      case 2, 6, 8, 10, 12 -> Tech.CLAN;
+      case 0, 1, 3, 5, 7, 9, 11 -> Tech.INNER_SPHERE;
+      default -> null;
+    };
+  }
+
+  /** MegaMek's vehicle engine rating: cruise MP x tonnage - suspension factor, at least 10, up to a multiple of 5. */
+  static int engineRating(EngineType engine, int cruiseMp, double tonnage, MotiveSystem motive) {
+    if(cruiseMp == 0) {
+      return engine == EngineType.NONE ? 0 : 10;
+    }
+    int rating = Math.max(10, cruiseMp * (int) tonnage - suspensionFactor(motive, tonnage));
+    return rating % 5 == 0 ? rating : rating + 5 - rating % 5;
+  }
+
+  /** MegaMek's Tank.getSuspensionFactor. */
+  static int suspensionFactor(MotiveSystem motive, double weight) {
+    if(motive == null) {
+      return 0;
+    }
+    switch (motive) {
+      case Hover:
+        if(weight <= 10) return 40;
+        if(weight <= 20) return 85;
+        if(weight <= 30) return 130;
+        if(weight <= 40) return 175;
+        if(weight <= 50) return 235;
+        return 235 + 45 * (int) Math.ceil((weight - 50) / 25f);
+      case Hydrofoil:
+        if(weight <= 10) return 60;
+        if(weight <= 20) return 105;
+        if(weight <= 30) return 150;
+        if(weight <= 40) return 195;
+        if(weight <= 50) return 255;
+        if(weight <= 60) return 300;
+        if(weight <= 70) return 345;
+        if(weight <= 80) return 390;
+        if(weight <= 90) return 435;
+        return 480;
+      case Naval:
+      case Submarine:
+        if(weight <= 300) return 30;
+        int factor = (int) Math.ceil(weight / 10);
+        return factor + factor % 5;
+      case Wheeled:
+        return weight <= 80 ? 20 : 40;
+      case VTOL:
+        if(weight <= 10) return 50;
+        if(weight <= 20) return 95;
+        if(weight <= 30) return 140;
+        return 140 + 45 * (int) Math.ceil((weight - 30) / 20f);
+      case WiGE:
+        if(weight <= 15) return 45;
+        if(weight <= 30) return 80;
+        if(weight <= 45) return 115;
+        if(weight <= 80) return 140;
+        return 140 + 35 * (int) Math.ceil((weight - 80) / 30f);
+      default:
+        return 0;
+    }
+  }
+
+  // "300 XL (Clan) Engine", "300 XL Engine(IS)", "405 Large XXL Engine"
+  private static final Pattern MTF_ENGINE = Pattern.compile(
+      "(\\d+)\\s+(?:large\\s+)?(.+?)\\s*(?:\\((clan|is)\\))?\\s*engine\\s*(?:\\((clan|is)\\))?", Pattern.CASE_INSENSITIVE);
+  // "Ferro-Fibrous(Clan)", "Standard(Inner Sphere)", "Patchwork"
+  private static final Pattern MTF_ARMOR = Pattern.compile("(.+?)\\s*(?:\\((.+)\\))?");
+  // "IS Endo Steel", "Clan Standard", "Hybrid"
+  private static final Pattern MTF_STRUCTURE = Pattern.compile("(?:(is|clan)\\s+)?(.+)", Pattern.CASE_INSENSITIVE);
+
+  /**
+   * Engine, armor, structure, gyro and cockpit, plus a LAM's type and a QuadVee's motive. Without a
+   * tech in the text, a component has the chassis tech; without a gyro: or cockpit: line, the
+   * standard one.
+   */
+  static void readMtfComponents(Mech mech, Map<String, String> fields, Tech chassisTech,
+      ImportProblems.InFile problems) {
+    String engine = fields.get("engine");
+    Matcher engineMatch = engine == null ? null : MTF_ENGINE.matcher(engine.trim());
+    if(engineMatch != null && engineMatch.matches() && EngineType.fromString(engineMatch.group(2)) != null) {
+      mech.setEngineRating(Integer.parseInt(engineMatch.group(1)));
+      mech.setEngineType(EngineType.fromString(engineMatch.group(2)));
+      String tech = engineMatch.group(3) != null ? engineMatch.group(3) : engineMatch.group(4);
+      mech.setEngineTech(tech != null ? Tech.fromTechBase(tech) : chassisTech);
+    } else {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "engine " + engine);
+    }
+
+    String armor = fields.get("armor");
+    Matcher armorMatch = armor == null ? null : MTF_ARMOR.matcher(armor.trim());
+    if(armorMatch != null && armorMatch.matches() && ArmorType.fromString(armorMatch.group(1)) != null) {
+      mech.setArmorType(ArmorType.fromString(armorMatch.group(1)));
+      mech.setArmorTech(armorMatch.group(2) != null ? Tech.fromTechBase(armorMatch.group(2)) : chassisTech);
+    } else {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "armor " + armor);
+    }
+
+    String structure = fields.get("structure");
+    Matcher structureMatch = structure == null ? null : MTF_STRUCTURE.matcher(structure.trim());
+    if(structureMatch != null && structureMatch.matches() && StructureType.fromString(structureMatch.group(2)) != null) {
+      mech.setStructureType(StructureType.fromString(structureMatch.group(2)));
+      mech.setStructureTech(structureMatch.group(1) != null ? Tech.fromTechBase(structureMatch.group(1)) : chassisTech);
+    } else {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "structure " + structure);
+    }
+
+    String gyro = fields.getOrDefault("gyro", GyroType.STANDARD.getText());
+    mech.setGyro(GyroType.fromString(gyro));
+    if(mech.getGyro() == null) {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "gyro " + gyro);
+    }
+    String cockpit = fields.getOrDefault("cockpit", CockpitType.STANDARD.getText());
+    mech.setCockpit(CockpitType.fromString(cockpit));
+    if(mech.getCockpit() == null) {
+      problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "cockpit " + cockpit);
+    }
+
+    if(mech.getLocomotion() == Locomotion.LAM) {
+      String lam = fields.getOrDefault("lam", LamType.STANDARD.name());
+      mech.setLamType(LamType.fromString(lam));
+      if(mech.getLamType() == null) {
+        problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "lam " + lam);
+      }
+    }
+    if(mech.getLocomotion() == Locomotion.QUADVEE) {
+      // "Track" or "Wheel"
+      String motive = String.valueOf(fields.get("motive"));
+      mech.setQuadVeeMotive(motive.equalsIgnoreCase("track") ? MotiveSystem.Tracked
+          : motive.equalsIgnoreCase("wheel") ? MotiveSystem.Wheeled : null);
+      if(mech.getQuadVeeMotive() == null) {
+        problems.report(ImportProblems.Kind.UNKNOWN_COMPONENT, "quadvee motive " + motive);
+      }
+    }
   }
 
   /** The "key:value" lines before the weapons list, keyed by lowercase key. The first value wins. */
@@ -418,7 +557,30 @@ public class ReadMegaMek {
   // Variable-size items whose size is tons. What the size measures depends on the item (MegaMek's
   // MiscType.sizeSuffix): jump MP for a jump booster, drones for a drone carrier, theaters for MASH,
   // meters for a ladder.
-  private static final Set<String> SIZED_IN_TONS = Set.of("cargo", "liquidstorage", "communicationsequipment");
+  /** The vehicle equipment sections read, in order, and where their items are. */
+  private static final Map<String, Location> VEHICLE_SECTIONS = new LinkedHashMap<>();
+  static {
+    VEHICLE_SECTIONS.put("front equipment", Location.FRONT);
+    VEHICLE_SECTIONS.put("right equipment", Location.RIGHT);
+    VEHICLE_SECTIONS.put("left equipment", Location.LEFT);
+    VEHICLE_SECTIONS.put("rear equipment", Location.REAR);
+    VEHICLE_SECTIONS.put("body equipment", Location.BODY);
+    // a single turret is the front turret; with two there's a rear turret too
+    VEHICLE_SECTIONS.put("turret equipment", Location.FRONTTURRET);
+    VEHICLE_SECTIONS.put("front turret equipment", Location.FRONTTURRET);
+    VEHICLE_SECTIONS.put("rear turret equipment", Location.REARTURRET);
+    // superheavy tanks have two sections a side
+    VEHICLE_SECTIONS.put("front left equipment", Location.FRONT_LEFT);
+    VEHICLE_SECTIONS.put("front right equipment", Location.FRONT_RIGHT);
+    VEHICLE_SECTIONS.put("rear left equipment", Location.REAR_LEFT);
+    VEHICLE_SECTIONS.put("rear right equipment", Location.REAR_RIGHT);
+    // VTOL mast mounts
+    VEHICLE_SECTIONS.put("rotor equipment", Location.ROTOR);
+    // equipment that takes no slot, like CASE; on the body
+    VEHICLE_SECTIONS.put("slotless_equipment", Location.BODY);
+  }
+
+  private static final Set<String> SIZED_IN_TONS =Set.of("cargo", "liquidstorage", "communicationsequipment");
 
   /** Stores a variable size where it belongs: tons in tonnage, a jump booster's MP in jumpBoost. */
   static void setSize(UnitEquipment item, String name, Double size, ImportProblems.InFile problems) {
@@ -557,7 +719,7 @@ public class ReadMegaMek {
    * slot; jump jets by their slot size. Other equipment can span several slots and locations, so
    * each item is counted once per mech.
    */
-  /** "Front Left Leg" on quads and "Center Leg" on tripods aren't Locations yet (bug 19). */
+  /** A location name the reader has no Location for; the item is saved without one. */
   private static void reportUnknownLocation(String location, String item, ImportProblems.InFile problems) {
     if(Location.fromString(location) == null) {
       problems.report(ImportProblems.Kind.UNKNOWN_LOCATION, item + " in " + location);

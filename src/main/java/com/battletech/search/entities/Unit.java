@@ -1,7 +1,10 @@
 package com.battletech.search.entities;
 
+import com.battletech.search.model.ArmorType;
+import com.battletech.search.model.EngineType;
 import com.battletech.search.model.Movement;
 import com.battletech.search.model.Searchable;
+import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
 import java.util.List;
@@ -47,6 +50,22 @@ public class Unit implements Searchable {
     int weight;
     @Enumerated(EnumType.STRING)
     public WeightClass weightClass;// should be an ENUM
+
+    // engine, armor and structure; null on units imported before they were stored (V3_5)
+    @Enumerated(EnumType.STRING)
+    EngineType engineType;
+    @Enumerated(EnumType.STRING)
+    Tech engineTech;
+    Integer engineRating;
+    // PATCHWORK when each location has its own type
+    @Enumerated(EnumType.STRING)
+    ArmorType armorType;
+    @Enumerated(EnumType.STRING)
+    Tech armorTech;
+    @Enumerated(EnumType.STRING)
+    StructureType structureType;
+    @Enumerated(EnumType.STRING)
+    Tech structureTech;
 
 
     //@ElementCollection(fetch = FetchType.EAGER)
