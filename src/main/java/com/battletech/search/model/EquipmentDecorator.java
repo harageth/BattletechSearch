@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import lombok.Data;
 
 @Data
-public class EquipmentDecorator extends UnitEquipment {
+public class EquipmentDecorator extends UnitEquipment implements UnitFilter {
   UnitEquipment decoratedEquipment;
   Comparison comparison;
   int quantity;
@@ -20,6 +20,8 @@ public class EquipmentDecorator extends UnitEquipment {
   Set<FireControl> fireControls;
   // the equipment exists but not in the tech asked for ("clan plasma rifle"), so no unit matches
   boolean matchesNothing;
+  // "without ppcs": units with none (the count is at least 1, and UnitDecorator negates it)
+  boolean negated;
 
   public EquipmentDecorator(UnitEquipment decoratedEquipment) {
     this.decoratedEquipment = decoratedEquipment;
@@ -50,24 +52,10 @@ public class EquipmentDecorator extends UnitEquipment {
       // "any lasers": at least one, whatever comparator is in front
       this.quantity = 1;
       this.comparison = Comparison.EQUAL_OR_GREATER;
-    }else if(comparison == null) {
+    }else {
+      //ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE, or none for exactly
       this.quantity = QuantityConverter.toInt(quantity);
-      this.comparison = Comparison.EQUAL;
-    }else if(!comparison.isEmpty()) {
-      //ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE
-      // build it into one of the comparisons and translate
-      this.quantity = QuantityConverter.toInt(quantity);
-      if(comparison.equalsIgnoreCase("ATLEAST")) {
-        this.comparison = Comparison.EQUAL_OR_GREATER;
-      }else if(comparison.equalsIgnoreCase("NOMORE")) {
-        this.comparison = Comparison.EQUAL_OR_LESS;
-      }else if(comparison.equalsIgnoreCase("EQUAL")) {
-        this.comparison = Comparison.EQUAL;
-      }else if(comparison.equalsIgnoreCase("LESSTHANCOMPARATOR")) {
-        this.comparison = Comparison.LESS_THAN;
-      }else if(comparison.equalsIgnoreCase("GREATERTHANCOMPARATOR")) {
-        this.comparison = Comparison.GREATER_THAN;
-      }
+      this.comparison = Comparison.fromToken(comparison);
     }
   }
 

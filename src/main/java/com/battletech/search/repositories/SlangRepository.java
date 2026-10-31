@@ -16,6 +16,10 @@ public interface SlangRepository extends CrudRepository<Slang, UUID> {
   @EntityGraph(attributePaths = "equipment")
   List<Slang> findByKind(SlangKind kind);
 
+  @EntityGraph(attributePaths = "equipment")
+  @Query("from Slang")
+  List<Slang> findAllWithEquipment();
+
   // the database removes their slang_equipment rows (ON DELETE CASCADE)
   @Modifying(flushAutomatically = true, clearAutomatically = true)
   @Query("delete from Slang s where s.kind <> :kind")

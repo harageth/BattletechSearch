@@ -84,4 +84,35 @@ class EquipmentServiceTest {
         .isInstanceOf(IllegalArgumentException.class);
     verify(slangRepo, never()).save(any());
   }
+
+  private static Equipment displayed(String name, String displayName, Tech tech) {
+    Equipment equipment = new Equipment(name, tech);
+    equipment.setDisplayName(displayName);
+    return equipment;
+  }
+
+  @Test
+  void listsEachItemOnceWithItsSlang() {
+    Equipment isLrm = displayed("lrm20", "LRM 20", Tech.INNER_SPHERE);
+    Equipment clanLrm = displayed("lrm20", "LRM 20", Tech.CLAN);
+    Equipment ams = displayed("antimissilesystem", "AMS", Tech.CLAN);
+    when(equipRepo.findAll()).thenReturn(List.of(clanLrm, ams, isLrm));
+    when(slangRepo.findAllWithEquipment()).thenReturn(List.of(
+        new Slang("LRM 20", "lrm20", SlangKind.ALIAS, Set.of(isLrm, clanLrm)),
+        new Slang("CLLRM20", "cllrm20", SlangKind.ALIAS, Set.of(clanLrm)),
+        new Slang("IS LRM 20", "islrm20", SlangKind.ALIAS, Set.of(isLrm)),
+        new Slang("OS LRM-20", "oslrm20", SlangKind.ALIAS, Set.of(isLrm, clanLrm)),
+        new Slang("Clan OS LRM-20", "clanoslrm20", SlangKind.ALIAS, Set.of(clanLrm)),
+        new Slang("lrms", "lrms", SlangKind.FAMILY, Set.of(isLrm, clanLrm)),
+        new Slang("lrm", "lrm", SlangKind.FAMILY_SINGULAR, Set.of(isLrm, clanLrm)),
+        new Slang("Anti-Missile System", "antimissilesystem", SlangKind.ALIAS, Set.of(ams)),
+        new Slang("ams", "ams", SlangKind.SHORTHAND, Set.of(ams))));
+
+    List<EquipmentService.EquipmentTerms> rows = service.equipmentWithSlang();
+
+    // by name; the item's own name and tech-prefixed spellings of it aren't repeated
+    assertThat(rows).containsExactly(
+        new EquipmentService.EquipmentTerms("AMS", List.of("Clan"), List.of(), List.of("Anti-Missile System")),
+        new EquipmentService.EquipmentTerms("LRM 20", List.of("IS", "Clan"), List.of("lrms", "lrm"), List.of("OS LRM-20")));
+  }
 }

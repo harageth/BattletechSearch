@@ -97,6 +97,20 @@ body {
 	filter: drop-shadow(0 2px 0 #000);
 }
 
+.site-nav {
+	margin-left: auto;
+}
+.site-nav a {
+	color: #e1ad01;
+	font-weight: bold;
+	text-decoration: none;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.site-nav a:hover {
+	text-decoration: underline;
+}
+
 main {
 	padding: 20px 20px 58px; /* match footer height +20 */
 	display: flex;
@@ -201,6 +215,81 @@ main a {
 	font-size: 90%;
 }
 
+/* The search guide (equipment.html) */
+.guide {
+	flex-basis: 100%;
+	margin-top: 20px;
+}
+.guide h3 {
+	margin: 28px 0 0;
+}
+.guide-anatomy {
+	margin: 0;
+	font-size: 130%;
+}
+.guide-table td {
+	vertical-align: top;
+}
+.guide-table td:first-child {
+	font-weight: bold;
+	white-space: nowrap;
+}
+.guide-table td:last-child code {
+	display: inline-block;
+	margin-bottom: 4px;
+}
+.guide-words {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 2px 0;
+}
+.guide-units {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 6px 12px;
+	margin: 0;
+}
+.guide-units dd {
+	margin: 0;
+}
+.guide-examples {
+	padding-left: 20px;
+}
+.guide-examples li {
+	margin-bottom: 8px;
+}
+
+/* The equipment list (equipment.html) */
+.equipment-list {
+	flex-basis: 100%;
+	margin-top: 20px;
+}
+.equipment-filter {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 6px 9px;
+	font-size: 110%;
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	background: var(--page-background);
+	color: var(--page-text);
+}
+.equipment-filter[hidden] {
+	display: none;
+}
+.equipment-list td {
+	vertical-align: top;
+}
+/* MegaMek's own names: long lists, mostly for finding an item */
+.equipment-other-names {
+	color: #6b6b6b;
+	font-size: 90%;
+}
+.theme-dark .equipment-other-names {
+	color: #9a9a9a;
+}
+
 /* Phones: stack the example and the form, and let the example query wrap */
 @media (max-width: 640px) {
 	main {
@@ -218,6 +307,21 @@ main a {
 	}
 	.site-header {
 		padding: 12px 16px 0;
+	}
+	/* the guide's tables read as one block per part */
+	.guide-table thead {
+		display: none;
+	}
+	.guide-table tr,
+	.guide-table td {
+		display: block;
+	}
+	.guide-units {
+		grid-template-columns: 1fr;
+		gap: 2px;
+	}
+	.guide-units dd {
+		margin-bottom: 6px;
 	}
 }
 
@@ -284,6 +388,12 @@ main a {
 .tok-weight-class { color: var(--query-weight-class); }
 .tok-unit { color: var(--query-unit); font-weight: bold; }
 .tok-with { color: var(--query-filler); }
+/* "without" decides what's counted, like a comparator */
+.tok-without { color: var(--query-amount); font-weight: bold; }
+/* "except", "non-lam": units left out */
+.tok-except { color: var(--query-unit); }
+.tok-omni { color: var(--query-weight-class); }
+.tok-rating { color: var(--query-equipment); font-weight: bold; }
 .tok-operator { color: var(--query-filler); }
 .tok-comma { color: var(--query-filler); }
 .tok-comparator { color: var(--query-amount); }

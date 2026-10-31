@@ -5,6 +5,7 @@ import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
+import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.UnitDecorator;
 import com.battletech.search.model.MotiveSystem;
 
@@ -27,6 +28,13 @@ public class UnitBuilder {
       unit.setDecoratedUnit(tank(MotiveSystem.Wheeled));
     }else if(unitType.equalsIgnoreCase("hovercraft")) {
       unit.setDecoratedUnit(tank(MotiveSystem.Hover));
+    }else if(Locomotion.fromString(unitType) != null) {
+      // "lams", "quads": mechs with that body plan
+      unit.setDecoratedUnit(new Mech());
+      unit.setLocomotion(Locomotion.fromString(unitType));
+    }else if(unitType.equalsIgnoreCase("omnimech")) {
+      unit.setDecoratedUnit(new Mech());
+      unit.setOmniFilter(true);
     }else if(unitType.equalsIgnoreCase("VTOL")) {
       unit.setDecoratedUnit(new Vtol());
     }else if(unitType.equalsIgnoreCase("genericunit")) {

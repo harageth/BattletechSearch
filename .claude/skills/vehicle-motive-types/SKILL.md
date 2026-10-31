@@ -19,7 +19,8 @@ MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those ar
 - **Entity:** `Tank.motiveSystem` (`@Enumerated(STRING)`). `entities/Vehicle.java` isn't an `@Entity` / `@MappedSuperclass`, so fields there aren't persisted. VTOLs don't store one; they're always VTOL.
 - **Enum:** `model/MotiveSystem`: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE, Aerodyne, Rail. Stored by name, so new values can go anywhere. `fromString` is case-insensitive.
 - **Importer:** `ReadVehicleBlk` maps `motion_type`; unknown values are logged and stored as null. At the pinned mm-data commit every tank's value is recognized (Tracked 572, Hover 328, Wheeled 314, WiGE 36, Submarine 15, Naval 9, Aerodyne 9, Rail 8, Hydrofoil 7, across Tank and support types).
-- **Grammar:** `TANK`, `TRACKED`, `WHEELED` and `HOVERCRAFT` (also "hovertank") tokens, plural- and case-insensitive. There are no tokens yet for WiGE, naval and the others.
+- **Grammar:** `TANK`, `TRACKED`, `WHEELED` and `HOVERCRAFT` (also "hovertank" and "hover") tokens, plural- and case-insensitive. There are no tokens yet for WiGE, naval and the others.
+  - **A motive word can come before a vehicle word** (user request, 2026-10-31): `tracked vehicles`, `tracked vees`, `wheeled tanks`, `hover tanks`, and `vtol vehicles`. The `unit` rule takes `(WHEELED | TRACKED | HOVERCRAFT) (VEHICLE | TANK)?` and `VTOL VEHICLE?`. `QueryVisitor.visitUnit` builds the unit from the first token, so the vehicle word changes nothing. The search box colors the pair as one unit word and swaps it whole.
 - **Search:** `UnitBuilder` maps tracked/wheeled/hovercraft to a `Tank` with that motive. `UnitDecorator.getQuery` adds `motive_system = '<enum name>'`, or for plain `tank` the boat exclusion. The SQL is built from enum names only, never user text.
 
 ## Tests
