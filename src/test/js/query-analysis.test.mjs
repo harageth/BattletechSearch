@@ -39,6 +39,7 @@ const vocabulary = {
   components: {
     engine: ['fusion engine', 'xl engine', 'light engine'],
     structure: ['endo steel structure'],
+    cockpit: ['small cockpit', 'tripod cockpit'],
   },
 };
 
@@ -401,7 +402,46 @@ test('other words for without, and units left out', () => {
   assert.deepEqual(roles('mechs with 2 ppc but not lasers').slice(4), ['but not:without', 'lasers:equipment']);
   assert.deepEqual(roles('non-lam mechs except quads'), ['non-lam:except', 'mechs:unit', 'except:except', 'quads:unit']);
   assert.equal(analyze('mechs without ppcs or lasers but with 2 lrm 20', vocabulary).error, null);
-  // "no" goes; "without" becomes "with"
+  // "no" after a "with" goes; "without" becomes "with"
   assert.deepEqual(texts(alternatives(token('mechs with no ppcs', 'no'), vocabulary)), ['']);
   assert.deepEqual(texts(alternatives(token('mechs lacking ppcs', 'lacking'), vocabulary)), ['with']);
+});
+
+/** The query with one token swapped for its first alternative. */
+function swapped(query, text) {
+  const found = token(query, text);
+  return replaceToken(query, found, alternatives(found, vocabulary)[0].text).text;
+}
+
+test('"no" anywhere but after a "with" becomes "with"', () => {
+  // taken out, these would read "mechs ppcs" and leave the lasers out still
+  assert.equal(swapped('mechs no ppcs', 'no'), 'mechs with ppcs');
+  assert.equal(swapped('mechs without ppcs and no lasers', 'no'), 'mechs without ppcs and with lasers');
+  assert.equal(swapped('mechs with 2 ppc but no lasers', 'no'), 'mechs with 2 ppc but with lasers');
+  assert.equal(swapped('mechs with no ppcs', 'no'), 'mechs with ppcs');
+  for (const query of ['mechs with ppcs', 'mechs without ppcs and with lasers', 'mechs with 2 ppc but with lasers']) {
+    assert.equal(analyze(query, vocabulary).error, null, query);
+  }
+});
+
+test('a swap starting with a unit word gets "any" when no number comes before it', () => {
+  // "tripod" is a unit word, and a name with no number in front must start with a plain word
+  assert.deepEqual(texts(alternatives(token('mechs with small cockpit', 'small cockpit'), vocabulary)),
+      ['any tripod cockpit']);
+  assert.equal(analyze(swapped('mechs with small cockpit', 'small cockpit'), vocabulary).error, null);
+  // after a number, a tech or "without" a unit word can start the name
+  assert.deepEqual(texts(alternatives(token('mechs with a small cockpit', 'small cockpit'), vocabulary)),
+      ['tripod cockpit']);
+  assert.deepEqual(texts(alternatives(token('mechs without small cockpit', 'small cockpit'), vocabulary)),
+      ['tripod cockpit']);
+  // equipment too: "flamers" -> "any vehicle flamer"
+  const flamers = {
+    ...vocabulary,
+    families: { ...vocabulary.families, flamers: ['flamer', 'vehicle flamer'] },
+    equipment: { ...vocabulary.equipment, flamer: ['flamers'], 'vehicle flamer': ['flamers'] },
+  };
+  const options = alternatives(analyze('units with flamers', flamers).tokens.at(-1), flamers);
+  assert.ok(texts(options).includes('any vehicle flamer'));
+  assert.ok(texts(options).includes('flamer'));
+  assert.equal(analyze('units with any vehicle flamer', flamers).error, null);
 });

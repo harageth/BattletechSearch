@@ -85,7 +85,10 @@ public final class ComponentNames {
     texts.forEach((kind, byType) -> {
       List<String> names = new ArrayList<>();
       byType.forEach((type, text) -> {
-        if (text.equalsIgnoreCase("none")) {
+        // BAR armor isn't searchable yet: no imported unit has it (nearly all are support vehicles,
+        // not imported), and "bar 2 armor" can't parse with a number mid-name. Planned as a rating
+        // like the engine's ("bar rating of at least 7")
+        if (text.equalsIgnoreCase("none") || type.startsWith("BAR_")) {
           return;
         }
         List<String> types = new ArrayList<>(List.of(type));

@@ -2,6 +2,7 @@ package com.battletech.search.utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.utils.ComponentNames.Kind;
 import java.util.HashSet;
 import java.util.List;
@@ -60,5 +61,19 @@ class ComponentNamesTest {
     assertThat(ComponentNames.names().get(Kind.ENGINE)).contains("xl engine", "light engine", "fusion engine")
         .doesNotContain("none engine");
     assertThat(ComponentNames.names().get(Kind.COCKPIT)).contains("small cockpit", "command console");
+  }
+
+  @Test
+  void everyNameCanBeTyped() {
+    // the guide and the search box offer these, so each has to parse as one name
+    assertThat(ComponentNames.names().values().stream().flatMap(List::stream))
+        .allMatch(QueryVocabulary::isTypeable);
+  }
+
+  @Test
+  void barArmorIsLeftOutForNow() {
+    // a number mid-name doesn't parse ("bar 2 armor"), and no imported unit has it: planned as a rating
+    assertThat(ComponentNames.names().get(Kind.ARMOR)).noneMatch(name -> name.startsWith("bar"));
+    assertThat(ComponentNames.find("bar 2 armor")).isNull();
   }
 }
