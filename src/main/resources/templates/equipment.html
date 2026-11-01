@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/search-form :: head}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+    <main>
+        <aside>
+            <p>How to write a search, the words each part of it takes, and every piece of equipment with the other words a search finds it by.</p>
+            <p class="hint">
+                <a href="#units">Units</a> ·
+                <a href="#with">With and without</a> ·
+                <a href="#how-many">How many</a> ·
+                <a href="#equipment-names">Equipment</a> ·
+                <a href="#components">Components</a> ·
+                <a href="#joining">And, or</a> ·
+                <a href="#examples">Examples</a> ·
+                <a href="#equipment">Equipment list</a>
+            </p>
+        </aside>
+        <form th:replace="~{fragments/search-form :: form}"></form>
+
+        <!-- The word lists come from QueryVocabulary (EquipmentController); EquipmentControllerTest
+             checks every unit word is described here -->
+        <section class="guide">
+            <h2>How a search is put together</h2>
+            <p class="query-editor guide-anatomy">
+                <span class="tok-weight-class">heavy</span> <span class="tok-omni">omni</span>
+                <span class="tok-unit">mechs</span> <span class="tok-with">with</span>
+                <span class="tok-comparator">at least</span> <span class="tok-quantity">2</span>
+                <span class="tok-equipment">lrm 20</span> <span class="tok-operator">and</span>
+                <span class="tok-without">no</span> <span class="tok-equipment">ppcs</span>
+            </p>
+            <p class="query-editor hint">
+                <span class="tok-weight-class">weight class</span> ·
+                <span class="tok-omni">omni or not</span> ·
+                <span class="tok-unit">unit</span> ·
+                <span class="tok-with">with</span> ·
+                <span class="tok-comparator">comparator</span> ·
+                <span class="tok-quantity">number</span> ·
+                <span class="tok-equipment">equipment</span> ·
+                <span class="tok-operator">and / or</span> ·
+                <span class="tok-without">without</span>
+            </p>
+            <p>Every part can be left out as long as there's a unit or some equipment:
+                <code>lams</code> and <code>heavy mechs</code> are whole searches, and without a unit
+                (<code>with an xl engine</code>) every unit is searched. Capitals and extra spaces
+                don't matter.</p>
+
+            <h3 id="units">Units</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Weight class</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${weightClasses}" th:text="${word}">light</code></span>
+                            <p class="hint">Several, joined with <code>or</code>, <code>and</code> or commas: a unit in any of them.</p>
+                        </td>
+                        <td class="guide-example"><code>light or medium mechs</code><br><code>light, medium, or heavy vehicles</code></td>
+                    </tr>
+                    <tr>
+                        <td>Unit</td>
+                        <td>
+                            <dl class="guide-units">
+                                <dt><code>units</code></dt><dd>everything</dd>
+                                <dt><code>mechs</code></dt><dd>every mech</dd>
+                                <dt><code>vehicles</code>, <code>vees</code></dt><dd>every vehicle, VTOLs too</dd>
+                                <dt><code>tanks</code></dt><dd>every ground vehicle</dd>
+                                <dt><code>wheeled</code>, <code>tracked</code>, <code>hovercraft</code></dt><dd>ground vehicles by how they move, alone or before <code>vehicles</code>, <code>vees</code> or <code>tanks</code>: <code>tracked vees</code>, <code>hover tanks</code>, <code>hovertanks</code></dd>
+                                <dt><code>vtols</code>, <code>helicopters</code></dt><dd>VTOLs (<code>vtol vehicles</code> too)</dd>
+                                <dt><code>omnimechs</code>, <code>omnis</code></dt><dd>OmniMechs</dd>
+                                <dt><code>bipeds</code>, <code>quads</code>, <code>tripods</code>, <code>lams</code>, <code>quadvees</code></dt><dd>mechs with that body</dd>
+                            </dl>
+                            <p class="hint">The singular works too: <code>mech</code>, <code>lam</code>.</p>
+                        </td>
+                        <td class="guide-example"><code>tripods</code><br><code>hovercraft with an lrm 20</code></td>
+                    </tr>
+                    <tr>
+                        <td>Omni or not</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${omniWords}" th:text="${word}">omni</code></span>
+                            <p class="hint">Before the unit. <code>non omni</code> and <code>nonomni</code> work too.</p>
+                        </td>
+                        <td class="guide-example"><code>omni vehicles</code><br><code>non-omni assault mechs</code></td>
+                    </tr>
+                    <tr>
+                        <td>Leaving units out</td>
+                        <td>
+                            <code>non-</code> in front of a unit word, or after the unit:
+                            <span class="guide-words"><code>except</code><code>that aren't</code><code>that are not</code><code>but not</code></span>
+                        </td>
+                        <td class="guide-example"><code>non-lam mechs</code><br><code>mechs except lams and quads</code><br><code>units that aren't vtols</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 id="with">With and without</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>With</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${withWords}" th:text="${word}">with</code></span>
+                            <p class="hint">Between the unit and the equipment.</p>
+                        </td>
+                        <td class="guide-example"><code>mechs carrying 2 ppc</code></td>
+                    </tr>
+                    <tr>
+                        <td>Without</td>
+                        <td>
+                            <span class="guide-words"><code>without</code><code>lacking</code><code>that don't have</code><code>which do not have</code><code>no</code><code>but no</code><code>but not</code></span>
+                            <p class="hint">The unit has none of it. It takes no number, or <code>a</code> / <code>an</code> / <code>any</code>; for "fewer than 2" use <code>with fewer than 2</code>.</p>
+                        </td>
+                        <td class="guide-example"><code>mechs without an xl engine</code><br><code>mechs with no ppcs</code><br><code>assault mechs with 2 ppc but no lasers</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 id="how-many">How many</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Number</td>
+                        <td>
+                            <code>1</code>, <code>2</code>, <code>10</code>…, or <code>one</code> to <code>ten</code>;
+                            <code>a</code>, <code>an</code>, <code>single</code> are 1, <code>double</code> is 2,
+                            <code>triple</code> is 3, <code>any</code> is at least 1, <code>multiple</code> is 2 or more.
+                            <p class="hint">A number on its own means exactly that many: <code>2 ppc</code> is exactly 2.</p>
+                        </td>
+                        <td class="guide-example"><code>mechs with 2 ppc</code><br><code>mechs with any lasers</code></td>
+                    </tr>
+                    <tr>
+                        <td>Comparator</td>
+                        <td>
+                            Before the number:
+                            <span class="guide-words"><code th:each="word : ${comparatorsBefore}" th:text="${word}">at least</code></span>
+                            After it:
+                            <span class="guide-words"><code th:each="word : ${comparatorsAfter}" th:text="${word}">or more</code></span>
+                        </td>
+                        <td class="guide-example"><code>mechs with at least 4 medium lasers</code><br><code>mechs with 3 or more srm 6</code></td>
+                    </tr>
+                    <tr>
+                        <td>No number</td>
+                        <td>At least one. Only for the first thing after <code>with</code>, or right after <code>and</code> / <code>or</code>.</td>
+                        <td class="guide-example"><code>mechs with endo steel</code><br><code>mechs with 2 ppc and lasers</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 id="equipment-names">Equipment</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Name</td>
+                        <td>
+                            Any name or other word in the <a href="#equipment">equipment list</a>.
+                            Spaces don't matter (<code>lrm 20</code> is <code>lrm20</code>), and a plural works
+                            (<code>2 large lasers</code>) unless it's a family below: <code>ppcs</code> is every PPC.
+                        </td>
+                        <td class="guide-example"><code>mechs with 2 lb 10-x ac</code><br><code>mechs with an ams</code></td>
+                    </tr>
+                    <tr>
+                        <td>Tech</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${techWords}" th:text="${word}">clan</code></span>
+                            <p class="hint">In front of the name. Without one, Inner Sphere and Clan versions count together.</p>
+                        </td>
+                        <td class="guide-example"><code>mechs with 2 clan er large lasers</code></td>
+                    </tr>
+                    <tr>
+                        <td>Fire control</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${fireControls}" th:text="${word}">artemis</code></span>
+                            <p class="hint">In front of a launcher's name, after any tech: launchers with it. <code>artemis</code> is IV or V.</p>
+                        </td>
+                        <td class="guide-example"><code>mechs with an artemis lrm 20</code><br><code>mechs with clan artemis v srm 6</code></td>
+                    </tr>
+                    <tr>
+                        <td>Family</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${families}" th:text="${word}">lasers</code></span>
+                            <p class="hint">Every weapon in the family, counted together. The singular works when no weapon is called that (<code>2 laser</code>, but <code>ppc</code> is the PPC itself).</p>
+                        </td>
+                        <td class="guide-example"><code>mechs with at least 4 lasers</code><br><code>mechs with artemis lrms</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 id="components">Components</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr th:each="kind : ${components}">
+                        <td th:text="${#strings.capitalize(kind.key)}">Engine</td>
+                        <td><span class="guide-words"><code th:each="word : ${kind.value}" th:text="${word}">xl engine</code></span></td>
+                        <td class="guide-example" th:switch="${kind.key}">
+                            <code th:case="'engine'">mechs with a clan xl engine</code>
+                            <code th:case="'armor'">mechs with stealth armor</code>
+                            <code th:case="'structure'">mechs with endo steel</code>
+                            <code th:case="'gyro'">mechs with an xl gyro</code>
+                            <code th:case="'cockpit'">mechs with a small cockpit</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Engine rating</td>
+                        <td><code>engine rating</code> or <code>engine rating of</code>, then a number with or without a comparator.</td>
+                        <td class="guide-example"><code>mechs with an engine rating of at least 300</code><br><code>mechs with engine rating 300 or more</code></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="hint">A unit has one of each component, so it takes <code>a</code>, <code>an</code>, <code>one</code> or no number.
+                Armor and structure work without their kind word (<code>endo steel</code>, <code>ferro-fibrous</code>), and
+                <code>clan</code> / <code>is</code> work in front of engines, armor and structure.</p>
+
+            <h3 id="joining">And, or</h3>
+            <table class="guide-table">
+                <thead>
+                    <tr><th> Part </th><th> What you can type </th><th> Example </th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Joining equipment</td>
+                        <td><code>and</code>, <code>or</code>, <code>but</code> (the same as <code>and</code>). With nothing in between, it's <code>and</code>.</td>
+                        <td class="guide-example"><code>mechs with 2 ppc and a large laser</code><br><code>mechs with 2 ppc or 3 large lasers</code></td>
+                    </tr>
+                    <tr>
+                        <td>Without a list</td>
+                        <td>
+                            <code>without</code> carries on through the list: none of any of it. It stops at something with its
+                            own number, or at <code>with</code>. Say <code>without</code> again for "either one missing".
+                        </td>
+                        <td class="guide-example"><code>mechs without ppcs or lasers</code><br><code>mechs without ppcs or lasers but with 2 lrm 20</code><br><code>mechs without ppcs or without lasers</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 id="examples">Examples</h3>
+            <ul class="guide-examples">
+                <li th:each="example : ${ {'light or medium mechs with at least 2 lrm 20 and any lasers',
+                        'heavy omni mechs with a clan xl engine',
+                        'non-omni assault mechs with at least 2 ppc but no lasers',
+                        'mechs except lams, quads, tripods and quadvees with endo steel',
+                        'tracked vehicles with an ac/20',
+                        'units with an ams and an ecm suite',
+                        'mechs with an engine rating of at least 300 without an xl engine',
+                        'quadvees'} }">
+                    <a th:href="@{/search/(query=${example})}"><code th:text="${example}">lams</code></a>
+                </li>
+            </ul>
+        </section>
+
+        <section class="equipment-list">
+            <h2 id="equipment">Equipment</h2>
+            <p class="hint">Every piece of equipment some unit carries. <b>Slang</b> is shorthand and weapon families; <b>other names</b> are MegaMek's names for it. Any of them works in a search.</p>
+            <!-- equipment-filter.js shows it and hides the rows that don't match -->
+            <input type="search" class="equipment-filter" placeholder="Filter equipment and slang"
+                   aria-label="Filter equipment and slang" autocomplete="off" hidden>
+            <table>
+                <thead>
+                    <tr>
+                    <th> Equipment </th>
+                    <th> Tech </th>
+                    <th> Slang </th>
+                    <th> Other names </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="item : ${equipment}">
+                    <td th:text="${item.name}"></td>
+                    <td th:text="${#strings.listJoin(item.techs, ', ')}"></td>
+                    <td th:text="${#strings.listJoin(item.slang, ', ')}"></td>
+                    <td class="equipment-other-names" th:text="${#strings.listJoin(item.otherNames, ', ')}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <small>BattleTech is a registered trademark of The Topps Company, Inc. This is an unofficial fan project, not affiliated with Topps or Catalyst Game Labs. Unit data from <a href="https://megamek.org/">MegaMek</a> (CC BY-NC-SA 4.0).</small>
+    </footer>
+    <script type="module" th:src="@{/js/equipment-filter.js}"></script>
+</body>
+
+</html>

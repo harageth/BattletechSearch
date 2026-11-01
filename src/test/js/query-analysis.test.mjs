@@ -12,6 +12,7 @@ const vocabulary = {
     { singular: 'mech', plural: 'mechs' },
     { singular: 'tank', plural: 'tanks' },
     { singular: 'tracked', plural: 'tracked' },
+    { singular: 'lam', plural: 'lams' },
   ],
   comparatorsBefore: ['at least', 'at most', 'exactly', 'fewer than'],
   comparatorsAfter: ['or more', 'or fewer', 'or less'],
@@ -33,6 +34,12 @@ const vocabulary = {
     'mrm 40': ['mrms'],
     'medium laser': ['lasers'],
     'er medium laser': ['lasers'],
+  },
+  omniWords: ['omni', 'non-omni'],
+  components: {
+    engine: ['fusion engine', 'xl engine', 'light engine'],
+    structure: ['endo steel structure'],
+    cockpit: ['small cockpit', 'tripod cockpit'],
   },
 };
 
@@ -97,6 +104,11 @@ test('units in any case and plural, and tanks', () => {
   assert.deepEqual(roles('tracked with at least 1 ppc').slice(0, 1), ['tracked:unit']);
 });
 
+test('a motive type and a vehicle word are one unit', () => {
+  assert.deepEqual(roles('heavy tracked vees with 1 ppc').slice(0, 3), ['heavy:weight-class', 'tracked vees:unit', 'with:with']);
+  assert.deepEqual(roles('hover tanks').slice(0, 1), ['hover tanks:unit']);
+});
+
 test('every comparator, before and after the quantity', () => {
   for (const comparator of ['at least', 'at most', 'exactly', '=', 'no more than', 'fewer than', 'less than', 'greater than']) {
     assert.deepEqual(roles(`mechs with ${comparator} 3 ppc`).slice(2, 4), [`${comparator}:comparator`, '3:quantity']);
@@ -150,9 +162,10 @@ test('marks where the query goes wrong', () => {
   assert.ok(missing.error);
   assert.equal(missing.error.start, 'mechs with at least 2'.length);
 
-  const extra = analyze('mechs with at least 2 ppc with', vocabulary);
+  // commas only go between weight classes
+  const extra = analyze('mechs with at least 2 ppc,', vocabulary);
   assert.ok(extra.error);
-  assert.deepEqual(extra.tokens.filter(token => token.role === 'error').map(token => token.text), ['with']);
+  assert.deepEqual(extra.tokens.filter(token => token.role === 'error').map(token => token.text), [',']);
 
   const character = analyze("mechs with at least 2 ppc's", vocabulary);
   assert.ok(character.error);
@@ -181,8 +194,11 @@ test('weight classes offer the other weight classes', () => {
 });
 
 test('unit words keep the number that was typed', () => {
-  assert.deepEqual(texts(alternatives(token('light mechs with 1 ppc', 'mechs'), vocabulary)), ['units', 'tanks', 'tracked']);
-  assert.deepEqual(texts(alternatives(token('light mech with 1 ppc', 'mech'), vocabulary)), ['unit', 'tank', 'tracked']);
+  assert.deepEqual(texts(alternatives(token('light mechs with 1 ppc', 'mechs'), vocabulary)), ['units', 'tanks', 'tracked', 'lams']);
+  assert.deepEqual(texts(alternatives(token('light mech with 1 ppc', 'mech'), vocabulary)), ['unit', 'tank', 'tracked', 'lam']);
+  // swapped whole, by its first word
+  assert.deepEqual(texts(alternatives(token('tracked vees with 1 ppc', 'tracked vees'), vocabulary)), ['units', 'mechs', 'tanks', 'lams']);
+  assert.deepEqual(texts(alternatives(token('tracked vehicle with 1 ppc', 'tracked vehicle'), vocabulary)), ['unit', 'mech', 'tank', 'lam']);
 });
 
 test('comparators offer the others on the same side of the quantity', () => {
@@ -305,7 +321,7 @@ test('each blank offers what can go there', () => {
   const slot = (query, name) => alternatives(analyze(query, vocabulary).tokens.find(found => found.slot === name), vocabulary);
   const query = '<weight class> <unit> with <comparator> <quantity> <weapon> <and/or> <comparator> <quantity> <weapon>';
   assert.deepEqual(texts(slot(query, 'weight class')), [...vocabulary.weightClasses, '']);
-  assert.deepEqual(texts(slot(query, 'unit')), ['units', 'mechs', 'tanks', 'tracked']);
+  assert.deepEqual(texts(slot(query, 'unit')), ['units', 'mechs', 'tanks', 'tracked', 'lams']);
   assert.deepEqual(texts(slot(query, 'and/or')), ['and', 'or']);
   assert.deepEqual(texts(slot(query, 'comparator')), vocabulary.comparatorsBefore);
   assert.deepEqual(texts(slot(query, 'weapon')), ['lrms', 'mrms', 'streaks', 'lasers']);
@@ -347,4 +363,116 @@ test('adding a tech to a word split by an error keeps the rest once', () => {
   const laser = token(query, 'medium laser');
   const clan = alternatives(laser, vocabulary).find(option => option.label === 'clan only');
   assert.equal(replaceToken(query, { ...laser, start: clan.start }, clan.text).text, "mechs with 1 clan medium laser's");
+});
+
+test('body plans, omni words and without', () => {
+  assert.deepEqual(roles('lams'), ['lams:unit']);
+  assert.deepEqual(roles('heavy omni mechs without an xl engine'),
+      ['heavy:weight-class', 'omni:omni', 'mechs:unit', 'without:without', 'an:quantity', 'xl engine:equipment']);
+  assert.deepEqual(roles('non-omni mechs with 2 ppc and without lasers').slice(0, 2), ['non-omni:omni', 'mechs:unit']);
+  assert.equal(analyze('non-omni mechs with 2 ppc and without lasers', vocabulary).error, null);
+});
+
+test('chunks without a number, components and engine rating', () => {
+  assert.deepEqual(roles('mechs with endo steel and 2 ppc'),
+      ['mechs:unit', 'with:with', 'endo steel:equipment', 'and:operator', '2:quantity', 'ppc:equipment']);
+  assert.deepEqual(roles('mechs with an engine rating of at least 300'),
+      ['mechs:unit', 'with:with', 'an:quantity', 'engine:rating', 'rating of:rating', 'at least:comparator', '300:quantity']);
+  // a unit word in a name, after the number
+  assert.deepEqual(roles('units with 1 vehicle flamer').slice(2), ['1:quantity', 'vehicle flamer:equipment']);
+});
+
+test('omni words, without and components offer their swaps', () => {
+  assert.deepEqual(texts(alternatives(token('omni mechs', 'omni'), vocabulary)), ['non-omni', '']);
+  assert.deepEqual(texts(alternatives(token('mechs without ppcs', 'without'), vocabulary)), ['with']);
+  assert.deepEqual(texts(alternatives(token('mechs with an xl engine', 'xl engine'), vocabulary)),
+      ['fusion engine', 'light engine']);
+});
+
+test('the omni word goes before or after the weight class', () => {
+  assert.deepEqual(roles('non-omni light mechs').slice(0, 3), ['non-omni:omni', 'light:weight-class', 'mechs:unit']);
+  assert.equal(analyze('non-omni light mechs with 2 ppc', vocabulary).error, null);
+});
+
+test('other words for without, and units left out', () => {
+  assert.deepEqual(roles('mechs with 2 ppc but no lasers'),
+      ['mechs:unit', 'with:with', '2:quantity', 'ppc:equipment', 'but:operator', 'no:without', 'lasers:equipment']);
+  assert.deepEqual(roles("mechs that don't have ppcs or lasers"),
+      ['mechs:unit', "that don't have:without", 'ppcs:equipment', 'or:operator', 'lasers:equipment']);
+  assert.deepEqual(roles('mechs with 2 ppc but not lasers').slice(4), ['but not:without', 'lasers:equipment']);
+  assert.deepEqual(roles('non-lam mechs except quads'), ['non-lam:except', 'mechs:unit', 'except:except', 'quads:unit']);
+  assert.equal(analyze('mechs without ppcs or lasers but with 2 lrm 20', vocabulary).error, null);
+  // "no" after a "with" goes; "without" becomes "with"
+  assert.deepEqual(texts(alternatives(token('mechs with no ppcs', 'no'), vocabulary)), ['']);
+  assert.deepEqual(texts(alternatives(token('mechs lacking ppcs', 'lacking'), vocabulary)), ['with']);
+});
+
+/** The query with one token swapped for its first alternative. */
+function swapped(query, text) {
+  const found = token(query, text);
+  return replaceToken(query, found, alternatives(found, vocabulary)[0].text).text;
+}
+
+test('"no" anywhere but after a "with" becomes "with"', () => {
+  // taken out, these would read "mechs ppcs" and leave the lasers out still
+  assert.equal(swapped('mechs no ppcs', 'no'), 'mechs with ppcs');
+  assert.equal(swapped('mechs without ppcs and no lasers', 'no'), 'mechs without ppcs and with lasers');
+  assert.equal(swapped('mechs with 2 ppc but no lasers', 'no'), 'mechs with 2 ppc but with lasers');
+  assert.equal(swapped('mechs with no ppcs', 'no'), 'mechs with ppcs');
+  for (const query of ['mechs with ppcs', 'mechs without ppcs and with lasers', 'mechs with 2 ppc but with lasers']) {
+    assert.equal(analyze(query, vocabulary).error, null, query);
+  }
+});
+
+test('a swap starting with a unit word gets "any" when no number comes before it', () => {
+  // "tripod" is a unit word, and a name with no number in front must start with a plain word
+  assert.deepEqual(texts(alternatives(token('mechs with small cockpit', 'small cockpit'), vocabulary)),
+      ['any tripod cockpit']);
+  assert.equal(analyze(swapped('mechs with small cockpit', 'small cockpit'), vocabulary).error, null);
+  // after a number, a tech or "without" a unit word can start the name
+  assert.deepEqual(texts(alternatives(token('mechs with a small cockpit', 'small cockpit'), vocabulary)),
+      ['tripod cockpit']);
+  assert.deepEqual(texts(alternatives(token('mechs without small cockpit', 'small cockpit'), vocabulary)),
+      ['tripod cockpit']);
+  // equipment too: "flamers" -> "any vehicle flamer"
+  const flamers = {
+    ...vocabulary,
+    families: { ...vocabulary.families, flamers: ['flamer', 'vehicle flamer'] },
+    equipment: { ...vocabulary.equipment, flamer: ['flamers'], 'vehicle flamer': ['flamers'] },
+  };
+  const options = alternatives(analyze('units with flamers', flamers).tokens.at(-1), flamers);
+  assert.ok(texts(options).includes('any vehicle flamer'));
+  assert.ok(texts(options).includes('flamer'));
+  assert.equal(analyze('units with any vehicle flamer', flamers).error, null);
+});
+
+/** The query with one token swapped for the option with this label. */
+function swappedTo(query, text, label) {
+  const found = token(query, text);
+  return replaceToken(query, found, alternatives(found, vocabulary).find(option => option.label === label).text).text;
+}
+
+test('taking out a word in front of a unit-word name puts "any" in', () => {
+  // "with vehicle flamer" doesn't parse: a name with no number has to start with a plain word
+  const cases = [
+    ['units with is vehicle flamer', 'is', 'any tech', 'units with any vehicle flamer'],
+    ['units without vehicle flamer', 'without', 'with', 'units with any vehicle flamer'],
+    ['units with no vehicle flamer', 'no', 'with', 'units with any vehicle flamer'],
+    ['mechs without tripod cockpit', 'without', 'with', 'mechs with any tripod cockpit'],
+    // a plain word, or a number, after it: nothing to add
+    ['units with is lrm 20', 'is', 'any tech', 'units with lrm 20'],
+    ['units without clan vehicle flamer', 'without', 'with', 'units with clan vehicle flamer'],
+    ['mechs without an xl engine', 'without', 'with', 'mechs with an xl engine'],
+    // after a number the name can start with a unit word
+    ['units with 2 is vehicle flamer', 'is', 'any tech', 'units with 2 vehicle flamer'],
+  ];
+  for (const [query, text, label, expected] of cases) {
+    assert.equal(swappedTo(query, text, label), expected, query);
+    assert.equal(analyze(expected, vocabulary).error, null, expected);
+  }
+});
+
+test('every spelling of a unit word works after non-', () => {
+  assert.deepEqual(roles('non-hover tanks'), ['non-hover:except', 'tanks:unit']);
+  assert.deepEqual(roles('non-helicopter vehicles'), ['non-helicopter:except', 'vehicles:unit']);
 });

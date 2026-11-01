@@ -103,14 +103,6 @@ public class Unit implements Searchable {
       }
     }
 
-    public void setOmni(String value) {
-      if(value.equalsIgnoreCase("Omnimech")) {
-        this.omni = true;
-      }else {
-        this.omni = false;
-      }
-    }
-
     // Planned era search, not wired up yet: UnitDecorator.getQuery builds the real search SQL and
     // doesn't call this. The table is now "unit", not "mechs".
     public String getQuery() {

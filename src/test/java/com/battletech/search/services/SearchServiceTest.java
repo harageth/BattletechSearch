@@ -162,6 +162,79 @@ class SearchServiceTest {
   }
 
   @Test
+  void mechsByBodyPlan() throws IOException {
+    assertThat(search("lams")).containsExactly("Phoenix Hawk LAM Mk I PHX-HK1");
+    assertThat(search("quadvees")).containsExactly("Boreas A");
+    assertThat(search("tripods")).containsExactly("Poseidon PSD-V2");
+    assertThat(search("quads")).containsExactly("Goliath GOL-1H");
+    assertThat(search("bipeds")).contains("Mad Cat Prime", "Atlas AS7-D")
+        .doesNotContain("Phoenix Hawk LAM Mk I PHX-HK1", "Boreas A", "Poseidon PSD-V2", "Goliath GOL-1H");
+    assertThat(search("assault tripods with at least 2 ppc")).isEmpty();
+  }
+
+  @Test
+  void omniOrNot() throws IOException {
+    assertThat(search("omnimechs")).containsExactlyInAnyOrder("Boreas A", "Flamberge D", "Mad Cat Prime");
+    assertThat(search("omni mechs")).isEqualTo(search("omnimechs"));
+    assertThat(search("omni vehicles")).containsExactly("Badger (C) Tracked Transport A");
+    List<String> mechs = search("mechs");
+    assertThat(search("non-omni mechs")).hasSize(mechs.size() - 3).doesNotContain("Mad Cat Prime", "Boreas A");
+  }
+
+  @Test
+  void components() throws IOException {
+    assertThat(search("mechs with an xl engine")).containsExactlyInAnyOrder(
+        "Centurion CN9-D", "Flamberge D", "Mad Cat Prime", "Poseidon PSD-V2", "Thresher (Edward)");
+    assertThat(search("mechs with a clan xl engine"))
+        .containsExactlyInAnyOrder("Flamberge D", "Mad Cat Prime", "Thresher (Edward)");
+    assertThat(search("mechs with endo steel"))
+        .contains("Black Knight BL-6-KNT", "Centurion CN9-D", "Supernova 5", "Mad Cat Prime", "Poseidon PSD-V2")
+        .doesNotContain("Atlas AS7-D", "Warhammer WHM-6R");
+    assertThat(search("mechs with endo steel and ferro-fibrous armor")).containsExactly("Mad Cat Prime");
+    assertThat(search("mechs with a superheavy tripod cockpit")).containsExactly("Poseidon PSD-V2");
+    assertThat(search("mechs with an engine rating of at least 300"))
+        .contains("Atlas AS7-D", "Centurion CN9-D", "Goliath GOL-1H", "Mad Cat Prime", "Poseidon PSD-V2")
+        .doesNotContain("Commando COM-2D", "Warhammer WHM-6R");
+    assertThat(search("mechs with engine rating 300 or more")).isEqualTo(search("mechs with an engine rating of at least 300"));
+  }
+
+  @Test
+  void withoutIsEverythingElse() throws IOException {
+    List<String> mechs = search("mechs");
+    List<String> xl = search("mechs with an xl engine");
+    assertThat(search("mechs without an xl engine")).doesNotContainAnyElementsOf(xl)
+        .containsExactlyInAnyOrderElementsOf(mechs.stream().filter(mech -> !xl.contains(mech)).toList());
+    List<String> ppcs = search("mechs with ppcs");
+    assertThat(ppcs).contains("Annihilator ANH-1E", "Warhammer WHM-6R");
+    assertThat(search("mechs without ppcs"))
+        .containsExactlyInAnyOrderElementsOf(mechs.stream().filter(mech -> !ppcs.contains(mech)).toList());
+    assertThat(search("assault mechs with at least 2 ppc and without any lasers")).isEmpty();
+  }
+
+  @Test
+  void withoutAListIsNoneOfIt() throws IOException {
+    List<String> mechs = search("mechs");
+    List<String> ppcs = search("mechs with ppcs");
+    List<String> lasers = search("mechs with lasers");
+    assertThat(search("mechs without ppcs or lasers")).isNotEmpty().containsExactlyInAnyOrderElementsOf(
+        mechs.stream().filter(mech -> !ppcs.contains(mech) && !lasers.contains(mech)).toList());
+    assertThat(search("mechs with no ppcs and no lasers")).isEqualTo(search("mechs without ppcs or lasers"));
+    assertThat(search("mechs lacking ppcs")).isEqualTo(search("mechs without ppcs"));
+    assertThat(search("mechs that don't have ppcs")).isEqualTo(search("mechs without ppcs"));
+  }
+
+  @Test
+  void unitsLeftOut() throws IOException {
+    List<String> mechs = search("mechs");
+    assertThat(search("non-lam mechs")).hasSize(mechs.size() - 1).doesNotContain("Phoenix Hawk LAM Mk I PHX-HK1");
+    assertThat(search("mechs except lams, quads, tripods and quadvees")).isEqualTo(search("bipeds"));
+    assertThat(search("mechs that aren't omnis")).isEqualTo(search("non-omni mechs"));
+    assertThat(search("units except mechs")).isEqualTo(search("vehicles"));
+    assertThat(search("units that aren't vtols")).doesNotContain("Cavalry Attack Helicopter (BA)")
+        .contains("Badger (C) Tracked Transport A", "Atlas AS7-D");
+  }
+
+  @Test
   void syntaxErrorsFail() {
     assertThatThrownBy(() -> search("mechs with"))
         .isInstanceOf(FailedParseException.class)

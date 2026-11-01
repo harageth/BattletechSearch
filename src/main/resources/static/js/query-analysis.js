@@ -12,7 +12,7 @@ import BattletechParser from './grammar/me/BattletechParser.js';
 /** Before /api/vocabulary loads: everything still gets a role, nothing has alternatives. */
 export const EMPTY_VOCABULARY = Object.freeze({
   weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [], withWords: [],
-  techs: {}, fireControls: [], families: {}, equipment: {},
+  techs: {}, fireControls: [], families: {}, equipment: {}, omniWords: [], components: {},
 });
 
 /**
@@ -79,6 +79,18 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
     }
   }
   tokens.sort((a, b) => a.start - b.start);
+  tokens.forEach((token, index) => {
+    const next = tokens[index + 1];
+    if (token.role === 'without') {
+      // "with no ppcs": swapping the "no" for "with" only has to take it out (see alternatives)
+      token.afterWith = tokens[index - 1]?.role === 'with';
+      // "without vehicle flamer": swapped for "with", the name has no number and starts with a unit word
+      token.exposesUnitWord = next !== undefined && next.role !== 'quantity' && !startsWithWord(next.text);
+    } else if (token.bare && (token.role === 'tech' || token.role === 'fire-control')) {
+      // "with is vehicle flamer": taking out the tech leaves "with vehicle flamer"
+      token.exposesUnitWord = next !== undefined && !startsWithWord(next.text);
+    }
+  });
   return { tokens, error };
 }
 
@@ -213,8 +225,9 @@ function span(terminals, text, role) {
 
 function visit(context, tokens, text, vocabulary) {
   const children = context.children ?? [];
-  if (context.ruleIndex === BattletechParser.RULE_equipmentName) {
-    equipmentName(children.filter(child => isTerminal(child) && !isError(child)), tokens, text, vocabulary);
+  if (context.ruleIndex === BattletechParser.RULE_equipmentName || context.ruleIndex === BattletechParser.RULE_bareName) {
+    equipmentName(children.filter(child => isTerminal(child) && !isError(child)), tokens, text, vocabulary,
+        context.ruleIndex === BattletechParser.RULE_bareName);
     children.filter(isError).forEach(node => terminal(node, context, tokens, text));
     return;
   }
@@ -230,6 +243,11 @@ function visit(context, tokens, text, vocabulary) {
       tokens.push(known ? weightClass : { ...weightClass, role: 'unknown' });
     }
     children.filter(isError).forEach(node => terminal(node, context, tokens, text));
+    return;
+  }
+  if (context.ruleIndex === BattletechParser.RULE_unit && children.length > 1 && !children.some(isError)) {
+    // "tracked vees": one unit word, swapped whole
+    tokens.push(span(children, text, 'unit'));
     return;
   }
   for (const child of children) {
@@ -256,6 +274,14 @@ function terminal(node, context, tokens, text) {
     role = 'error';
   } else if (symbol.type === BattletechParser.STOPWORD) {
     role = 'with';
+  } else if (symbol.type === BattletechParser.WITHOUT || symbol.type === BattletechParser.NO) {
+    role = 'without';
+  } else if (symbol.type === BattletechParser.EXCEPT && context.ruleIndex === BattletechParser.RULE_negation) {
+    // "but not lasers" is "without lasers"
+    role = 'without';
+  } else if (symbol.type === BattletechParser.EXCEPT || symbol.type === BattletechParser.NONUNIT) {
+    // "mechs except lams", "non-lam mechs": units left out
+    role = 'except';
   } else if (symbol.type === BattletechParser.COMMA) {
     role = 'comma';
   } else if (symbol.type === BattletechParser.QUANTITY) {
@@ -265,13 +291,17 @@ function terminal(node, context, tokens, text) {
       [BattletechParser.RULE_unit]: 'unit',
       [BattletechParser.RULE_comparator]: 'comparator',
       [BattletechParser.RULE_logicaloperator]: 'operator',
+      [BattletechParser.RULE_omni]: 'omni',
+      // "engine rating of"
+      [BattletechParser.RULE_ratingChunk]: 'rating',
     }[context.ruleIndex] ?? 'unknown';
   }
   tokens.push(span([node], text, role));
 }
 
-// "clan artemis iv lrm 20" -> tech "clan", fire control "artemis iv", equipment "lrm 20"
-function equipmentName(words, tokens, text, vocabulary) {
+// "clan artemis iv lrm 20" -> tech "clan", fire control "artemis iv", equipment "lrm 20". bareName: no
+// number in front ("endo steel")
+function equipmentName(words, tokens, text, vocabulary, bareName) {
   if (words.length === 0) {
     return;
   }
@@ -283,7 +313,7 @@ function equipmentName(words, tokens, text, vocabulary) {
   for (const tech of techs) {
     const length = tech.split(' ').length;
     if (words.length > length && words.slice(0, length).map(word => word.getText().toLowerCase()).join(' ') === tech) {
-      tokens.push(span(words.slice(0, length), text, 'tech'));
+      tokens.push({ ...span(words.slice(0, length), text, 'tech'), bare: bareName });
       words = words.slice(length);
       hasTech = true;
       break;
@@ -297,7 +327,7 @@ function equipmentName(words, tokens, text, vocabulary) {
     found: for (const fireControl of fireControls) {
       for (let length = 1; length < words.length; length++) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {
-          tokens.push(span(words.slice(0, length), text, 'fire-control'));
+          tokens.push({ ...span(words.slice(0, length), text, 'fire-control'), bare: bareName && !hasTech });
           words = words.slice(length);
           hasFireControl = true;
           break found;
@@ -307,7 +337,9 @@ function equipmentName(words, tokens, text, vocabulary) {
   }
   // the whole name too, prefixes and all, for adding a tech in front of it
   const equipment = span(words, text, 'equipment');
-  tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasFireControl });
+  // bare: the name starts the chunk, so whatever replaces it has to start with a plain word too
+  const bare = bareName && !hasTech && !hasFireControl;
+  tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasFireControl, bare });
 }
 
 /**
@@ -323,9 +355,12 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
     case 'weight-class':
       return others(vocabulary.weightClasses);
     case 'unit': {
-      const current = vocabulary.units.find(unit => unit.singular === typed || unit.plural === typed);
-      // keep the number that was typed: "light mechs" -> "light tanks"
-      const plural = current ? current.plural === typed && current.plural !== current.singular : typed.endsWith('s');
+      // "tracked vees" is the unit word "tracked"
+      const first = typed.split(' ')[0];
+      const current = vocabulary.units.find(unit => unit.singular === first || unit.plural === first);
+      // keep the number that was typed: "light mechs" -> "light tanks", "tracked vees" -> "mechs"
+      const plural = current && current.singular !== current.plural && first === typed
+        ? current.plural === typed : typed.endsWith('s');
       return vocabulary.units.filter(unit => unit !== current)
           .map(unit => (plural ? unit.plural : unit.singular))
           .map(word => ({ label: word, text: word }));
@@ -337,20 +372,55 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
     case 'with':
       // "with", "having", "that have", ...
       return others(vocabulary.withWords);
+    case 'without':
+      // "without ppcs" -> "with ppcs"; the other way a number like "2" would need "fewer than".
+      // Right after a "with" ("with no ppcs") taking it out is enough. Anywhere else it becomes "with":
+      // taken out, "mechs no ppcs" would lose its "with", and in "without ppcs and no lasers" the
+      // lasers would still be left out. Either way "any" goes in when the name then starts with a unit
+      // word: "without vehicle flamer" -> "with any vehicle flamer".
+      if (vocabulary.withWords.length === 0) {
+        return [];
+      }
+      return [{ label: 'with', text: [token.afterWith ? '' : 'with', orAny(token)].filter(Boolean).join(' ') }];
+    case 'omni':
+      return [...others(vocabulary.omniWords), { label: 'omni or not', text: '' }];
     case 'tech': {
       // one word per other tech: "clan" offers "inner sphere", not "is" too
       const current = Object.entries(vocabulary.techs).find(([word]) => word === typed)?.[1];
-      return [...techWords(vocabulary, current).map(word => ({ label: word, text: word })), { label: 'any tech', text: '' }];
+      return [...techWords(vocabulary, current).map(word => ({ label: word, text: word })), { label: 'any tech', text: orAny(token) }];
     }
     case 'fire-control':
-      return [...others(vocabulary.fireControls), { label: 'any fire control', text: '' }];
+      return [...others(vocabulary.fireControls), { label: 'any fire control', text: orAny(token) }];
     case 'equipment':
-      return equipmentAlternatives(token, typed, vocabulary);
+      return equipmentAlternatives(token, typed, vocabulary).map(option => startingAChunk(token, option));
     case 'slot':
       return slotAlternatives(token.slot, vocabulary);
     default:
       return [];
   }
+}
+
+// A name with no number in front has to start with a plain word, so "mechs with small cockpit" can't
+// become "mechs with tripod cockpit": a swap starting with a unit word gets "any" ("any tripod
+// cockpit"), which still means at least one.
+function startingAChunk(token, option) {
+  if (!token.bare || option.start !== undefined || option.text === '' || startsWithWord(option.text)) {
+    return option;
+  }
+  return { ...option, text: `any ${option.text}` };
+}
+
+// "any" in place of a word taken out in front of a name like that: "with is vehicle flamer" -> "with any
+// vehicle flamer", "without vehicle flamer" -> "with any vehicle flamer"
+function orAny(token) {
+  return token.exposesUnitWord ? 'any' : '';
+}
+
+// whether the text starts with a plain word, not a unit word or a number
+function startsWithWord(text) {
+  const lexer = new BattletechLexer(new InputStream(text, false));
+  lexer.removeErrorListeners();
+  return lexer.nextToken().type === BattletechLexer.WORD;
 }
 
 /** One word for each tech but the one given: "inner sphere" and "clan", not "is" too. */
@@ -412,6 +482,11 @@ function singular(term) {
 }
 
 function equipmentAlternatives(token, typed, vocabulary) {
+  // a component ("xl engine"): the other types of its kind, as ComponentNames names them
+  const kind = Object.values(vocabulary.components).find(names => names.some(name => key(name) === key(typed)));
+  if (kind) {
+    return kind.filter(name => key(name) !== key(typed)).map(name => ({ label: name, text: name }));
+  }
   let familyTerm = Object.keys(vocabulary.families).find(term => key(term) === key(typed));
   // a family in the singular ("atm") when no weapon has that name: "ppc" is the PPC
   if (!familyTerm && !Object.keys(vocabulary.equipment).some(name => key(name) === key(typed))) {

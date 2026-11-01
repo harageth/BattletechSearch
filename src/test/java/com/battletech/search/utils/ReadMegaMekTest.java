@@ -358,6 +358,8 @@ class ReadMegaMekTest {
     assertThat(madCat.getTech()).isEqualTo(Tech.CLAN);
     // "Biped OmniMek"
     assertThat(madCat.getLocomotion()).isEqualTo(Locomotion.BIPED);
+    assertThat(madCat.isOmni()).isTrue();
+    assertThat(mech("Atlas AS7-D.mtf").isOmni()).isFalse();
 
     assertThat(mech("Goliath GOL-1M.mtf").getLocomotion()).isEqualTo(Locomotion.QUAD);
     // the first word of every Config: at the pinned commit
@@ -557,6 +559,9 @@ class ReadMegaMekTest {
     assertThat(bulldog.getTech()).isEqualTo(Tech.INNER_SPHERE);
     assertThat(bulldog.getWeight()).isEqualTo(60);
     assertThat(bulldog.getMovement().getWalk()).isEqualTo(4);
+    assertThat(bulldog.isOmni()).isFalse();
+    // OmniVehicles have <omni> 1
+    assertThat(vehicle("../search/vehicles/Badger (C) Tracked Transport A.blk").isOmni()).isTrue();
     assertThat(at(bulldog, Location.FRONT)).extracting(equip -> equip.getEquipment().getName())
         .containsExactly("machine gun", "machine gun");
     assertThat(at(bulldog, Location.FRONTTURRET)).extracting(equip -> equip.getEquipment().getName())
