@@ -123,11 +123,6 @@ public class ReadMegaMek {
     return vee;
   }
 
-  static List<UnitEquipment> convertToEquipment(List<String> equipment, Tech chassisTech, Location location,
-      ImportProblems.InFile problems) {
-    return convertToEquipment(equipment, new UnprefixedTech(chassisTech, false), location, problems);
-  }
-
   static List<UnitEquipment> convertToEquipment(List<String> equipment, UnprefixedTech unprefixed, Location location,
       ImportProblems.InFile problems) {
     List<UnitEquipment> returnEquipment = new LinkedList<UnitEquipment>();
@@ -293,8 +288,8 @@ public class ReadMegaMek {
     // armor isn't imported yet
 
     UnprefixedTech unprefixed = new UnprefixedTech(Tech.chassisTech(techBase), mech.getTech() == Tech.MIXED_TECH);
-    List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, unprefixed, problems);
     Map<String, List<String>> slots = readMtfSlots(lines);
+    List<UnitEquipment> equipment = readMtfWeapons(lines, slots, filePath, unprefixed, problems);
     attachMtfFireControl(equipment, slots, problems);
     equipment.addAll(readMtfSlotEquipment(slots, unprefixed, problems));
     mech.setMechEquipment(equipment);
@@ -503,10 +498,11 @@ public class ReadMegaMek {
    * The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso".
    * Weapon lines don't say IS or Clan; the critical slots in the weapon's location do
    * ("CLERMediumLaser"), see weaponTechs.
+   *
+   * @param slots the critical slots, from readMtfSlots
    */
-  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath, UnprefixedTech unprefixed,
-      ImportProblems.InFile problems) throws IOException {
-    Map<String, List<String>> slots = readMtfSlots(lines);
+  static List<UnitEquipment> readMtfWeapons(List<String> lines, Map<String, List<String>> slots, File filePath,
+      UnprefixedTech unprefixed, ImportProblems.InFile problems) throws IOException {
     for(int i = 0; i < lines.size(); i++) {
       if(lines.get(i).toLowerCase().startsWith("weapons:")) {
         int count = Integer.parseInt(lines.get(i).substring("weapons:".length()).trim());
@@ -543,8 +539,9 @@ public class ReadMegaMek {
     throw new IOException(filePath + " has no weapons: line");
   }
 
+  // by the item, as weaponTechs matches slots: "ER Medium Laser" and "ER Medium Laser (R)" share slots
   private static String weaponGroup(String name, String location) {
-    return location.toLowerCase() + "\t" + comparable(name);
+    return location.toLowerCase() + "\t" + EquipmentNames.canonical(name);
   }
 
   /**
@@ -820,11 +817,6 @@ public class ReadMegaMek {
     }
   }
 
-  static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, Tech chassisTech,
-      ImportProblems.InFile problems) {
-    return readMtfSlotEquipment(slots, new UnprefixedTech(chassisTech, false), problems);
-  }
-
   static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, UnprefixedTech unprefixed,
       ImportProblems.InFile problems) {
     List<UnitEquipment> equipment = new LinkedList<>();
@@ -836,7 +828,6 @@ public class ReadMegaMek {
     slots.forEach((location, names) -> {
       for(String slot : names) {
         SlotName name = SlotName.of(slot);
-        Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
         String comparable = comparable(name.name());
         if(SLOTS_PER_ITEM.containsKey(comparable)) {
           slotCounts.merge(comparable, 1, Integer::sum);
@@ -845,6 +836,7 @@ public class ReadMegaMek {
         } else if(comparable.contains("ammo") || isNarcPods(comparable)
             // a variable-size item repeats its size in every slot; two of different sizes are two items
             || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable + ":" + name.size()))) {
+          Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
           UnitEquipment item = new UnitEquipment(slotEquipment(name, tech), location);
           setSize(item, name.name(), name.size(), problems);
           equipment.add(item);
