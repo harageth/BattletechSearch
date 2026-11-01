@@ -590,9 +590,6 @@ public class ReadMegaMek {
     return size.find() ? Double.valueOf(size.group(2)) : null;
   }
 
-  // Variable-size items whose size is tons. What the size measures depends on the item (MegaMek's
-  // MiscType.sizeSuffix): jump MP for a jump booster, drones for a drone carrier, theaters for MASH,
-  // meters for a ladder.
   /** The vehicle equipment sections read, in order, and where their items are. */
   private static final Map<String, Location> VEHICLE_SECTIONS = new LinkedHashMap<>();
   static {
@@ -632,11 +629,12 @@ public class ReadMegaMek {
       item.setTonnage(size);
     } else if(comparable.equals("mechanicaljumpbooster")) {
       item.setJumpBoost(size.intValue());
-    } else if(comparable.equals("dronecarriercontrolsystem")) {
+    } else if(comparable.equals("dronecarriercontrolsystem") && size == Math.floor(size)) {
       item.setDrones(size.intValue());
-    } else if(comparable.equals("mashequipment")) {
+    } else if(comparable.equals("mashequipment") && size == Math.floor(size)) {
       item.setMashTheaters(size.intValue());
     } else {
+      // a count that isn't a whole number is reported rather than cut down
       // ladder meters and support-vehicle infantry weapons aren't kept yet (bug 24)
       problems.report(ImportProblems.Kind.SIZE_NOT_KEPT, name + " size " + size);
     }

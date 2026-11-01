@@ -243,6 +243,12 @@ class ReadMegaMekTest {
             new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems()))
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getMashTheaters)
         .containsExactly(tuple("mash equipment", 0.0, 5));
+    // a count that isn't whole is reported, not cut down
+    ImportProblems problems = new ImportProblems();
+    assertThat(ReadMegaMek.convertToEquipment(List.of("MASH Equipment:SIZE:2.5"),
+            new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems.in(new File("test.blk"))))
+        .extracting(UnitEquipment::getMashTheaters).containsExactly((Integer) null);
+    assertThat(problems.of(ImportProblems.Kind.SIZE_NOT_KEPT)).containsExactly("test.blk: mash equipment size 2.5");
   }
 
   @Test
