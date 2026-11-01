@@ -106,6 +106,16 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void theOnlyTechAnItemIsMadeIn() {
+    // from the IS / Clan prefixes on its names: ISHeavyPPC, CLHAG30, CLERMediumLaser and ISERMediumLaser
+    assertThat(EquipmentNames.onlyTech("Heavy PPC")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(EquipmentNames.onlyTech("Autocannon/10")).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(EquipmentNames.onlyTech("HAG/30")).isEqualTo(Tech.CLAN);
+    assertThat(EquipmentNames.onlyTech("ER Medium Laser")).isNull();
+    assertThat(EquipmentNames.onlyTech("not equipment")).isNull();
+  }
+
+  @Test
   void unknownNamesAreJustNormalized() {
     assertThat(EquipmentNames.canonical("Nonexistent Gun")).isEqualTo("nonexistentgun");
     assertThat(EquipmentNames.canonical("ml")).isEqualTo("ml");

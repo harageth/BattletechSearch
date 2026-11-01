@@ -69,7 +69,7 @@ class UnitServiceImportTest {
   @Test
   void importsMechsWithTheirIds() throws IOException {
     ImportResult result = importMechs();
-    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(9, 0, 0, 2));
+    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(10, 0, 0, 2));
     // the Goliath GOL-1M and the Hybrid Rifleman have no MUL id
     assertThat(result.problems()).containsEntry(ImportProblems.Kind.NO_MUL_ID, 2);
 
@@ -88,7 +88,7 @@ class UnitServiceImportTest {
     int equipmentRows = count("SELECT count(*) FROM unit_equipment");
     UUID atlasId = unitRepo.findByMegamekUuid(ATLAS).orElseThrow().getId();
 
-    assertThat(importMechs()).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(0, 9, 0, 2));
+    assertThat(importMechs()).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(0, 10, 0, 2));
 
     assertThat(count("SELECT count(*) FROM unit")).isEqualTo(units);
     // the old equipment rows are replaced, not left behind

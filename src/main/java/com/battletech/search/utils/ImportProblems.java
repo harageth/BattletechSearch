@@ -28,6 +28,7 @@ public class ImportProblems {
     UNREAD_SECTION(true, "equipment section the importer doesn't read; its items are dropped"),
     FIRE_CONTROL_WITHOUT_LAUNCHER(true, "Artemis / Apollo with no launcher to go on; dropped"),
     INVALID_UUID(true, "MegaMek uuid that isn't a uuid; saved without one"),
+    WEAPON_TECH_UNCLEAR(true, "IS and Clan slots of a weapon that can't be split into the weapons listed; all get the first slot's tech"),
     // the unit isn't saved
     FAILED(true, "file that couldn't be read; not saved"),
     NO_MUL_ID(false, "unit without a MUL id; not saved (only Master Unit List units are imported)"),

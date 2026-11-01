@@ -23,9 +23,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -75,8 +77,9 @@ public class ReadMegaMek {
     if(vee.getTech() == null) {
       problems.report(ImportProblems.Kind.UNKNOWN_TECH_BASE, techBase);
     }
-    // equipment without an IS/Clan prefix is the chassis tech
+    // equipment without an IS/Clan prefix is the chassis tech (on mixed-tech vehicles, see UnprefixedTech)
     Tech chassisTech = Tech.chassisTech(techBase);
+    UnprefixedTech unprefixed = new UnprefixedTech(chassisTech, vee.getTech() == Tech.MIXED_TECH);
     vee.setName(value.get("name").get(0));
     vee.setMegamekUuid(parseUuid(first(value, "uuid"), problems));
     // the tag is literally <mul id:>
@@ -96,7 +99,7 @@ public class ReadMegaMek {
     readBlkComponents(vee, value, chassisTech, problems);
     VEHICLE_SECTIONS.forEach((tag, location) -> {
       if(value.get(tag) != null) {
-        vee.setMechEquipment(convertToEquipment(value.get(tag), chassisTech, location, problems));
+        vee.setMechEquipment(convertToEquipment(value.get(tag), unprefixed, location, problems));
       }
     });
     // any other "... equipment" section is reported (wings, nose and aft are on skipped aircraft)
@@ -121,6 +124,11 @@ public class ReadMegaMek {
   }
 
   static List<UnitEquipment> convertToEquipment(List<String> equipment, Tech chassisTech, Location location,
+      ImportProblems.InFile problems) {
+    return convertToEquipment(equipment, new UnprefixedTech(chassisTech, false), location, problems);
+  }
+
+  static List<UnitEquipment> convertToEquipment(List<String> equipment, UnprefixedTech unprefixed, Location location,
       ImportProblems.InFile problems) {
     List<UnitEquipment> returnEquipment = new LinkedList<UnitEquipment>();
     List<FireControl> unattached = new LinkedList<>();
@@ -165,7 +173,7 @@ public class ReadMegaMek {
           value.getEquipment().setName(equip.substring(2).strip());
         }
       } else {
-        value.getEquipment().setTech(chassisTech);
+        value.getEquipment().setTech(unprefixed.of(equip));
         value.getEquipment().setName(equip);
       }
       setSize(value, value.getEquipment().getName(), size, problems);
@@ -284,11 +292,11 @@ public class ReadMegaMek {
     mech.setMovement(move);
     // armor isn't imported yet
 
-    Tech chassisTech = Tech.chassisTech(techBase);
-    List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, chassisTech, problems);
+    UnprefixedTech unprefixed = new UnprefixedTech(Tech.chassisTech(techBase), mech.getTech() == Tech.MIXED_TECH);
+    List<UnitEquipment> equipment = readMtfWeapons(lines, filePath, unprefixed, problems);
     Map<String, List<String>> slots = readMtfSlots(lines);
     attachMtfFireControl(equipment, slots, problems);
-    equipment.addAll(readMtfSlotEquipment(slots, chassisTech, problems));
+    equipment.addAll(readMtfSlotEquipment(slots, unprefixed, problems));
     mech.setMechEquipment(equipment);
     return mech;
   }
@@ -493,16 +501,17 @@ public class ReadMegaMek {
 
   /**
    * The lines after "Weapons:N", e.g. "Medium Laser, Left Arm" or "Rifle (Cannon, Heavy), Left Torso".
-   * Weapon lines don't say IS or Clan; the critical slots do ("CLERMediumLaser"), so a weapon that
-   * matches a prefixed slot in its location gets that tech, and anything else the chassis tech.
+   * Weapon lines don't say IS or Clan; the critical slots in the weapon's location do
+   * ("CLERMediumLaser"), see weaponTechs.
    */
-  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath, Tech chassisTech,
+  static List<UnitEquipment> readMtfWeapons(List<String> lines, File filePath, UnprefixedTech unprefixed,
       ImportProblems.InFile problems) throws IOException {
     Map<String, List<String>> slots = readMtfSlots(lines);
-    List<UnitEquipment> weapons = new LinkedList<>();
     for(int i = 0; i < lines.size(); i++) {
       if(lines.get(i).toLowerCase().startsWith("weapons:")) {
         int count = Integer.parseInt(lines.get(i).substring("weapons:".length()).trim());
+        // name and location of each line
+        List<String[]> read = new ArrayList<>();
         for(int j = 1; j <= count; j++) {
           String line = lines.get(i + j);
           // the name can contain ", " itself, so the location is after the last one
@@ -510,18 +519,32 @@ public class ReadMegaMek {
           if(split < 0) {
             throw new IOException(filePath + ": weapon line without a location: " + line);
           }
-          String name = line.substring(0, split);
-          String location = line.substring(split + 2);
-          Tech tech = slotTech(slots.getOrDefault(location.toLowerCase(), List.of()), name);
-          Equipment weapon = new Equipment(EquipmentNames.normalize(name), tech != null ? tech : chassisTech);
-          weapon.setDisplayName(name);
-          weapons.add(new UnitEquipment(weapon, location));
+          read.add(new String[] {line.substring(0, split), line.substring(split + 2)});
+        }
+        // the weapons of one name in one location share out its slots, so each gets its own tech
+        Map<String, Integer> perGroup = new HashMap<>();
+        read.forEach(weapon -> perGroup.merge(weaponGroup(weapon[0], weapon[1]), 1, Integer::sum));
+        Map<String, Iterator<Tech>> techs = new HashMap<>();
+        List<UnitEquipment> weapons = new LinkedList<>();
+        for(String[] weapon : read) {
+          String name = weapon[0];
+          String location = weapon[1];
+          Tech tech = techs.computeIfAbsent(weaponGroup(name, location), group -> weaponTechs(
+              slots.getOrDefault(location.toLowerCase(), List.of()), name, perGroup.get(group), unprefixed, problems)
+              .iterator()).next();
+          Equipment equipment = new Equipment(EquipmentNames.normalize(name), tech);
+          equipment.setDisplayName(name);
+          weapons.add(new UnitEquipment(equipment, location));
           reportUnknownLocation(location, name, problems);
         }
         return weapons;
       }
     }
     throw new IOException(filePath + " has no weapons: line");
+  }
+
+  private static String weaponGroup(String name, String location) {
+    return location.toLowerCase() + "\t" + comparable(name);
   }
 
   /**
@@ -627,16 +650,80 @@ public class ReadMegaMek {
     }
   }
 
-  /** The tech of a slot naming this weapon with an IS/Clan prefix, or null if there isn't one. */
-  static Tech slotTech(List<String> slots, String weapon) {
+  /**
+   * The tech of an item a file writes without an IS / Clan prefix: the chassis tech, except on a
+   * mixed-tech unit, where an item MegaMek makes in only one tech gets that one. Mixed units write
+   * items of their other tech without a prefix too (the Kodiak (Cale)'s Heavy PPC and AC/10 on a
+   * Clan chassis). Pure units keep the chassis tech, which is right for them whether or not the alias
+   * table knows the item.
+   */
+  record UnprefixedTech(Tech chassis, boolean mixed) {
+    Tech of(String name) {
+      Tech only = mixed ? EquipmentNames.onlyTech(name) : null;
+      return only != null ? only : chassis;
+    }
+  }
+
+  /**
+   * The tech of each of the `count` weapons with this name in one location, from the slots there
+   * naming it: a slot's IS / Clan prefix, or for one without, UnprefixedTech. With no such slot, all
+   * get UnprefixedTech of the weapon's name.
+   *
+   * When both techs' slots are there (the Kodiak (Cale)'s left arm: 3 CLERMediumLaser and 2
+   * ISERMediumLaser for 5 ER Medium Lasers), each weapon fills as many slots as its size, which
+   * differs between the techs (an IS ER PPC takes 3, a Clan one 2). So the split is the one where
+   * each tech's slots make whole weapons of one size and the counts add up to `count`. If there's
+   * no such split, or more than one, they all get the first slot's tech, reported.
+   */
+  static List<Tech> weaponTechs(List<String> slots, String weapon, int count, UnprefixedTech unprefixed,
+      ImportProblems.InFile problems) {
     String wanted = comparable(weapon);
+    String canonical = EquipmentNames.canonical(weapon);
+    // slots per tech, in the order the techs come up
+    Map<Tech, Integer> slotsPerTech = new LinkedHashMap<>();
     for(String slot : slots) {
       SlotName name = SlotName.of(slot);
-      if(name.tech() != null && comparable(name.name()).equals(wanted)) {
-        return name.tech();
+      // "ISC3MasterUnit" for "C3 Computer (Master)": the alias table knows both
+      if(comparable(name.name()).equals(wanted) || EquipmentNames.canonical(name.name()).equals(canonical)) {
+        slotsPerTech.merge(name.tech() != null ? name.tech() : unprefixed.of(name.name()), 1, Integer::sum);
       }
     }
-    return null;
+    if(slotsPerTech.isEmpty()) {
+      return Collections.nCopies(count, unprefixed.of(weapon));
+    }
+    List<Tech> techs = new ArrayList<>(slotsPerTech.keySet());
+    List<List<Integer>> splits = weaponsPerTech(new ArrayList<>(slotsPerTech.values()), count);
+    if(techs.size() == 1 || splits.size() != 1) {
+      if(techs.size() > 1) {
+        problems.report(ImportProblems.Kind.WEAPON_TECH_UNCLEAR, count + " " + weapon + " in slots " + slotsPerTech);
+      }
+      return Collections.nCopies(count, techs.get(0));
+    }
+    List<Tech> perWeapon = new ArrayList<>();
+    for(int i = 0; i < techs.size(); i++) {
+      perWeapon.addAll(Collections.nCopies(splits.get(0).get(i), techs.get(i)));
+    }
+    return perWeapon;
+  }
+
+  // every way to make `count` weapons out of these slot counts, one weapon size per count: the number
+  // of weapons from each
+  private static List<List<Integer>> weaponsPerTech(List<Integer> slotCounts, int count) {
+    if(slotCounts.isEmpty()) {
+      return count == 0 ? List.of(List.of()) : List.of();
+    }
+    List<List<Integer>> ways = new ArrayList<>();
+    int slots = slotCounts.get(0);
+    for(int weapons = 1; weapons <= Math.min(slots, count); weapons++) {
+      if(slots % weapons == 0) {
+        for(List<Integer> rest : weaponsPerTech(slotCounts.subList(1, slotCounts.size()), count - weapons)) {
+          List<Integer> way = new ArrayList<>(List.of(weapons));
+          way.addAll(rest);
+          ways.add(way);
+        }
+      }
+    }
+    return ways;
   }
 
   /*
@@ -735,6 +822,11 @@ public class ReadMegaMek {
 
   static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, Tech chassisTech,
       ImportProblems.InFile problems) {
+    return readMtfSlotEquipment(slots, new UnprefixedTech(chassisTech, false), problems);
+  }
+
+  static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, UnprefixedTech unprefixed,
+      ImportProblems.InFile problems) {
     List<UnitEquipment> equipment = new LinkedList<>();
     Set<String> seen = new HashSet<>();
     // multi-slot jump jets can be split across locations, so count slots per mech
@@ -744,7 +836,7 @@ public class ReadMegaMek {
     slots.forEach((location, names) -> {
       for(String slot : names) {
         SlotName name = SlotName.of(slot);
-        Tech tech = name.tech() != null ? name.tech() : chassisTech;
+        Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
         String comparable = comparable(name.name());
         if(SLOTS_PER_ITEM.containsKey(comparable)) {
           slotCounts.merge(comparable, 1, Integer::sum);
@@ -762,7 +854,7 @@ public class ReadMegaMek {
     });
     slotCounts.forEach((comparable, count) -> {
       SlotName name = countedNames.get(comparable);
-      Tech tech = name.tech() != null ? name.tech() : chassisTech;
+      Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
       for(int i = 0; i < count / SLOTS_PER_ITEM.get(comparable); i++) {
         // recorded at the first location it's in
         equipment.add(new UnitEquipment(slotEquipment(name, tech), countedLocations.get(comparable)));
