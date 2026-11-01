@@ -103,23 +103,21 @@ public final class QueryVocabulary {
     return components;
   }
 
-  // what to offer for equipment whose name can't be typed; each must find that equipment
+  // what to offer instead of a name as MegaMek writes it; each must find that equipment
   private static final Map<String, String> TYPED_INSTEAD = Map.of(
-      // user decision (2026-10-29): binary lasers are just "blazers"
-      "binary laser (blazer) cannon", "blazer",
-      // MegaMek's other name for it; unit words can be part of a name
-      "flamer (vehicle)", "vehicle flamer");
+      // user decision (2026-10-29): binary lasers are just "blazers" (a slang term, equipment-slang.tsv)
+      "binary laser (blazer) cannon", "blazer");
 
   /**
-   * How a query names this equipment (a weapon as typed, "lrm 20"): the name itself if it can be
-   * typed, else a spelling that can and finds it, else null.
+   * How a query names this equipment (a weapon as typed, "lrm 20"): the spelling people use for it if
+   * there is one, else the name itself if it can be typed, else null.
    */
   public static String typedName(String name) {
-    if (isTypeable(name)) {
-      return name;
-    }
     String instead = TYPED_INSTEAD.get(name);
-    return instead != null && isTypeable(instead) ? instead : null;
+    if (instead != null && isTypeable(instead)) {
+      return instead;
+    }
+    return isTypeable(name) ? name : null;
   }
 
   /**

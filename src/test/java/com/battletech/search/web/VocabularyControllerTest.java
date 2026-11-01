@@ -48,8 +48,8 @@ class VocabularyControllerTest {
     assertThat(vocabulary.families().get("lrms")).contains("lrm 20", "lrm 10").doesNotContain("lrt 20");
     assertThat(vocabulary.families().get("ppcs")).contains("ppc", "er ppc");
     assertThat(vocabulary.equipment().get("streak srm 4")).containsExactlyInAnyOrder("srms", "streaks");
-    // only what a query can type: "Flamer (Vehicle)" has parentheses, so it's offered as "vehicle flamer"
-    assertThat(vocabulary.families().get("flamers")).contains("vehicle flamer").doesNotContain("flamer (vehicle)");
+    // as MegaMek names it: a bracketed part can be typed
+    assertThat(vocabulary.families().get("flamers")).contains("flamer (vehicle)");
     assertThat(vocabulary.families().values()).allSatisfy(members ->
         assertThat(members).allMatch(QueryVocabulary::isTypeable));
   }

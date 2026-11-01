@@ -62,13 +62,18 @@ public final class EquipmentNames {
     return withoutTags(display).replaceAll("\\s+", " ").toLowerCase();
   }
 
+  // names drop apostrophes (user decision, 2026-11-01): "'Mech Mortar 1" is the Mech Mortar 1
   public static String normalize(String name) {
-    return TECH_SUFFIX.matcher(MOUNTING.matcher(name).replaceAll("")).replaceAll("").toLowerCase().replaceAll("\\s", "");
+    return TECH_SUFFIX.matcher(MOUNTING.matcher(name).replaceAll("")).replaceAll("").toLowerCase()
+        .replaceAll("[\\s']", "");
   }
 
-  /** The name without mounting notes and tech tags, case kept: "LRM 10 (OS)" -> "LRM 10". */
+  /**
+   * The name without mounting notes, tech tags and apostrophes, case kept: "LRM 10 (OS)" -> "LRM 10",
+   * "'Mech Mortar 1" -> "Mech Mortar 1".
+   */
   public static String withoutTags(String name) {
-    return MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("").strip();
+    return MOUNTING.matcher(TECH_SUFFIX.matcher(name).replaceAll("")).replaceAll("").replace("'", "").strip();
   }
 
   /** What slang is looked up by: the letters and digits, lowercase. "LB 10-X AC" -> "lb10xac". */

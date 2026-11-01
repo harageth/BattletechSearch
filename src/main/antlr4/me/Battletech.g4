@@ -40,13 +40,15 @@ negation: WITHOUT | NO | EXCEPT ;
 ratingChunk: QUANTITY? WORD RATING (comparator? QUANTITY | QUANTITY comparator) ;
 // "lrm 20", "streak srm 6": a name can end in one number. A number followed by another word starts
 // the next chunk instead, so "2 ppc 3 srm6" is still two chunks. Unit words can be part of a name
-// ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else.
-equipmentName: (WORD | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT
-    | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ QUANTITY? ;
+// ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else. A
+// bracketed part is one word ("flamer (vehicle)", "rifle (cannon, heavy)", "lrm 20 (os)"), and so is
+// "triple strength" (TSM; "triple" is a number otherwise).
+equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
 // A name with no number in front starts with a plain word, so "mechs at least 2 ppc" still misses its
 // "with" instead of reading "mechs" as a name
-bareName: WORD (WORD | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT
-    | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)* QUANTITY? ;
+bareName: (WORD | TRIPLESTRENGTH) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
+    | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)* (QUANTITY BRACKETED?)? ;
 // "omni mechs", "non-omni vehicles"
 omni: OMNI | NONOMNI ;
 // "ultra light", "medium or heavy", "light, medium, or heavy": a unit in any of them; "and" reads the
@@ -229,5 +231,10 @@ IlClan
 */
 
 NEWLINE             : ('\r'? '\n' | '\r')+ ;
-WORD: [a-zA-Z0-9\-/]+ ;
+// a bracketed part of an equipment name, commas and all: "(vehicle)", "(cannon, heavy)", "[half]"
+BRACKETED: '(' ~[()\r\n]* ')' | '[' ~[\]\r\n]* ']' ;
+// "triple strength myomer": the longer match keeps "triple" from being a number
+TRIPLESTRENGTH: T R I P L E GAP S T R E N G T H ;
+// an apostrophe is part of a word and dropped from names ("'mech mortar 1", "ppc's")
+WORD: [a-zA-Z0-9\-/']+ ;
 WHITESPACE : [ \t]+ -> skip ;

@@ -99,8 +99,11 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.isTypeable("streak srm 6")).isTrue();
     assertThat(QueryVocabulary.isTypeable("ac/20")).isTrue();
     assertThat(QueryVocabulary.isTypeable("lb 10-x ac")).isTrue();
-    // no parentheses in a query
-    assertThat(QueryVocabulary.isTypeable("flamer (vehicle)")).isFalse();
+    // a bracketed part, an apostrophe and "triple strength" are words of a name (2026-11-01)
+    assertThat(QueryVocabulary.isTypeable("flamer (vehicle)")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("rifle (cannon, heavy)")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("'mech mortar 1")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("industrial triple strength myomer")).isTrue();
     // the number ends the name, so "ammo" would start another chunk
     assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isFalse();
     assertThat(QueryVocabulary.isTypeable("")).isFalse();
@@ -111,12 +114,14 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.typedName("lrm 20")).isEqualTo("lrm 20");
     // user decision: binary lasers are just "blazers"
     assertThat(QueryVocabulary.typedName("binary laser (blazer) cannon")).isEqualTo("blazer");
-    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("vehicle flamer");
+    // a bracketed part can be typed (2026-11-01)
+    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("flamer (vehicle)");
     // each spelling finds the equipment it stands for
     for (String name : List.of("binary laser (blazer) cannon", "flamer (vehicle)")) {
       assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)
           .isEqualTo(EquipmentNames.normalize(name));
     }
-    assertThat(QueryVocabulary.typedName("some (thing)")).isNull();
+    // a number in the middle can't: generic ammo names ("lrm ammo") are slang instead
+    assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isNull();
   }
 }
