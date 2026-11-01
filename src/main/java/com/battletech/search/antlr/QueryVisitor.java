@@ -20,7 +20,6 @@ import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import me.BattletechLexer;
 import me.BattletechParser;
@@ -69,16 +68,24 @@ public class QueryVisitor implements BattletechVisitor {
     return visitLine(ctx.line());
   }
 
-  /** "medium or heavy": each weight class named, in order; ones that aren't a weight class are left out. */
+  /** "medium or heavy": each weight class named, in order. */
   @Override
   public List<WeightClass> visitWeightClasses(WeightClassesContext ctx) {
-    return ctx.weightClass().stream().map(this::visitWeightClass).filter(Objects::nonNull).distinct().toList();
+    return ctx.weightClass().stream().map(this::visitWeightClass).distinct().toList();
   }
 
-  /** Weight classes can be more than one word, e.g. "ultra light"; null if it isn't one. */
+  /**
+   * Weight classes can be more than one word, e.g. "ultra light". A word that isn't one ("hevy",
+   * "non-omnimech") fails the search instead of being left out, which would search every weight class.
+   */
   @Override
   public WeightClass visitWeightClass(WeightClassContext ctx) {
-    return WeightClass.fromString(ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" ")));
+    String typed = ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" "));
+    WeightClass weightClass = WeightClass.fromString(typed);
+    if (weightClass == null) {
+      throw new FailedParseException("Unknown weight class: " + typed);
+    }
+    return weightClass;
   }
 
   /** The name as typed, words separated by spaces ("lrm 20"); normalized before the lookup. */

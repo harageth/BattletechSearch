@@ -445,3 +445,34 @@ test('a swap starting with a unit word gets "any" when no number comes before it
   assert.ok(texts(options).includes('flamer'));
   assert.equal(analyze('units with any vehicle flamer', flamers).error, null);
 });
+
+/** The query with one token swapped for the option with this label. */
+function swappedTo(query, text, label) {
+  const found = token(query, text);
+  return replaceToken(query, found, alternatives(found, vocabulary).find(option => option.label === label).text).text;
+}
+
+test('taking out a word in front of a unit-word name puts "any" in', () => {
+  // "with vehicle flamer" doesn't parse: a name with no number has to start with a plain word
+  const cases = [
+    ['units with is vehicle flamer', 'is', 'any tech', 'units with any vehicle flamer'],
+    ['units without vehicle flamer', 'without', 'with', 'units with any vehicle flamer'],
+    ['units with no vehicle flamer', 'no', 'with', 'units with any vehicle flamer'],
+    ['mechs without tripod cockpit', 'without', 'with', 'mechs with any tripod cockpit'],
+    // a plain word, or a number, after it: nothing to add
+    ['units with is lrm 20', 'is', 'any tech', 'units with lrm 20'],
+    ['units without clan vehicle flamer', 'without', 'with', 'units with clan vehicle flamer'],
+    ['mechs without an xl engine', 'without', 'with', 'mechs with an xl engine'],
+    // after a number the name can start with a unit word
+    ['units with 2 is vehicle flamer', 'is', 'any tech', 'units with 2 vehicle flamer'],
+  ];
+  for (const [query, text, label, expected] of cases) {
+    assert.equal(swappedTo(query, text, label), expected, query);
+    assert.equal(analyze(expected, vocabulary).error, null, expected);
+  }
+});
+
+test('every spelling of a unit word works after non-', () => {
+  assert.deepEqual(roles('non-hover tanks'), ['non-hover:except', 'tanks:unit']);
+  assert.deepEqual(roles('non-helicopter vehicles'), ['non-helicopter:except', 'vehicles:unit']);
+});

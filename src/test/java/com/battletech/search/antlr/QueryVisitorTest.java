@@ -147,6 +147,28 @@ class QueryVisitorTest {
   }
 
   @Test
+  void anUnknownWeightClassFails() {
+    // left out, it would search every weight class
+    assertThatThrownBy(() -> parse("hevy mechs with at least 1 ppc"))
+        .isInstanceOf(FailedParseException.class)
+        .hasMessage("Unknown weight class: hevy");
+    assertThatThrownBy(() -> parse("light or hevy mechs"))
+        .isInstanceOf(FailedParseException.class)
+        .hasMessage("Unknown weight class: hevy");
+  }
+
+  @Test
+  void everySpellingOfAUnitWordWorksAfterNon() {
+    // the same words as the unit tokens: "hover" and "helicopter" are spellings of hovercraft and vtol
+    assertThat(parse("non-hover tanks").getQuery())
+        .contains("AND NOT COALESCE((dtype = 'Tank' AND motive_system = 'Hover'), false)");
+    assertThat(parse("non hovertank vehicles").getQuery())
+        .contains("AND NOT COALESCE((dtype = 'Tank' AND motive_system = 'Hover'), false)");
+    assertThat(parse("non-helicopter vehicles").getQuery()).isEqualTo(parse("non-vtol vehicles").getQuery());
+    assertThat(parse("non-vees units").getQuery()).isEqualTo(parse("non-vehicle units").getQuery());
+  }
+
+  @Test
   void severalWeightClasses() {
     assertThat(parse("medium or heavy mechs with at least 1 ppc").getWeightClasses())
         .containsExactly(WeightClass.MEDIUM, WeightClass.HEAVY);

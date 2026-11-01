@@ -103,28 +103,42 @@ fragment UPPERCASE  : [A-Z] ;
 //SIZEDUNIT: WEIGHTCLASS UNIT;
 //unit types
 //UNIT: GENERICUNIT [s]* | MECH [s]* | VEHICLE [s]* | VTOL [s]* | TANK [s]* | WHEELED [s]* | TRACKED [s]* | HOVERCRAFT [s]* ;
-MECH: M E C H S* ;
-VEHICLE: V E H I C L E S* | V E E S* ;
-VTOL: V T O L S* | H E L I C O P T E R S* | H E L O S* ;
-HOVERCRAFT: H O V E R C R A F T S* | H O V E R T A N K S* | H O V E R S* ;
-WHEELED: W H E E L E D S* ;
-TRACKED: T R A C K E D S* ;
+// Each unit word's spellings are a fragment, shared by its token and by NONUNIT, so every spelling
+// works after "non-" too ("non-hover", "non-helicopter")
+MECH: MECHWORD S* ;
+VEHICLE: VEHICLEWORD S* ;
+VTOL: VTOLWORD S* ;
+HOVERCRAFT: HOVERCRAFTWORD S* ;
+WHEELED: WHEELEDWORD S* ;
+TRACKED: TRACKEDWORD S* ;
 // every ground vehicle (dtype Tank), whatever its motive type
-TANK: T A N K S* ;
+TANK: TANKWORD S* ;
 GENERICUNIT: U N I T S* ;
 // mechs by body plan (unit.locomotion); "quadvees" is the longer match over "quad"
-BIPED: B I P E D S* ;
-QUADVEE: Q U A D V E E S* ;
-QUAD: Q U A D S* ;
-TRIPOD: T R I P O D S* ;
-LAM: L A M S* ;
+BIPED: BIPEDWORD S* ;
+QUADVEE: QUADVEEWORD S* ;
+QUAD: QUADWORD S* ;
+TRIPOD: TRIPODWORD S* ;
+LAM: LAMWORD S* ;
+fragment MECHWORD: M E C H ;
+fragment VEHICLEWORD: V E H I C L E | V E E ;
+fragment VTOLWORD: V T O L | H E L I C O P T E R | H E L O ;
+fragment HOVERCRAFTWORD: H O V E R C R A F T | H O V E R T A N K | H O V E R ;
+fragment WHEELEDWORD: W H E E L E D ;
+fragment TRACKEDWORD: T R A C K E D ;
+fragment TANKWORD: T A N K ;
+fragment BIPEDWORD: B I P E D ;
+fragment QUADVEEWORD: Q U A D V E E ;
+fragment QUADWORD: Q U A D ;
+fragment TRIPODWORD: T R I P O D ;
+fragment LAMWORD: L A M ;
 // OmniMechs; "omni" on its own goes in front of any unit word
 OMNIMECH: O M N I M E C H S* | O M N I M E K S* | O M N I S ;
 OMNI: O M N I ;
 NONOMNI: N O N '-' O M N I | N O N GAP O M N I | N O N O M N I ;
 // "non-lam", "non-quad", "non-vtol": any unit word but those (one token, or "non-lam" lexes as a WORD)
-NONUNIT: N O N ('-' | GAP)? (B I P E D | Q U A D V E E | Q U A D | T R I P O D | L A M | M E C H | V E H I C L E
-    | V E E | V T O L | T A N K | W H E E L E D | T R A C K E D | H O V E R C R A F T) S* ;
+NONUNIT: N O N ('-' | GAP)? (BIPEDWORD | QUADVEEWORD | QUADWORD | TRIPODWORD | LAMWORD | MECHWORD | VEHICLEWORD
+    | VTOLWORD | TANKWORD | WHEELEDWORD | TRACKEDWORD | HOVERCRAFTWORD) S* ;
 
 
 // quantity values
