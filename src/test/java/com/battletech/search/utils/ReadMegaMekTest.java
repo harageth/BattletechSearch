@@ -178,17 +178,37 @@ class ReadMegaMekTest {
   @Test
   void industrialEquipmentTheAllowListMissed() {
     Map<String, List<String>> slots = new LinkedHashMap<>();
-    // Lumberjack LM4C, ScavengerMech SC-V SalvageMech, UrbanKnight UM-DKX; a dumper's facing isn't part of its name
-    slots.put("right torso", List.of("Dumper (Rear)", "Dumper (Rear)", "Fluid Suction System (Light - Mech)"));
-    slots.put("left torso", List.of("Dumper (Front)", "ChainDrapeCape"));
+    // ScavengerMech SC-V SalvageMech and UrbanKnight UM-DKX
+    slots.put("right torso", List.of("Fluid Suction System (Light - Mech)", "ChainDrapeCape", "ChainDrapeCape"));
 
     assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getDisplayName())
         .containsExactly(
-            // once per mech, like the rest of the allow-list
-            tuple("dumper", "Dumper"),
             tuple("fluidsuctionsystem(light-mech)", "Fluid Suction System (Light - Mech)"),
+            // once per mech, like the rest of the allow-list
             tuple("chaindrapecape", "ChainDrapeCape"));
+  }
+
+  @Test
+  void eachDumperIsOneSlotAndKeepsItsFacing() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // Lumberjack LM4C: a rear dumper in each side torso; MuckRaker GMMM-2 has front ones
+    slots.put("left torso", List.of("Dumper (Rear)"));
+    slots.put("right torso", List.of("Dumper (Rear)"));
+    slots.put("center torso", List.of("Dumper (Front)"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getDisplayName(),
+            UnitEquipment::getLocation, UnitEquipment::isRearFacing)
+        .containsExactly(
+            tuple("dumper", "Dumper", Location.LEFT_TORSO, true),
+            tuple("dumper", "Dumper", Location.RIGHT_TORSO, true),
+            tuple("dumper", "Dumper", Location.CENTER_TORSO, false));
+    // vehicles write them the same way (Brunel Dump Truck, TGV Omni Railcar C)
+    assertThat(ReadMegaMek.convertToEquipment(List.of("Dumper (Rear)", "Dumper (Right):OMNI"),
+            new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems()))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::isRearFacing, UnitEquipment::isOmniPod)
+        .containsExactly(tuple("dumper", true, false), tuple("dumper", false, true));
   }
 
   @Test
