@@ -570,8 +570,9 @@ public class ReadMegaMek {
     return slots;
   }
 
-  // How a slot is mounted, not what's in it; (T) is turret-mounted
-  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // How a slot is mounted, not what's in it; (T) is turret-mounted. A dumper says which way it dumps,
+  // "Dumper (Front)", "Dumper (Rear)": both are the Dumper.
+  private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored|front|rear)\\)", Pattern.CASE_INSENSITIVE);
   // a variable-size item's size, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
   private static final Pattern SIZE = Pattern.compile("(:omni)?:size:([0-9.]+)$", Pattern.CASE_INSENSITIVE);
 
@@ -738,7 +739,7 @@ public class ReadMegaMek {
       // physical and industrial
       + "|lance|talons|spikes|(small|medium|large)vibroblade|chainwhip|flail|ramplate|wreckingball"
       + "|rockcutter|dualsaw|miningdrill|(heavyduty)?piledriver|salvagearm|backhoe|combine|spotwelder"
-      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield"
+      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield|dumper|fluidsuctionsystem.*|chaindrape.*"
       // electronics and defensive systems
       + "|mekvoidsignaturesystem|radicalheatsinksystem|harjel.*|supercooledmyomer|novacews"
       + "|c3emergencymaster|c3sensors|collapsiblecommandmodule|droneoperatingsystem"

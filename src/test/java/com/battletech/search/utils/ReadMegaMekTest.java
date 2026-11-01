@@ -176,6 +176,22 @@ class ReadMegaMekTest {
   }
 
   @Test
+  void industrialEquipmentTheAllowListMissed() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // Lumberjack LM4C, ScavengerMech SC-V SalvageMech, UrbanKnight UM-DKX; a dumper's facing isn't part of its name
+    slots.put("right torso", List.of("Dumper (Rear)", "Dumper (Rear)", "Fluid Suction System (Light - Mech)"));
+    slots.put("left torso", List.of("Dumper (Front)", "ChainDrapeCape"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
+        .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getDisplayName())
+        .containsExactly(
+            // once per mech, like the rest of the allow-list
+            tuple("dumper", "Dumper"),
+            tuple("fluidsuctionsystem(light-mech)", "Fluid Suction System (Light - Mech)"),
+            tuple("chaindrapecape", "ChainDrapeCape"));
+  }
+
+  @Test
   void turretArtemisGoesOnTheTurretLauncher() {
     // Doom Courser Prime: "CLLRM20 (T) (OMNIPOD)" x4, then "CLArtemisIV (T) (OMNIPOD)"
     List<UnitEquipment> weapons = List.of(weapon("lrm20", "Left Torso"));
