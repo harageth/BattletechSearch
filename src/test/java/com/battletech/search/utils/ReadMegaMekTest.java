@@ -22,6 +22,7 @@ import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.WeightClass;
+import com.battletech.search.utils.ReadMegaMek.UnprefixedTech;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -128,7 +129,7 @@ class ReadMegaMekTest {
     slots.put("right torso", List.of("ISLBXAC10", "ISLBXAC10", "IS Ammo LB 10-X AC", "ISCASE"));
     slots.put("left torso", List.of("Targeting Computer", "Targeting Computer", "CLCASE"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
         .containsExactly(
             tuple("ammolb10-xac", Tech.INNER_SPHERE),
@@ -143,7 +144,7 @@ class ReadMegaMekTest {
     slots.put("left torso", List.of("CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)", "ISNarc Pods", "ISiNarc Pods (OMNIPOD)"));
     slots.put("right torso", List.of("Communications Equipment:SIZE:3.0", "MediumShield", "Lance"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
         .containsExactly(
             tuple("rotaryac5ammo", Tech.CLAN),
@@ -163,7 +164,7 @@ class ReadMegaMekTest {
         "MechanicalJumpBooster:SIZE:4.0", "Targeting Computer"));
     slots.put("left torso", List.of("MechanicalJumpBooster:SIZE:4.0", "Communications Equipment:SIZE:1.0"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getJumpBoost)
         .containsExactly(
             tuple("communicationsequipment", 3.0, null),
@@ -190,7 +191,7 @@ class ReadMegaMekTest {
   void vehicleSizesGoOnTheItemNotTheName() {
     assertThat(ReadMegaMek.convertToEquipment(
             List.of("Communications Equipment:SIZE:4.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"),
-            Tech.INNER_SPHERE, Location.BODY, problems()))
+            new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems()))
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod)
         .containsExactly(
             tuple("communications equipment", 4.0, false),
@@ -204,12 +205,12 @@ class ReadMegaMekTest {
     ImportProblems.InFile inFile = problems.in(new File("Tarantula ZPH-1.mtf"));
 
     // no mech has wings
-    ReadMegaMek.readMtfSlotEquipment(Map.of("left wing", List.of("Jump Jet")), Tech.INNER_SPHERE, inFile);
+    ReadMegaMek.readMtfSlotEquipment(Map.of("left wing", List.of("Jump Jet")), new UnprefixedTech(Tech.INNER_SPHERE, false), inFile);
     // nothing for the Artemis to go on
     ReadMegaMek.attachMtfFireControl(List.of(weapon("mediumlaser", "Left Torso")),
         Map.of("left torso", List.of("Medium Laser", "ISArtemisIV")), inFile);
     // a drone carrier's drones aren't kept
-    ReadMegaMek.convertToEquipment(List.of("ISDroneCarrierControlSystem:SIZE:6.0"), Tech.INNER_SPHERE, Location.BODY, inFile);
+    ReadMegaMek.convertToEquipment(List.of("ISDroneCarrierControlSystem:SIZE:6.0"), new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, inFile);
     ReadMegaMek.parseUuid("not-a-uuid", inFile);
 
     assertThat(problems.of(ImportProblems.Kind.UNKNOWN_LOCATION)).containsExactly("Tarantula ZPH-1.mtf: Jump Jet in left wing");
@@ -328,7 +329,7 @@ class ReadMegaMekTest {
     slots.put("left torso", List.of("Jump Jet", "Jump Jet", "Improved Jump Jet"));
     slots.put("right torso", List.of("Improved Jump Jet", "Improved Jump Jet", "Improved Jump Jet"));
 
-    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems()))
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
         .extracting(equip -> equip.getEquipment().getName())
         .containsExactly("jumpjet", "jumpjet", "improvedjumpjet", "improvedjumpjet");
   }
@@ -450,7 +451,7 @@ class ReadMegaMekTest {
     slots.put("rear right leg", List.of("IS Ammo SRM-6"));
     slots.put("center leg", List.of("CASE"));
 
-    List<UnitEquipment> equipment = ReadMegaMek.readMtfSlotEquipment(slots, Tech.INNER_SPHERE, problems.in(new File("Quad.mtf")));
+    List<UnitEquipment> equipment = ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems.in(new File("Quad.mtf")));
 
     assertThat(equipment).extracting(UnitEquipment::getLocation)
         .containsExactlyInAnyOrder(Location.FRONT_LEFT_LEG, Location.REAR_RIGHT_LEG, Location.CENTER_LEG);
@@ -520,13 +521,69 @@ class ReadMegaMekTest {
   }
 
   @Test
-  void slotTechMatchesPrefixedSlots() {
-    List<String> slots = List.of("Shoulder", "CLUltraAC10", "Clan Ultra AC/10 Ammo", "ISERLargeLaser", "Large Laser");
+  void weaponTechsMatchPrefixedSlots() {
+    List<String> slots = List.of("Shoulder", "CLUltraAC10", "CLUltraAC10", "Clan Ultra AC/10 Ammo", "ISERLargeLaser",
+        "ISERLargeLaser", "Large Laser");
+    UnprefixedTech pureIs = new UnprefixedTech(Tech.INNER_SPHERE, false);
 
-    assertThat(ReadMegaMek.slotTech(slots, "Ultra AC/10")).isEqualTo(Tech.CLAN);
-    assertThat(ReadMegaMek.slotTech(slots, "ER Large Laser")).isEqualTo(Tech.INNER_SPHERE);
-    assertThat(ReadMegaMek.slotTech(slots, "Large Laser")).isNull();
-    assertThat(ReadMegaMek.slotTech(slots, "PPC")).isNull();
+    assertThat(ReadMegaMek.weaponTechs(slots, "Ultra AC/10", 1, pureIs, problems())).containsExactly(Tech.CLAN);
+    assertThat(ReadMegaMek.weaponTechs(slots, "ER Large Laser", 1, pureIs, problems())).containsExactly(Tech.INNER_SPHERE);
+    // no prefix, or no slot at all: the chassis tech
+    assertThat(ReadMegaMek.weaponTechs(slots, "Large Laser", 1, pureIs, problems())).containsExactly(Tech.INNER_SPHERE);
+    assertThat(ReadMegaMek.weaponTechs(slots, "PPC", 2, pureIs, problems())).containsExactly(Tech.INNER_SPHERE, Tech.INNER_SPHERE);
+  }
+
+  @Test
+  void aRearFacingWeaponSharesSlotsWithTheSameWeapon() throws IOException {
+    // "ER Medium Laser" and "ER Medium Laser (R)" are one item, so they share the location's two slots
+    List<String> lines = List.of("Weapons:2", "ER Medium Laser, Center Torso", "ER Medium Laser (R), Center Torso", "",
+        "Center Torso:", "CLERMediumLaser", "ISERMediumLaser (R)");
+    ImportProblems problems = new ImportProblems();
+    List<UnitEquipment> weapons = ReadMegaMek.readMtfWeapons(lines, ReadMegaMek.readMtfSlots(lines), new File("test.mtf"),
+        new UnprefixedTech(Tech.CLAN, true), problems.in(new File("test.mtf")));
+    assertThat(weapons).extracting(equip -> equip.getEquipment().getTech()).containsExactly(Tech.CLAN, Tech.INNER_SPHERE);
+    assertThat(problems.counts()).doesNotContainKey(ImportProblems.Kind.WEAPON_TECH_UNCLEAR);
+  }
+
+  @Test
+  void weaponsOfBothTechsInOneLocationEachGetTheirOwn() {
+    // the Kodiak (Cale)'s left arm: 5 ER medium lasers, 3 Clan and 2 IS
+    List<String> leftArm = List.of("Shoulder", "CLERMediumLaser", "CLERMediumLaser", "CLERMediumLaser",
+        "ISERMediumLaser", "ISERMediumLaser", "Medium Laser");
+    UnprefixedTech clanChassis = new UnprefixedTech(Tech.CLAN, true);
+    assertThat(ReadMegaMek.weaponTechs(leftArm, "ER Medium Laser", 5, clanChassis, problems()))
+        .containsExactly(Tech.CLAN, Tech.CLAN, Tech.CLAN, Tech.INNER_SPHERE, Tech.INNER_SPHERE);
+    // sizes differ between the techs: a Clan ER PPC takes 2 slots, an IS one 3
+    List<String> ppcs = List.of("CLERPPC", "CLERPPC", "ISERPPC", "ISERPPC", "ISERPPC");
+    assertThat(ReadMegaMek.weaponTechs(ppcs, "ER PPC", 2, clanChassis, problems()))
+        .containsExactly(Tech.CLAN, Tech.INNER_SPHERE);
+  }
+
+  @Test
+  void anUnprefixedItemOnAMixedUnitTakesTheOnlyTechItsMadeIn() {
+    UnprefixedTech clanChassis = new UnprefixedTech(Tech.CLAN, true);
+    // the Kodiak (Cale)'s Heavy PPC and AC/10 are IS-only, written without a prefix
+    assertThat(ReadMegaMek.weaponTechs(List.of("Heavy PPC", "Heavy PPC"), "Heavy PPC", 1, clanChassis, problems()))
+        .containsExactly(Tech.INNER_SPHERE);
+    assertThat(ReadMegaMek.weaponTechs(List.of("Autocannon/10"), "AC/10", 1, clanChassis, problems()))
+        .containsExactly(Tech.INNER_SPHERE);
+    // made in both techs: the chassis tech
+    assertThat(clanChassis.of("Medium Pulse Laser")).isEqualTo(Tech.CLAN);
+    // a pure unit always keeps its chassis tech
+    assertThat(new UnprefixedTech(Tech.CLAN, false).of("Heavy PPC")).isEqualTo(Tech.CLAN);
+  }
+
+  @Test
+  void theKodiakCaleGetsEachWeaponsTech() throws IOException {
+    Mech kodiak = mech("Kodiak Cale.mtf");
+    assertThat(named(kodiak, "ermediumlaser")).extracting(equip -> equip.getEquipment().getTech())
+        .containsExactlyInAnyOrder(Tech.CLAN, Tech.CLAN, Tech.CLAN, Tech.INNER_SPHERE, Tech.INNER_SPHERE);
+    assertThat(named(kodiak, "heavyppc")).extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.INNER_SPHERE);
+    assertThat(named(kodiak, "ac/10")).extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.INNER_SPHERE);
+    assertThat(named(kodiak, "streaksrm6")).extracting(equip -> equip.getEquipment().getTech()).containsOnly(Tech.CLAN);
+    // unprefixed "Medium Laser": only IS names in the alias table (Clan has no plain medium laser)
+    assertThat(named(kodiak, "mediumlaser")).extracting(equip -> equip.getEquipment().getTech())
+        .containsOnly(Tech.INNER_SPHERE).hasSize(2);
   }
 
   @Test
@@ -626,12 +683,12 @@ class ReadMegaMekTest {
     Unit tank = vehicle("Chalchiuhtotolin Support Tank (Bombast Laser).blk");
 
     assertThat(tank.getTech()).isEqualTo(Tech.MIXED_TECH);
-    // "CLStreakSRM4" is Clan, and unprefixed equipment gets the Clan chassis' tech. That's wrong for
-    // the IS Bombast Laser, a known limitation (importers skill, bug 11)
+    // "CLStreakSRM4" is Clan. The Bombast Laser is unprefixed, and IS-only (alias table), so on a mixed
+    // unit it gets IS rather than the Clan chassis tech (importers skill, bug 11)
     assertThat(at(tank, Location.FRONTTURRET))
         .extracting(equip -> equip.getEquipment().getName(), equip -> equip.getEquipment().getTech())
         .containsExactly(
-            tuple("bombast laser", Tech.CLAN),
+            tuple("bombast laser", Tech.INNER_SPHERE),
             tuple("streaksrm4", Tech.CLAN),
             tuple("streaksrm4", Tech.CLAN));
   }

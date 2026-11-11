@@ -47,8 +47,9 @@ public final class EquipmentNames {
    * @param aliases lookup key -> normalized display name, for keys with only one (the hand-written
    *     shorthand wins over the generated table)
    * @param displays normalized display name -> the display name as MegaMek writes it, tags removed
+   * @param techs normalized display name -> the techs its prefixed names say ("ISHeavyPPC": IS)
    */
-  private record AliasTable(Map<String, String> aliases, Map<String, String> displays) {
+  private record AliasTable(Map<String, String> aliases, Map<String, String> displays, Map<String, Set<Tech>> techs) {
   }
 
   private static final AliasTable TABLE = loadAliases();
@@ -88,6 +89,16 @@ public final class EquipmentNames {
       canonical = TABLE.aliases().get(slangKey(stripTechPrefix(unmounted)));
     }
     return canonical != null ? canonical : normalize(name);
+  }
+
+  /**
+   * The one tech MegaMek makes this item in, going by the IS / Clan prefixes on its names in the alias
+   * table ("Heavy PPC" has only IS ones, "HAG/30" only Clan ones); null when both techs make it, or
+   * none of its names has a prefix.
+   */
+  public static Tech onlyTech(String name) {
+    Set<Tech> techs = TABLE.techs().get(canonical(name));
+    return techs != null && techs.size() == 1 ? techs.iterator().next() : null;
   }
 
   /** Whether the alias table knows this name (or it's a known display name). */
@@ -206,10 +217,14 @@ public final class EquipmentNames {
     // lookup key -> display names
     Map<String, Set<String>> candidates = new HashMap<>();
     Map<String, String> displays = new HashMap<>();
+    Map<String, Set<Tech>> techs = new HashMap<>();
     for (String[] row : readTsv(ALIASES)) {
       displays.putIfAbsent(normalize(row[1]), withoutTags(row[1]));
       for (AliasKey key : aliasKeys(row[0], row[1])) {
         candidates.computeIfAbsent(key.key(), k -> new HashSet<>()).add(key.display());
+        if (key.prefixTech() != null) {
+          techs.computeIfAbsent(key.display(), k -> new HashSet<>()).add(key.prefixTech());
+        }
       }
     }
     Map<String, String> aliases = new HashMap<>();
@@ -227,6 +242,6 @@ public final class EquipmentNames {
       }
     }
     log.debug("Loaded {} equipment aliases", aliases.size());
-    return new AliasTable(aliases, displays);
+    return new AliasTable(aliases, displays, techs);
   }
 }
