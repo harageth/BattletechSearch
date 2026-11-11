@@ -18,7 +18,8 @@ class QueryVocabularyTest {
       BattletechLexer.EQUAL, BattletechLexer.LESSTHANCOMPARATOR, BattletechLexer.GREATERTHANCOMPARATOR);
   private static final Set<Integer> UNITS = Set.of(BattletechLexer.GENERICUNIT, BattletechLexer.MECH,
       BattletechLexer.VEHICLE, BattletechLexer.VTOL, BattletechLexer.TANK, BattletechLexer.WHEELED,
-      BattletechLexer.TRACKED, BattletechLexer.HOVERCRAFT);
+      BattletechLexer.TRACKED, BattletechLexer.HOVERCRAFT, BattletechLexer.OMNIMECH, BattletechLexer.BIPED,
+      BattletechLexer.QUAD, BattletechLexer.TRIPOD, BattletechLexer.LAM, BattletechLexer.QUADVEE);
 
   private static List<Integer> tokenTypes(String text) {
     BattletechLexer lexer = new BattletechLexer(CharStreams.fromString(text));
@@ -110,7 +111,7 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.typedName("lrm 20")).isEqualTo("lrm 20");
     // user decision: binary lasers are just "blazers"
     assertThat(QueryVocabulary.typedName("binary laser (blazer) cannon")).isEqualTo("blazer");
-    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("vehicleflamer");
+    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("vehicle flamer");
     // each spelling finds the equipment it stands for
     for (String name : List.of("binary laser (blazer) cannon", "flamer (vehicle)")) {
       assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)

@@ -60,8 +60,11 @@ public class QueryParser {
       Token previous = index > 0 ? tokens.get(index - 1) : null;
       // After "2" or "2 or fewer" only an equipment name fits, but when ANTLR fails while choosing
       // between the equipmentChunk alternatives its expected set still includes a quantity.
+      // A unit word can end the query ("lams"), so after one ANTLR only expects the end, but what's
+      // missing is the "with" before the weapons.
       String expected = followsQuantity(tokens, index) ? EQUIPMENT
-          : followsWeightClassOperator(parser, previous) ? WEIGHT_CLASS
+          : followsWeightClassOperator(parser, previous, token) ? WEIGHT_CLASS
+          : previous != null && isUnit(previous.getType()) ? "'with'"
           : describe(parser.getExpectedTokens());
       if (token.getType() == Token.EOF) {
         if (previous == null) {
@@ -102,12 +105,24 @@ public class QueryParser {
     }
 
     /** Whether this is right after the "or" or "," in "light, medium or heavy", where only a weight class fits. */
-    private static boolean followsWeightClassOperator(Parser parser, Token previous) {
+    private static boolean followsWeightClassOperator(Parser parser, Token previous, Token token) {
       ParserRuleContext context = parser.getContext();
+      // "light, mechs": the unit word came where a weight class should; ANTLR may fail while still
+      // choosing the line's alternative, outside the weight class rules
       return previous != null
           && (previous.getType() == BattletechParser.OR || previous.getType() == BattletechParser.AND
               || previous.getType() == BattletechParser.COMMA)
-          && (context instanceof WeightClassesContext || context instanceof WeightClassContext);
+          && (context instanceof WeightClassesContext || context instanceof WeightClassContext
+              || isUnit(token.getType()));
+    }
+
+    private static boolean isUnit(int type) {
+      return type == BattletechParser.GENERICUNIT || type == BattletechParser.MECH
+          || type == BattletechParser.VEHICLE || type == BattletechParser.VTOL || type == BattletechParser.TANK
+          || type == BattletechParser.WHEELED || type == BattletechParser.TRACKED
+          || type == BattletechParser.HOVERCRAFT || type == BattletechParser.BIPED || type == BattletechParser.QUAD
+          || type == BattletechParser.TRIPOD || type == BattletechParser.LAM || type == BattletechParser.QUADVEE
+          || type == BattletechParser.OMNIMECH;
     }
 
     private static boolean isComparator(int type) {

@@ -43,11 +43,13 @@ public class VocabularyController {
   /**
    * @param families family term -> its weapons as typed, only ones some unit has and a query can type
    * @param equipment a weapon as typed -> the families it's in
+   * @param omniWords "omni", "non-omni", in front of a unit word
+   * @param components component kind ("engine") -> its types as typed ("xl engine", ...)
    */
   public record Vocabulary(List<String> weightClasses, List<UnitWord> units,
       List<String> comparatorsBefore, List<String> comparatorsAfter, List<String> operators,
       List<String> withWords, Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
-      Map<String, List<String>> equipment) {
+      Map<String, List<String>> equipment, List<String> omniWords, Map<String, List<String>> components) {
   }
 
   @GetMapping("/api/vocabulary")
@@ -75,7 +77,7 @@ public class VocabularyController {
     Vocabulary vocabulary = new Vocabulary(QueryVocabulary.weightClasses(), QueryVocabulary.units(),
         QueryVocabulary.comparatorsBefore(), QueryVocabulary.comparatorsAfter(),
         QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
-        families, equipment);
+        families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components());
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);
   }

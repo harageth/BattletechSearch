@@ -81,6 +81,8 @@ public class ReadMegaMek {
     vee.setMegamekUuid(parseUuid(first(value, "uuid"), problems));
     // the tag is literally <mul id:>
     vee.setMulId(parseMulId(first(value, "mul id:")));
+    // OmniVehicles have <omni> 1
+    vee.setOmni("1".equals(first(value, "omni")));
     List<String> model = value.get("model");
     vee.setDesignation(model == null || model.isEmpty() ? "" : model.get(0));
     vee.setWeight(Integer.parseInt(value.get("tonnage").get(0).split("\\.")[0]));
@@ -256,6 +258,7 @@ public class ReadMegaMek {
     // e.g. "Biped", "Biped OmniMek", "Quad"
     String config = requiredField(fields, "config", filePath);
     mech.setLocomotion(Locomotion.fromString(config.split(" ")[0]));
+    mech.setOmni(config.toLowerCase().contains("omnimek"));
     if(mech.getLocomotion() == null) {
       problems.report(ImportProblems.Kind.UNKNOWN_CONFIG, config);
     }
