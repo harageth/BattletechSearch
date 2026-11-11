@@ -304,6 +304,16 @@ test('the unit section starts a query, the weapon section adds to one', () => {
   // no "and" after "with" or another and/or
   assert.equal(addTemplate('mechs with', 'weapon'), 'mechs with <comparator> <quantity> <weapon>');
   assert.equal(addTemplate('mechs with 1 ppc or', 'weapon'), 'mechs with 1 ppc or <comparator> <quantity> <weapon>');
+  // a query that's only units gets "with", even after units left out
+  assert.equal(addTemplate('lams', 'weapon'), 'lams with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate('heavy omni mechs', 'weapon'), 'heavy omni mechs with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate('mechs except lams and quads', 'weapon'),
+      'mechs except lams and quads with <comparator> <quantity> <weapon>');
+  assert.equal(addTemplate('tracked vees', 'weapon'), 'tracked vees with <comparator> <quantity> <weapon>');
+  // and the filled-in query parses
+  for (const query of ['lams', 'mechs except lams and quads']) {
+    assert.equal(analyze(fillSlots(addTemplate(query, 'weapon'))).error, null, query);
+  }
 });
 
 test('blanks are pieces of their own, and the rest still reads', () => {

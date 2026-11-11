@@ -175,7 +175,8 @@ export function templates(text) {
 
 /**
  * The query with a template's blanks added at the end, joined by an "<and/or>" blank when it follows
- * another section. A weapon section starts an empty query with "units with".
+ * another section. A weapon section starts an empty query with "units with", and follows a query
+ * that's only units ("lams", "mechs except lams") with "with".
  */
 export function addTemplate(text, name) {
   const before = text.trimEnd();
@@ -184,7 +185,8 @@ export function addTemplate(text, name) {
   }
   const last = analyze(before).tokens.at(-1);
   const joined = last && (last.role === 'with' || last.role === 'operator');
-  return `${before} ${joined ? '' : '<and/or> '}${TEMPLATES.weapon}`;
+  const join = last && last.role === 'unit' ? 'with ' : joined ? '' : '<and/or> ';
+  return `${before} ${join}${TEMPLATES.weapon}`;
 }
 
 /** The query with every blank left as its default. */
