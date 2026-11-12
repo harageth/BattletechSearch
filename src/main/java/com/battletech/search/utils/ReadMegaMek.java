@@ -816,15 +816,24 @@ public class ReadMegaMek {
     return target != null;
   }
 
-  // Equipment counted by how many slots one takes (jump jets: one per jump MP)
-  private static final Map<String, Integer> SLOTS_PER_ITEM = Map.of(
-      "jumpjet", 1, "prototypejumpjet", 1, "improvedjumpjet", 2, "prototypeimprovedjumpjet", 2);
+  // Equipment counted by how many slots one takes (jump jets: one per jump MP), each at the location of
+  // its first slot. The one-slot items here can repeat in a location (two A-pods in a leg).
+  private static final Map<String, Integer> SLOTS_PER_ITEM = Map.ofEntries(
+      Map.entry("jumpjet", 1), Map.entry("prototypejumpjet", 1), Map.entry("improvedjumpjet", 2),
+      Map.entry("prototypeimprovedjumpjet", 2), Map.entry("umu", 1), Map.entry("antipersonnelpod", 1),
+      Map.entry("coolantpod", 1), Map.entry("ppccapacitor", 1), Map.entry("laserinsulator", 1),
+      Map.entry("risclaserpulsemodule", 1), Map.entry("chaffpod", 1), Map.entry("searchlight", 1),
+      Map.entry("mechsprayer", 1), Map.entry("bombbay", 1), Map.entry("remotesensordispenser", 1),
+      Map.entry("vehicularminedispenser", 1), Map.entry("lifthoistarrestinghoist", 3));
 
-  /**
-   * Ammo and equipment from the critical slots. Each ammo slot is one ton, so ammo is counted per
-   * slot; jump jets by their slot size. Other equipment can span several slots and locations, so
-   * each item is counted once per mech.
-   */
+  // Equipment that's one item however many locations it's in: MegaMek's spreadable items (TSM over
+  // the arms and legs, a Null Signature System in every location), and the Ground-Mobile HPG, which
+  // continues into a second location. Kept at the first location (importers skill, bug 30).
+  private static final Pattern SPREAD = Pattern.compile("^((industrial|prototype)?triplestrengthmyomer"
+      + "|.*supercooledmyomer|(mek)?(null|void)signaturesystem|chameleonlightpolarizationshield"
+      + "|environmentalsealing.*|blueshieldparticlefielddamper|partialwing|mechanicaljumpbooster|talons"
+      + "|ramplate|chaindrape.*|groundmobilehpg)$");
+
   /** A location name the reader has no Location for; the item is saved without one. */
   private static void reportUnknownLocation(String location, String item, ImportProblems.InFile problems) {
     if(Location.fromString(location) == null) {
@@ -832,14 +841,21 @@ public class ReadMegaMek {
     }
   }
 
+  /**
+   * Ammo and equipment from the critical slots, each at its own location. Each ammo slot is one ton,
+   * so ammo is counted per slot; jump jets and the other SLOTS_PER_ITEM by their slot size. SPREAD
+   * equipment is one item per mech. Anything else is one item in each location it has slots in (CASE
+   * in both side torsos is two), since several slots in one location are one item.
+   */
   static List<UnitEquipment> readMtfSlotEquipment(Map<String, List<String>> slots, UnprefixedTech unprefixed,
       ImportProblems.InFile problems) {
     List<UnitEquipment> equipment = new LinkedList<>();
     Set<String> seen = new HashSet<>();
-    // multi-slot jump jets can be split across locations, so count slots per mech
-    Map<String, Integer> slotCounts = new LinkedHashMap<>();
-    Map<String, SlotName> countedNames = new HashMap<>();
-    Map<String, String> countedLocations = new HashMap<>();
+    // an item counted by slots can continue into the next location (an improved jump jet), so the
+    // slots of the one being filled carry over
+    Map<String, Integer> filling = new HashMap<>();
+    Map<String, SlotName> fillingNames = new HashMap<>();
+    Map<String, String> fillingLocations = new HashMap<>();
     slots.forEach((location, names) -> {
       for(String slot : names) {
         SlotName name = SlotName.of(slot);
@@ -853,27 +869,27 @@ public class ReadMegaMek {
           equipment.add(item);
           reportUnknownLocation(location, "Dumper", problems);
         } else if(SLOTS_PER_ITEM.containsKey(comparable)) {
-          slotCounts.merge(comparable, 1, Integer::sum);
-          countedNames.putIfAbsent(comparable, name);
-          countedLocations.putIfAbsent(comparable, location);
+          if(filling.merge(comparable, 1, Integer::sum) == 1) {
+            fillingNames.put(comparable, name);
+            fillingLocations.put(comparable, location);
+          }
+          if(filling.get(comparable).equals(SLOTS_PER_ITEM.get(comparable))) {
+            filling.remove(comparable);
+            SlotName first = fillingNames.get(comparable);
+            Tech tech = first.tech() != null ? first.tech() : unprefixed.of(first.name());
+            equipment.add(new UnitEquipment(slotEquipment(first, tech), fillingLocations.get(comparable)));
+            reportUnknownLocation(fillingLocations.get(comparable), first.name(), problems);
+          }
         } else if(comparable.contains("ammo") || isNarcPods(comparable)
             // a variable-size item repeats its size in every slot; two of different sizes are two items
-            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(comparable + ":" + name.size()))) {
+            || (SLOT_EQUIPMENT.matcher(comparable).matches() && seen.add(
+                (SPREAD.matcher(comparable).matches() ? "" : location) + ":" + comparable + ":" + name.size()))) {
           Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
           UnitEquipment item = new UnitEquipment(slotEquipment(name, tech), location);
           setSize(item, name.name(), name.size(), problems);
           equipment.add(item);
           reportUnknownLocation(location, name.name(), problems);
         }
-      }
-    });
-    slotCounts.forEach((comparable, count) -> {
-      SlotName name = countedNames.get(comparable);
-      Tech tech = name.tech() != null ? name.tech() : unprefixed.of(name.name());
-      for(int i = 0; i < count / SLOTS_PER_ITEM.get(comparable); i++) {
-        // recorded at the first location it's in
-        equipment.add(new UnitEquipment(slotEquipment(name, tech), countedLocations.get(comparable)));
-        reportUnknownLocation(countedLocations.get(comparable), name.name(), problems);
       }
     });
     return equipment;
