@@ -24,14 +24,15 @@ The user's rules for any change to the database's shape (2026-11-11). Propose fi
 ## 3. Draw the table and its connected tables
 
 - Draw each new or changed table and **every table connected to it by a foreign key, in either direction**, marking what's new or changed. A Mermaid `erDiagram` works in the terminal and in PR bodies; for a bigger change, publish it as a diagram page.
-- Find the connected tables in a scratch database rather than from memory (replace `unit_equipment` with the table):
+- Find the connected tables in a scratch database rather than from memory (replace `unit_equipment` with the table). `unnest(conkey, confkey)` pairs each column with its match by position, so a foreign key over several columns comes out right:
   ```sql
-  SELECT conrelid::regclass AS from_table, a.attname AS from_column,
-         confrelid::regclass AS to_table, af.attname AS to_column
+  SELECT c.conrelid::regclass AS from_table, a.attname AS from_column,
+         c.confrelid::regclass AS to_table, af.attname AS to_column
   FROM pg_constraint c
-  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
-  JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = ANY (c.confkey)
-  WHERE c.contype = 'f' AND 'unit_equipment' IN (conrelid::regclass::text, confrelid::regclass::text)
+  CROSS JOIN LATERAL unnest(c.conkey, c.confkey) AS k (from_attnum, to_attnum)
+  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.from_attnum
+  JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = k.to_attnum
+  WHERE c.contype = 'f' AND 'unit_equipment' IN (c.conrelid::regclass::text, c.confrelid::regclass::text)
   ORDER BY 1, 2;
   ```
   Add `\d <table>` for the columns. The foreign keys at V3_16: `unit_equipment` → `equipment`; `unit_mech_equipment` → `unit` and → `unit_equipment` (it joins **every** unit, vehicles too, to its items); `slang_equipment` → `slang` and → `equipment` (both `ON DELETE CASCADE`). Some links have no constraint: `ambiguous_slang.equipment_name` names equipment by name, and enums are stored as strings, with no lookup tables. Show those links in the diagram too, and say they have no constraint.
