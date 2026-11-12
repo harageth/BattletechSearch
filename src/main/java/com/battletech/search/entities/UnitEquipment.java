@@ -37,6 +37,10 @@ public class UnitEquipment implements Searchable {
 
   // the jump MP a mechanical jump booster adds; null for everything else
   Integer jumpBoost;
+  // the drones a drone carrier control system runs; null for everything else
+  Integer drones;
+  // the operating theaters of MASH equipment; null for everything else
+  Integer mashTheaters;
   //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
 
   public UnitEquipment() { }

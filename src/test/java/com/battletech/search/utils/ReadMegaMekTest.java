@@ -228,11 +228,27 @@ class ReadMegaMekTest {
     assertThat(ReadMegaMek.convertToEquipment(
             List.of("Communications Equipment:SIZE:4.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"),
             new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems()))
-        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod)
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod,
+            UnitEquipment::getDrones)
         .containsExactly(
-            tuple("communications equipment", 4.0, false),
-            // a drone carrier's size is drones, which isn't kept yet
-            tuple("dronecarriercontrolsystem", 0.0, true));
+            tuple("communications equipment", 4.0, false, null),
+            // a drone carrier's size is drones, not tons
+            tuple("dronecarriercontrolsystem", 0.0, true, 6));
+  }
+
+  @Test
+  void aMashKeepsItsOperatingTheaters() throws IOException {
+    // 3039u/MASH Truck: "MASH Equipment:SIZE:5.0"
+    assertThat(ReadMegaMek.convertToEquipment(List.of("MASH Equipment:SIZE:5.0"),
+            new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems()))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getMashTheaters)
+        .containsExactly(tuple("mash equipment", 0.0, 5));
+    // a count that isn't whole is reported, not cut down
+    ImportProblems problems = new ImportProblems();
+    assertThat(ReadMegaMek.convertToEquipment(List.of("MASH Equipment:SIZE:2.5"),
+            new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, problems.in(new File("test.blk"))))
+        .extracting(UnitEquipment::getMashTheaters).containsExactly((Integer) null);
+    assertThat(problems.of(ImportProblems.Kind.SIZE_NOT_KEPT)).containsExactly("test.blk: mash equipment size 2.5");
   }
 
   @Test
@@ -245,15 +261,15 @@ class ReadMegaMekTest {
     // nothing for the Artemis to go on
     ReadMegaMek.attachMtfFireControl(List.of(weapon("mediumlaser", "Left Torso")),
         Map.of("left torso", List.of("Medium Laser", "ISArtemisIV")), inFile);
-    // a drone carrier's drones aren't kept
-    ReadMegaMek.convertToEquipment(List.of("ISDroneCarrierControlSystem:SIZE:6.0"), new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, inFile);
+    // a ladder's meters aren't kept (only on support vehicles, which aren't imported)
+    ReadMegaMek.convertToEquipment(List.of("Ladder:SIZE:20.0"), new UnprefixedTech(Tech.INNER_SPHERE, false), Location.BODY, inFile);
     ReadMegaMek.parseUuid("not-a-uuid", inFile);
 
     assertThat(problems.of(ImportProblems.Kind.UNKNOWN_LOCATION)).containsExactly("Tarantula ZPH-1.mtf: Jump Jet in left wing");
     assertThat(problems.of(ImportProblems.Kind.FIRE_CONTROL_WITHOUT_LAUNCHER))
         .containsExactly("Tarantula ZPH-1.mtf: ISArtemisIV in left torso");
     assertThat(problems.of(ImportProblems.Kind.SIZE_NOT_KEPT))
-        .containsExactly("Tarantula ZPH-1.mtf: dronecarriercontrolsystem size 6.0");
+        .containsExactly("Tarantula ZPH-1.mtf: ladder size 20.0");
     assertThat(problems.counts()).containsEntry(ImportProblems.Kind.INVALID_UUID, 1);
     assertThat(problems.summary()).contains("UNKNOWN_LOCATION 1", "FIRE_CONTROL_WITHOUT_LAUNCHER 1");
   }

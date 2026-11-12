@@ -34,7 +34,7 @@ public class ImportProblems {
     NO_MUL_ID(false, "unit without a MUL id; not saved (only Master Unit List units are imported)"),
     UNSUPPORTED_UNIT_TYPE(false, "unit type the importer skips"),
     // known gaps and expected names
-    SIZE_NOT_KEPT(false, "size of a variable-size item that isn't stored yet (drones, MASH theaters, ...)"),
+    SIZE_NOT_KEPT(false, "size of a variable-size item that isn't stored yet (ladder meters, support-vehicle infantry weapons) or isn't a whole number of drones or theaters"),
     UNKNOWN_EQUIPMENT_NAME(false, "equipment name missing from the MegaMek alias table; stored as written"),
     AMBIGUOUS_SLANG(false, "name MegaMek uses for more than one item; no slang term, listed in ambiguous_slang to decide by hand");
 
