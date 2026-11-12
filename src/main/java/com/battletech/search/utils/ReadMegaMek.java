@@ -148,6 +148,12 @@ public class ReadMegaMek {
         value.setRearFacing(true);
         equip = equip.split("\\(")[0].strip();
       }
+      Matcher dumper = DUMPER.matcher(equip);
+      if(dumper.matches()) {
+        value.setRearFacing(dumper.group(1).equals("rear"));
+        value.getEquipment().setDisplayName("Dumper");
+        equip = "dumper";
+      }
       //sponson equipped
       if(equip.contains("(st)")) {
         equip = equip.split("\\(")[0].strip();
@@ -572,6 +578,9 @@ public class ReadMegaMek {
 
   // How a slot is mounted, not what's in it; (T) is turret-mounted
   private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // A dumper says which way it dumps, "Dumper (Rear)", "Dumper (Right):OMNI": all are the Dumper, and
+  // a rear one is rear-facing. Each takes one slot, so a mech with two has two.
+  private static final Pattern DUMPER = Pattern.compile("dumper\\s*\\((front|rear|left|right)\\)", Pattern.CASE_INSENSITIVE);
   // a variable-size item's size, "Cargo:SIZE:1.0", "ISDroneCarrierControlSystem:OMNI:SIZE:6.0"
   private static final Pattern SIZE = Pattern.compile("(:omni)?:size:([0-9.]+)$", Pattern.CASE_INSENSITIVE);
 
@@ -738,7 +747,7 @@ public class ReadMegaMek {
       // physical and industrial
       + "|lance|talons|spikes|(small|medium|large)vibroblade|chainwhip|flail|ramplate|wreckingball"
       + "|rockcutter|dualsaw|miningdrill|(heavyduty)?piledriver|salvagearm|backhoe|combine|spotwelder"
-      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield"
+      + "|mechsprayer|mediumbridgelayer|(small|medium|large)shield|fluidsuctionsystem.*|chaindrape.*"
       // electronics and defensive systems
       + "|mekvoidsignaturesystem|radicalheatsinksystem|harjel.*|supercooledmyomer|novacews"
       + "|c3emergencymaster|c3sensors|collapsiblecommandmodule|droneoperatingsystem"
@@ -829,7 +838,15 @@ public class ReadMegaMek {
       for(String slot : names) {
         SlotName name = SlotName.of(slot);
         String comparable = comparable(name.name());
-        if(SLOTS_PER_ITEM.containsKey(comparable)) {
+        Matcher dumper = DUMPER.matcher(name.name());
+        if(dumper.matches()) {
+          SlotName dumperName = new SlotName(name.tech(), "Dumper", null);
+          UnitEquipment item = new UnitEquipment(
+              slotEquipment(dumperName, name.tech() != null ? name.tech() : unprefixed.of("Dumper")), location);
+          item.setRearFacing(dumper.group(1).equalsIgnoreCase("rear"));
+          equipment.add(item);
+          reportUnknownLocation(location, "Dumper", problems);
+        } else if(SLOTS_PER_ITEM.containsKey(comparable)) {
           slotCounts.merge(comparable, 1, Integer::sum);
           countedNames.putIfAbsent(comparable, name);
           countedLocations.putIfAbsent(comparable, location);
