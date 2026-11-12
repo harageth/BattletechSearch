@@ -15,6 +15,7 @@ description: Use when tagging units with the games they appear in (MechWarrior 5
   - MechWarrior Online
   - tabletop boxed sets and miniature packs (Beginner Box, A Game of Armored Combat, Mercenaries, ForcePacks, ...)
   - **older games too, wherever data can be found** (earlier MechWarrior and MechCommander games, and so on)
+- **Each variant is tagged, not the chassis** (user, 2026-11-11). A game usually has some variants of a chassis, not all of them: the Atlas AS7-D can be in a game whose list leaves out the AS7-K. So a tag goes on the unit, which is one variant (one MegaMek file), and a search finds only the variants that are in the game.
 - **Where the data comes from is decided later**, when this is built (user: "We can solve where to get the data later").
 
 ## What the unit data has today
@@ -25,7 +26,7 @@ description: Use when tagging units with the games they appear in (MechWarrior 5
 ## Open questions
 
 - **The data source**, per game: official lists, wikis (Sarna lists the games a unit appears in), or game files. Check each one's license, as for the MegaMek data.
-- **Per variant or per chassis.** A game usually has some variants of a chassis, not all of them. Tagging the variant is the accurate choice. Tagging the chassis is easier, but over-reports.
+- **A source that lists only chassis.** If a game's list names a chassis without its variants, find out which variants the game has before tagging; never tag every variant of the chassis.
 - **Game-only variants.** Units that exist only in a video game (hero mechs, game-original variants) aren't in the MUL, so there's no unit to tag. Decide whether they're left out, or listed in some other way.
 - **Storage:** probably a `game` table (name, kind: video game / DLC / boxed set, parent game for a DLC) and a `unit_game` join table. Follow the schema-change rule: show the rows before proposing tables.
 - **Search syntax:** for example `mechs in mw5`, `heavy mechs in mechwarrior online`, `units in heavy metal`. Game names and their short forms (`mw5`, `mwo`, `hbs`) would be search words, so add them to the `query-grammar` skill and `QueryVocabulary` when it's built. A DLC search might include its base game, or not.
