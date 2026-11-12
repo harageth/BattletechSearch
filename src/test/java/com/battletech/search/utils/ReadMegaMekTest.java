@@ -134,7 +134,60 @@ class ReadMegaMekTest {
         .containsExactly(
             tuple("ammolb10-xac", Tech.INNER_SPHERE),
             tuple("case", Tech.INNER_SPHERE),
-            tuple("targetingcomputer", Tech.INNER_SPHERE));
+            tuple("targetingcomputer", Tech.INNER_SPHERE),
+            tuple("case", Tech.CLAN));
+  }
+
+  @Test
+  void equipmentInTwoLocationsIsTwoItemsEachInItsOwn() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // CASE in both side torsos (Catapult CPLT-C1b); a shield's slots in one arm are one shield
+    slots.put("left torso", List.of("ISCASE"));
+    slots.put("right torso", List.of("ISCASE"));
+    slots.put("left arm", List.of("ISSmallShield", "ISSmallShield", "ISSmallShield"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation)
+        .containsExactly(
+            tuple("case", Location.LEFT_TORSO),
+            tuple("case", Location.RIGHT_TORSO),
+            tuple("smallshield", Location.LEFT_ARM));
+  }
+
+  @Test
+  void equipmentCountedBySlotsIsAtItsOwnLocation() {
+    Map<String, List<String>> slots = new LinkedHashMap<>();
+    // an improved jump jet takes two slots and can continue into the next location
+    slots.put("left torso", List.of("Improved Jump Jet", "Improved Jump Jet", "Improved Jump Jet"));
+    slots.put("left leg", List.of("Improved Jump Jet", "UMU", "ISCoolantPod", "ISCoolantPod"));
+    slots.put("right leg", List.of("UMU", "Lift Hoist/Arresting Hoist", "Lift Hoist/Arresting Hoist",
+        "Lift Hoist/Arresting Hoist", "Lift Hoist/Arresting Hoist", "Lift Hoist/Arresting Hoist",
+        "Lift Hoist/Arresting Hoist"));
+
+    assertThat(ReadMegaMek.readMtfSlotEquipment(slots, new UnprefixedTech(Tech.INNER_SPHERE, false), problems()))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getLocation)
+        .containsExactly(
+            tuple("improvedjumpjet", Location.LEFT_TORSO),
+            tuple("improvedjumpjet", Location.LEFT_TORSO),
+            tuple("umu", Location.LEFT_LEG),
+            tuple("coolantpod", Location.LEFT_LEG),
+            tuple("coolantpod", Location.LEFT_LEG),
+            tuple("umu", Location.RIGHT_LEG),
+            tuple("lifthoist/arrestinghoist", Location.RIGHT_LEG),
+            tuple("lifthoist/arrestinghoist", Location.RIGHT_LEG));
+  }
+
+  @Test
+  void thePaladinsJumpJetsAreWhereTheirSlotsAreAndItsMyomerIsOneItem() throws IOException {
+    // 2 jump jets in each side torso and 1 in each leg; TSM in both arms and both legs
+    Mech paladin = (Mech) ReadMegaMek.ReadMechMTF(fixture("locations/Paladin PAL-2.mtf"));
+    assertThat(named(paladin, "jumpjet")).extracting(UnitEquipment::getLocation).containsExactlyInAnyOrder(
+        Location.LEFT_TORSO, Location.LEFT_TORSO, Location.RIGHT_TORSO, Location.RIGHT_TORSO,
+        Location.LEFT_LEG, Location.RIGHT_LEG);
+    // spread over the mech, it's one item, kept at its first location (importers skill, bug 30)
+    assertThat(named(paladin, "triplestrengthmyomer")).extracting(UnitEquipment::getLocation)
+        .containsExactly(Location.LEFT_ARM);
+    assertThat(named(paladin, "case")).extracting(UnitEquipment::getLocation).containsExactly(Location.RIGHT_TORSO);
   }
 
   @Test
