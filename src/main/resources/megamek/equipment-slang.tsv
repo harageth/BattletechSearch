@@ -45,3 +45,12 @@ vibroblades	Vibroblade (Small)
 vibroblade	Vibroblade (Large)
 vibroblade	Vibroblade (Medium)
 vibroblade	Vibroblade (Small)
+# medical equipment (2026-11-11): medevac is MASH and paramedic equipment, counted together
+medevac	MASH Equipment
+medevac	Paramedic Equipment
+medvac	MASH Equipment
+medvac	Paramedic Equipment
+medevac equipment	MASH Equipment
+medevac equipment	Paramedic Equipment
+mash	MASH Equipment
+paramedic	Paramedic Equipment

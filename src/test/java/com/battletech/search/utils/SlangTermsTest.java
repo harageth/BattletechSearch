@@ -24,7 +24,8 @@ class SlangTermsTest {
   static {
     for (String name : List.of("ac/20", "lb10-xac", "lrm20", "ppc", "erppc", "machinegun", "atm6", "atm12",
         "anti-missilesystem", "jumpjet", "mediumlaser", "streaksrm6", "machinegunammo[full]", "machinegunammo[half]",
-        "mechmechanicaljumpboosters", "vibroblade(large)", "vibroblade(small)")) {
+        "mechmechanicaljumpboosters", "vibroblade(large)", "vibroblade(small)", "mashequipment",
+        "paramedicequipment")) {
       for (Tech tech : List.of(Tech.INNER_SPHERE, Tech.CLAN)) {
         Equipment row = new Equipment(name, tech);
         row.setId(UUID.randomUUID());
@@ -96,6 +97,21 @@ class SlangTermsTest {
     assertThat(terms.get("ams").getKind()).isEqualTo(SlangKind.SHORTHAND);
     assertThat(terms.get("ams").getEquipment()).hasSize(2);
     assertThat(terms.get("jj").getEquipment()).contains(row("jumpjet", Tech.CLAN));
+  }
+
+  @Test
+  void medevacIsMashAndParamedicEquipment() {
+    Map<String, Slang> terms = terms(Set.of());
+    assertThat(terms.get("medevac").getKind()).isEqualTo(SlangKind.SHORTHAND);
+    assertThat(terms.get("medevac").getEquipment()).containsExactlyInAnyOrder(
+        row("mashequipment", Tech.INNER_SPHERE), row("mashequipment", Tech.CLAN),
+        row("paramedicequipment", Tech.INNER_SPHERE), row("paramedicequipment", Tech.CLAN));
+    assertThat(terms.get("medvac").getEquipment()).isEqualTo(terms.get("medevac").getEquipment());
+    assertThat(terms.get("medevacequipment").getEquipment()).isEqualTo(terms.get("medevac").getEquipment());
+    assertThat(terms.get("mash").getEquipment())
+        .containsExactlyInAnyOrder(row("mashequipment", Tech.INNER_SPHERE), row("mashequipment", Tech.CLAN));
+    assertThat(terms.get("paramedic").getEquipment())
+        .containsExactlyInAnyOrder(row("paramedicequipment", Tech.INNER_SPHERE), row("paramedicequipment", Tech.CLAN));
   }
 
   @Test
