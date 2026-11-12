@@ -27,6 +27,7 @@ Only when the user asks to commit, push or open a PR. Work happens on a branch o
 ## The PR body
 
 - **Summary:** what a user can now do (a table of example queries works well for search changes), importer or data changes, and anything shipped as a `db/data` migration.
+- **Schema changes:** the exact DDL and a diagram of the changed tables and their connected tables, or "No DDL" plus what the data migrations touch (`schema-changes` skill).
 - **Known issues** the PR leaves alone, so they aren't mistaken for oversights.
 - **Test plan:** a checklist of the test run and the manual checks (scratch-database imports, searches and their counts).
 - End with the attribution lines from the session's instructions.
