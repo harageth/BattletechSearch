@@ -2,6 +2,7 @@ package com.battletech.search.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.battletech.search.SearchFixtures;
 import com.battletech.search.TestcontainersConfiguration;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.repositories.UnitRepository;
@@ -12,11 +13,13 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -64,6 +67,14 @@ class UnitServiceImportTest {
   private int count(String sql) {
     entityManager.flush();
     return jdbcTemplate.queryForObject(sql, Integer.class);
+  }
+
+  // what V3_17 does on a database with units: puts the stored equipment in its groups, which then get terms
+  private void groupEquipment() {
+    entityManager.flush();
+    SearchFixtures.putEquipmentInGroups(jdbcTemplate);
+    unitService.loadSlang();
+    entityManager.flush();
   }
 
   @Test
@@ -208,7 +219,7 @@ class UnitServiceImportTest {
   void familyTermsCountEveryWeaponInTheFamily() throws IOException {
     importMechs();
     unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
-    entityManager.flush();
+    groupEquipment();
 
     // the Mad Cat Prime: two ER large, two ER medium and a medium pulse laser, all Clan
     assertThat(search("mechs with exactly 5 lasers")).contains("Mad Cat Prime");
@@ -234,9 +245,29 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void groupsCountEverythingInTheGroupsUnderThem() throws IOException {
+    importMechs();
+    groupEquipment();
+
+    // the Atlas: four medium lasers, an LRM 20, an SRM 6 and an AC/20
+    assertThat(search("mechs with exactly 2 missiles and exactly 4 energy weapons and exactly 1 ballistic weapons"))
+        .contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 1 standard lrms and exactly 1 standard srm and exactly 4 standard lasers"))
+        .contains("Atlas AS7-D");
+    assertThat(search("mechs with at least 1 streak srms")).doesNotContain("Atlas AS7-D");
+    // the Mad Cat Prime: two Clan LRM 20s, two machine guns and five lasers (ER and pulse)
+    assertThat(search("mechs with exactly 2 clan missiles and exactly 5 energy weapons and exactly 2 ballistic weapons"))
+        .contains("Mad Cat Prime");
+    assertThat(search("mechs with exactly 2 missile")).isEqualTo(search("mechs with exactly 2 missiles"));
+    // its ER lasers are standard lasers, its medium pulse laser isn't
+    assertThat(search("mechs with exactly 4 standard lasers and exactly 4 er lasers and exactly 1 pulse lasers"))
+        .contains("Mad Cat Prime");
+  }
+
+  @Test
   void severalWeightClassesAndAny() throws IOException {
     importMechs();
-    entityManager.flush();
+    groupEquipment();
 
     // the Mad Cat Prime is a heavy with two LRMs and five lasers; the Atlas is an assault
     assertThat(search("medium or heavy mechs with at least 2 lrms and any lasers"))
@@ -304,13 +335,44 @@ class UnitServiceImportTest {
     // only for stored equipment, linked to its rows: the Atlas' LRM 20 is IS, the Viking IIC's Clan
     assertThat(jdbcTemplate.queryForList("SELECT e.tech FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
         + " JOIN equipment e ON e.id = se.equipment_id WHERE s.lookup = 'cllrm20'", String.class)).containsExactly("CLAN");
-    assertThat(count("SELECT count(*) FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
-        + " JOIN equipment e ON e.id = se.equipment_id WHERE s.lookup = 'lrms' AND e.name = 'lrm20'")).isEqualTo(2);
-    assertThat(count("SELECT count(*) FROM slang WHERE kind = 'FAMILY'")).isPositive();
+    // nothing is in a group yet (the test database has no equipment when V3_17 runs), so no group terms
+    assertThat(count("SELECT count(*) FROM slang WHERE kind = 'FAMILY'")).isZero();
+
+    groupEquipment();
+    // a group's term names the group and links no rows; a search finds the rows through the tree
+    assertThat(jdbcTemplate.queryForObject("SELECT g.name FROM slang s JOIN equipment_group g ON g.id = s.equipment_group_id"
+        + " WHERE s.lookup = 'lrms'", String.class)).isEqualTo("lrms");
+    assertThat(count("SELECT count(*) FROM slang s JOIN slang_equipment se ON se.slang_id = s.id WHERE s.kind = 'FAMILY'"))
+        .isZero();
     // the shorthand file settles every key MegaMek gives to two items, so nothing waits in ambiguous_slang
     // (SlangTermsTest covers keys left undecided)
     assertThat(result.problems()).doesNotContainKey(ImportProblems.Kind.AMBIGUOUS_SLANG);
     assertThat(count("SELECT count(*) FROM ambiguous_slang")).isZero();
+  }
+
+  @Test
+  void aNewTechOfAnItemJoinsTheGroupsItsOtherTechsAreIn(@TempDir Path atlas, @TempDir Path madCat) throws IOException {
+    Files.copy(Path.of(fixtures("meks"), "Atlas AS7-D.mtf"), atlas.resolve("Atlas AS7-D.mtf"));
+    Files.copy(Path.of(fixtures("meks"), "Mad Cat (Timber Wolf) Prime.mtf"), madCat.resolve("Mad Cat (Timber Wolf) Prime.mtf"));
+
+    // the database starts with no equipment, so the Atlas' items have no other tech to follow
+    ImportResult first = unitService.persistUnits(atlas.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    assertThat(first.problems()).containsKey(ImportProblems.Kind.NEW_EQUIPMENT_UNGROUPED)
+        .doesNotContainKey(ImportProblems.Kind.NEW_EQUIPMENT_GROUPED);
+    // someone puts its (IS) LRM 20 in standard lrms
+    entityManager.flush();
+    jdbcTemplate.update("INSERT INTO equipment_group_member (group_id, equipment_id) SELECT g.id, e.id"
+        + " FROM equipment_group g, equipment e WHERE g.name = 'standard lrms' AND e.name = 'lrm20'");
+
+    // the Mad Cat Prime's two Clan LRM 20s are a new row, which joins it there; nothing else of its has
+    // another tech in a group
+    ImportResult second = unitService.persistUnits(madCat.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    assertThat(second.problems()).containsEntry(ImportProblems.Kind.NEW_EQUIPMENT_GROUPED, 1);
+    assertThat(jdbcTemplate.queryForList("SELECT e.tech FROM equipment_group_member m JOIN equipment e ON e.id = m.equipment_id"
+        + " JOIN equipment_group g ON g.id = m.group_id WHERE g.name = 'standard lrms'", String.class))
+        .containsExactlyInAnyOrder("INNER_SPHERE", "CLAN");
+    assertThat(search("mechs with exactly 2 standard lrms")).containsExactly("Mad Cat Prime");
+    assertThat(search("mechs with exactly 2 missiles")).containsExactly("Mad Cat Prime");
   }
 
   @Test

@@ -36,7 +36,10 @@ public class ImportProblems {
     // known gaps and expected names
     SIZE_NOT_KEPT(false, "size of a variable-size item that isn't stored yet (ladder meters, support-vehicle infantry weapons) or isn't a whole number of drones or theaters"),
     UNKNOWN_EQUIPMENT_NAME(false, "equipment name missing from the MegaMek alias table; stored as written"),
-    AMBIGUOUS_SLANG(false, "name MegaMek uses for more than one item; no slang term, listed in ambiguous_slang to decide by hand");
+    AMBIGUOUS_SLANG(false, "name MegaMek uses for more than one item; no slang term, listed in ambiguous_slang to decide by hand"),
+    // new equipment rows
+    NEW_EQUIPMENT_GROUPED(false, "new tech of an item; put in the equipment groups its other techs are in"),
+    NEW_EQUIPMENT_UNGROUPED(false, "new item with no other tech in an equipment group; in no group (the search guide lists it under Equipment) until someone puts it in one");
 
     private final boolean warning;
     private final String description;

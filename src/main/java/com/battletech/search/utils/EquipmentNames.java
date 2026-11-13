@@ -31,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class EquipmentNames {
   public static final String ALIASES = "/megamek/equipment-aliases.tsv";
-  public static final String FAMILIES = "/megamek/equipment-family-slang.tsv";
   public static final String SHORTHAND = "/megamek/equipment-slang.tsv";
 
   // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret.

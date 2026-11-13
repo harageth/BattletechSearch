@@ -35,7 +35,7 @@ The user's rules for any change to the database's shape (2026-11-11). Propose fi
   WHERE c.contype = 'f' AND 'unit_equipment' IN (c.conrelid::regclass::text, c.confrelid::regclass::text)
   ORDER BY 1, 2;
   ```
-  Add `\d <table>` for the columns. The foreign keys at V3_16: `unit_equipment` → `equipment`; `unit_mech_equipment` → `unit` and → `unit_equipment` (it joins **every** unit, vehicles too, to its items); `slang_equipment` → `slang` and → `equipment` (both `ON DELETE CASCADE`). Some links have no constraint: `ambiguous_slang.equipment_name` names equipment by name, and enums are stored as strings, with no lookup tables. Show those links in the diagram too, and say they have no constraint.
+  Add `\d <table>` for the columns. The foreign keys at V3_18: `unit_equipment` → `equipment`; `unit_mech_equipment` → `unit` and → `unit_equipment` (it joins **every** unit, vehicles too, to its items); `slang_equipment` → `slang` and → `equipment`; `slang.equipment_group_id` → `equipment_group`; `equipment_group_parent.group_id` and `.parent_id` → `equipment_group`; `equipment_group_member` → `equipment_group` and → `equipment` (all of these `ON DELETE CASCADE`). Some links have no constraint: `ambiguous_slang.equipment_name` names equipment by name, and enums are stored as strings, with no lookup tables. Show those links in the diagram too, and say they have no constraint.
 - Example, the slang tables from `V3_6`:
   ```mermaid
   erDiagram
@@ -61,4 +61,4 @@ The user's rules for any change to the database's shape (2026-11-11). Propose fi
 
 ## 4. When there's no DDL
 
-Say so plainly, in the answer and the PR body ("No DDL: nothing in `db/migration`"), and list what the data migrations touch instead: which tables, how many rows, insert, update or delete. Example: `V3_16__equipment_groups.sql` deletes 5 `slang` terms and inserts 107 terms and 1,257 `slang_equipment` links, and touches no unit or equipment rows.
+Say so plainly, in the answer and the PR body ("No DDL: nothing in `db/migration`"), and list what the data migrations touch instead: which tables, how many rows, insert, update or delete. Example: `V3_18__equipment_group_slang.sql` deletes 27 `slang` terms (the 22 old family terms and 5 a group takes over, with their links) and inserts 129 group terms with no links, and touches no unit or equipment rows.

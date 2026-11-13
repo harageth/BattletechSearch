@@ -6,15 +6,23 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
+import com.battletech.search.repositories.EquipmentGroupRepository;
+import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.SlangRepository;
+import com.battletech.search.utils.EquipmentGroups;
 import com.battletech.search.utils.EquipmentNames;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.http.CacheControl;
@@ -35,9 +43,13 @@ public class VocabularyController {
       .thenComparingInt(VocabularyController::firstNumber);
 
   private final SlangRepository slangRepo;
+  private final EquipmentRepository equipRepo;
+  private final EquipmentGroupRepository groupRepo;
 
-  public VocabularyController(SlangRepository slangRepo) {
+  public VocabularyController(SlangRepository slangRepo, EquipmentRepository equipRepo, EquipmentGroupRepository groupRepo) {
     this.slangRepo = slangRepo;
+    this.equipRepo = equipRepo;
+    this.groupRepo = groupRepo;
   }
 
   /**
@@ -57,12 +69,17 @@ public class VocabularyController {
   public ResponseEntity<Vocabulary> vocabulary() {
     Map<String, List<String>> families = new LinkedHashMap<>();
     Map<String, List<String>> equipment = new LinkedHashMap<>();
-    // family terms only link equipment some unit has
-    List<Slang> terms = new ArrayList<>(slangRepo.findByKind(SlangKind.FAMILY));
+    // a group has a term only when some unit has something in it; the box knows only the groups right
+    // under a top group ("lrms", "lasers"), the way it knew the weapon families
+    EquipmentGroups tree = EquipmentGroups.of(groupRepo.findTree());
+    Map<UUID, Equipment> stored = equipRepo.findAll().stream().collect(Collectors.toMap(Equipment::getId, Function.identity()));
+    Set<String> familyLevel = new HashSet<>(tree.familyLevel());
+    List<Slang> terms = new ArrayList<>(slangRepo.findByKind(SlangKind.FAMILY).stream()
+        .filter(term -> familyLevel.contains(term.getTerm())).toList());
     terms.sort(Comparator.comparing(Slang::getTerm));
     for (Slang family : terms) {
       // as a query can name them: "blazer" for the Binary Laser (Blazer) Cannon
-      List<String> searchable = family.getEquipment().stream()
+      List<String> searchable = tree.everythingIn(family.getTerm()).stream().map(stored::get).filter(Objects::nonNull)
           .map(member -> EquipmentNames.typed(member.getDisplayName() != null ? member.getDisplayName() : member.getName()))
           .map(QueryVocabulary::typedName)
           .filter(Objects::nonNull)

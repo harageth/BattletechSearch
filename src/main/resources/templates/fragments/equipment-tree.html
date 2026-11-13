@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <!-- One group of the equipment list (EquipmentService.EquipmentGroup), the groups under it
+         inside it. data-group is what equipment-filter.js matches the group's term by. -->
+    <details th:fragment="group(group, open)" class="equipment-group" th:open="${open}" th:attr="data-group=${group.term}">
+        <summary><code th:text="${group.term}">lrms</code> <span class="equipment-count" th:text="${group.count}">18</span></summary>
+        <div class="equipment-group-body">
+            <!-- fragment inclusion runs before th:each and th:unless, so they go on a block around it -->
+            <th:block th:each="child : ${group.groups}">
+                <details th:replace="~{fragments/equipment-tree :: group(${child}, false)}"></details>
+            </th:block>
+            <th:block th:unless="${group.items.isEmpty()}">
+                <table th:replace="~{fragments/equipment-tree :: items(${group.items})}"></table>
+            </th:block>
+        </div>
+    </details>
+
+    <table th:fragment="items(items)">
+        <thead>
+            <tr>
+            <th> Equipment </th>
+            <th> Tech </th>
+            <th> Slang </th>
+            <th> Other names </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="item : ${items}">
+            <td th:text="${item.name}"></td>
+            <td th:text="${#strings.listJoin(item.techs, ', ')}"></td>
+            <td th:text="${#strings.listJoin(item.slang, ', ')}"></td>
+            <td class="equipment-other-names" th:text="${#strings.listJoin(item.otherNames, ', ')}"></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

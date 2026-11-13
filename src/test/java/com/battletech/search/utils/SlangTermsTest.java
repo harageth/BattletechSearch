@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.battletech.search.entities.AmbiguousSlang;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
+import com.battletech.search.model.GroupSection;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
 import java.util.ArrayList;
@@ -35,12 +36,26 @@ class SlangTermsTest {
     }
   }
 
+  // the groups V3_17 makes for these rows
+  static final EquipmentGroups TREE = GroupSeed.tree(STORED);
+
   static Equipment row(String name, Tech tech) {
     return ROWS.get(name + "/" + tech);
   }
 
+  /** The rows a term stands for: its own, or for a group's term everything in the group. */
+  static Set<Equipment> stands(Slang term) {
+    if (term.getEquipmentGroupId() == null) {
+      return term.getEquipment();
+    }
+    String group = TREE.groups().stream().filter(g -> g.id().equals(term.getEquipmentGroupId()))
+        .findFirst().orElseThrow().term();
+    Set<UUID> ids = TREE.everythingIn(group);
+    return STORED.stream().filter(row -> ids.contains(row.getId())).collect(Collectors.toSet());
+  }
+
   private static Map<String, Slang> terms(Set<String> userLookups) {
-    return SlangTerms.build(STORED, userLookups).terms().stream()
+    return SlangTerms.build(STORED, userLookups, TREE).terms().stream()
         .collect(Collectors.toMap(Slang::getLookup, Function.identity()));
   }
 
@@ -48,69 +63,110 @@ class SlangTermsTest {
   void megaMekNamesStandForEveryTechOfTheEquipment() {
     Map<String, Slang> terms = terms(Set.of());
     // the display name and the internal names
-    assertThat(terms.get("ac20").getEquipment()).containsExactlyInAnyOrder(row("ac/20", Tech.INNER_SPHERE), row("ac/20", Tech.CLAN));
+    assertThat(stands(terms.get("ac20"))).containsExactlyInAnyOrder(row("ac/20", Tech.INNER_SPHERE), row("ac/20", Tech.CLAN));
     assertThat(terms.get("ac20").getKind()).isEqualTo(SlangKind.ALIAS);
-    assertThat(terms.get("autocannon20").getEquipment()).isEqualTo(terms.get("ac20").getEquipment());
+    assertThat(stands(terms.get("autocannon20"))).isEqualTo(stands(terms.get("ac20")));
     assertThat(terms.get("lb10xac").getTerm()).isEqualTo("LB 10-X AC");
-    assertThat(terms.get("lbxac10").getEquipment()).hasSize(2);
-    assertThat(terms.get("mg").getEquipment()).contains(row("machinegun", Tech.INNER_SPHERE));
+    assertThat(stands(terms.get("lbxac10"))).hasSize(2);
+    assertThat(stands(terms.get("mg"))).contains(row("machinegun", Tech.INNER_SPHERE));
   }
 
   @Test
   void aTechPrefixLinksOnlyThatTech() {
     Map<String, Slang> terms = terms(Set.of());
-    assertThat(terms.get("cllrm20").getEquipment()).containsExactly(row("lrm20", Tech.CLAN));
-    assertThat(terms.get("isac20").getEquipment()).containsExactly(row("ac/20", Tech.INNER_SPHERE));
+    assertThat(stands(terms.get("cllrm20"))).containsExactly(row("lrm20", Tech.CLAN));
+    assertThat(stands(terms.get("isac20"))).containsExactly(row("ac/20", Tech.INNER_SPHERE));
   }
 
   @Test
   void onlyStoredEquipmentGetsTerms() {
     Map<String, Slang> terms = terms(Set.of());
     assertThat(terms).doesNotContainKey("gaussrifle");
-    assertThat(terms.values()).allSatisfy(term -> assertThat(term.getEquipment()).isNotEmpty());
+    assertThat(terms.values()).allSatisfy(term -> assertThat(stands(term)).isNotEmpty());
   }
 
   @Test
   void familiesStandForEveryWeaponInThem() {
     Map<String, Slang> terms = terms(Set.of());
     assertThat(terms.get("lrms").getKind()).isEqualTo(SlangKind.FAMILY);
-    assertThat(terms.get("lrms").getEquipment()).contains(row("lrm20", Tech.CLAN)).doesNotContain(row("streaksrm6", Tech.CLAN));
-    assertThat(terms.get("streaks").getEquipment()).contains(row("streaksrm6", Tech.INNER_SPHERE));
-    assertThat(terms.get("ppcs").getEquipment()).contains(row("ppc", Tech.CLAN), row("erppc", Tech.INNER_SPHERE));
+    assertThat(stands(terms.get("lrms"))).contains(row("lrm20", Tech.CLAN)).doesNotContain(row("streaksrm6", Tech.CLAN));
+    assertThat(stands(terms.get("streaks"))).contains(row("streaksrm6", Tech.INNER_SPHERE));
+    assertThat(stands(terms.get("ppcs"))).contains(row("ppc", Tech.CLAN), row("erppc", Tech.INNER_SPHERE));
     assertThat(terms.get("gaussrifles")).isNull();
+  }
+
+  @Test
+  void aGroupHoldsEverythingInTheGroupsUnderIt() {
+    Map<String, Slang> terms = terms(Set.of());
+    // missiles > lrms > standard lrms > LRM 20
+    assertThat(terms.get("missiles").getKind()).isEqualTo(SlangKind.FAMILY);
+    assertThat(stands(terms.get("missiles"))).contains(row("lrm20", Tech.CLAN), row("streaksrm6", Tech.INNER_SPHERE),
+        row("atm12", Tech.CLAN)).doesNotContain(row("mediumlaser", Tech.CLAN));
+    assertThat(stands(terms.get("standardlrms")))
+        .containsExactlyInAnyOrder(row("lrm20", Tech.INNER_SPHERE), row("lrm20", Tech.CLAN));
+    // streak srms are under srms and streaks both
+    assertThat(stands(terms.get("srms"))).contains(row("streaksrm6", Tech.CLAN));
+    assertThat(stands(terms.get("streaksrms")))
+        .containsExactlyInAnyOrder(row("streaksrm6", Tech.INNER_SPHERE), row("streaksrm6", Tech.CLAN));
+    assertThat(stands(terms.get("energyweapons"))).contains(row("mediumlaser", Tech.CLAN), row("erppc", Tech.CLAN));
+    assertThat(terms.get("energyweapon").getKind()).isEqualTo(SlangKind.FAMILY_SINGULAR);
+    // nothing stored in it, no term
+    assertThat(terms).doesNotContainKey("thunderbolts");
+  }
+
+  @Test
+  void aGroupTermNamesTheGroupAndLinksNoRows() {
+    Slang lrms = terms(Set.of()).get("lrms");
+    assertThat(lrms.getEquipmentGroupId()).isEqualTo(TREE.groups().stream()
+        .filter(group -> group.term().equals("lrms")).findFirst().orElseThrow().id());
+    assertThat(lrms.getEquipment()).isEmpty();
+  }
+
+  @Test
+  void aGroupNotEndingInSHasNoSingular() {
+    EquipmentGroups groups = EquipmentGroups.ofGroups(List.of(new EquipmentGroups.Group(UUID.randomUUID(), "artillery",
+        List.of(), GroupSection.WEAPONS, Set.of(row("ac/20", Tech.INNER_SPHERE).getId(), row("ac/20", Tech.CLAN).getId()))));
+    Map<String, Slang> terms = SlangTerms.build(STORED, Set.of(), List.of(), groups, List.of()).terms().stream()
+        .collect(Collectors.toMap(Slang::getLookup, Function.identity()));
+    assertThat(groups.everythingIn("artillery")).hasSize(2);
+    assertThat(terms.get("artillery").getKind()).isEqualTo(SlangKind.FAMILY);
+    assertThat(terms).doesNotContainKey("artiller");
   }
 
   @Test
   void aFamilyInTheSingularUnlessSomethingHasThatName() {
     Map<String, Slang> terms = terms(Set.of());
     assertThat(terms.get("atm").getKind()).isEqualTo(SlangKind.FAMILY_SINGULAR);
-    assertThat(terms.get("atm").getEquipment()).isEqualTo(terms.get("atms").getEquipment());
+    assertThat(stands(terms.get("atm"))).isEqualTo(stands(terms.get("atms")));
     assertThat(terms.get("laser").getKind()).isEqualTo(SlangKind.FAMILY_SINGULAR);
     // "ppc" is the PPC
     assertThat(terms.get("ppc").getKind()).isEqualTo(SlangKind.ALIAS);
-    assertThat(terms.get("ppc").getEquipment()).containsExactlyInAnyOrder(row("ppc", Tech.INNER_SPHERE), row("ppc", Tech.CLAN));
+    assertThat(stands(terms.get("ppc"))).containsExactlyInAnyOrder(row("ppc", Tech.INNER_SPHERE), row("ppc", Tech.CLAN));
   }
 
   @Test
   void handWrittenShorthand() {
     Map<String, Slang> terms = terms(Set.of());
-    assertThat(terms.get("ams").getKind()).isEqualTo(SlangKind.SHORTHAND);
-    assertThat(terms.get("ams").getEquipment()).hasSize(2);
-    assertThat(terms.get("jj").getEquipment()).contains(row("jumpjet", Tech.CLAN));
+    assertThat(terms.get("jj").getKind()).isEqualTo(SlangKind.SHORTHAND);
+    // a group of the same name wins over shorthand: "ams" is every anti-missile system (user, 2026-11-01)
+    assertThat(terms.get("ams").getKind()).isEqualTo(SlangKind.FAMILY);
+    assertThat(stands(terms.get("ams"))).hasSize(2);
+    assertThat(terms).doesNotContainKey("am");
+    assertThat(stands(terms.get("jj"))).contains(row("jumpjet", Tech.CLAN));
   }
 
   @Test
   void medevacIsMashAndParamedicEquipment() {
     Map<String, Slang> terms = terms(Set.of());
     assertThat(terms.get("medevac").getKind()).isEqualTo(SlangKind.SHORTHAND);
-    assertThat(terms.get("medevac").getEquipment()).containsExactlyInAnyOrder(
+    assertThat(stands(terms.get("medevac"))).containsExactlyInAnyOrder(
         row("mashequipment", Tech.INNER_SPHERE), row("mashequipment", Tech.CLAN),
         row("paramedicequipment", Tech.INNER_SPHERE), row("paramedicequipment", Tech.CLAN));
-    assertThat(terms.get("medvac").getEquipment()).isEqualTo(terms.get("medevac").getEquipment());
-    assertThat(terms.get("medevacequipment").getEquipment()).isEqualTo(terms.get("medevac").getEquipment());
-    assertThat(terms.get("mash").getEquipment())
+    assertThat(stands(terms.get("medvac"))).isEqualTo(stands(terms.get("medevac")));
+    assertThat(stands(terms.get("medevacequipment"))).isEqualTo(stands(terms.get("medevac")));
+    assertThat(stands(terms.get("mash")))
         .containsExactlyInAnyOrder(row("mashequipment", Tech.INNER_SPHERE), row("mashequipment", Tech.CLAN));
-    assertThat(terms.get("paramedic").getEquipment())
+    assertThat(stands(terms.get("paramedic")))
         .containsExactlyInAnyOrder(row("paramedicequipment", Tech.INNER_SPHERE), row("paramedicequipment", Tech.CLAN));
   }
 
@@ -118,28 +174,28 @@ class SlangTermsTest {
   void aShorthandTermOnSeveralLinesLinksEveryItem() {
     Map<String, Slang> terms = terms(Set.of());
     assertThat(terms.get("machinegunammo").getKind()).isEqualTo(SlangKind.SHORTHAND);
-    assertThat(terms.get("machinegunammo").getEquipment()).containsExactlyInAnyOrder(
+    assertThat(stands(terms.get("machinegunammo"))).containsExactlyInAnyOrder(
         row("machinegunammo[full]", Tech.INNER_SPHERE), row("machinegunammo[full]", Tech.CLAN),
         row("machinegunammo[half]", Tech.INNER_SPHERE), row("machinegunammo[half]", Tech.CLAN));
     // the battle armor booster isn't stored, so only the mech one is linked
-    assertThat(terms.get("mechanicaljumpbooster").getEquipment()).hasSize(2);
+    assertThat(stands(terms.get("mechanicaljumpbooster"))).hasSize(2);
     // every size of mech vibroblade; "vibro sword" also means the infantry blades, not stored here
-    assertThat(terms.get("vibroblades").getEquipment()).containsExactlyInAnyOrder(
+    assertThat(stands(terms.get("vibroblades"))).containsExactlyInAnyOrder(
         row("vibroblade(large)", Tech.INNER_SPHERE), row("vibroblade(large)", Tech.CLAN),
         row("vibroblade(small)", Tech.INNER_SPHERE), row("vibroblade(small)", Tech.CLAN));
-    assertThat(terms.get("vibrosword").getEquipment()).isEqualTo(terms.get("vibroblades").getEquipment());
+    assertThat(stands(terms.get("vibrosword"))).isEqualTo(stands(terms.get("vibroblades")));
   }
 
   /** Built without the shipped shorthand, which settles every key MegaMek gives to two items. */
   private static SlangTerms.Result withoutShorthand(Set<String> userLookups) {
     return SlangTerms.build(STORED, userLookups, EquipmentNames.readTsv(EquipmentNames.ALIASES),
-        EquipmentNames.readTsv(EquipmentNames.FAMILIES), List.of());
+        TREE, List.of());
   }
 
   @Test
   void theShorthandSettlesAmbiguousKeys() {
     assertThat(withoutShorthand(Set.of()).ambiguous()).extracting(AmbiguousSlang::getLookup).contains("machinegunammo");
-    assertThat(SlangTerms.build(STORED, Set.of()).ambiguous()).extracting(AmbiguousSlang::getLookup)
+    assertThat(SlangTerms.build(STORED, Set.of(), TREE).ambiguous()).extracting(AmbiguousSlang::getLookup)
         .doesNotContain("machinegunammo");
   }
 

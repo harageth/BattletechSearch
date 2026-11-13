@@ -42,7 +42,9 @@ class VocabularyControllerTest {
   @Test
   void listsTheWeaponsOfEachFamilyThatUnitsHave() {
     Vocabulary vocabulary = rest.getForObject("/api/vocabulary", Vocabulary.class);
-    assertThat(vocabulary.families()).containsKeys("lasers", "lrms", "srms", "streaks", "ppcs", "autocannons");
+    assertThat(vocabulary.families()).containsKeys("lasers", "lrms", "srms", "streaks", "ppcs", "autocannons")
+        // only the groups right under a top group, the way the weapon families were
+        .doesNotContainKeys("missiles", "energy weapons", "standard lrms", "streak srms");
     assertThat(vocabulary.families().get("lrms")).contains("lrm 20", "lrm 10").doesNotContain("lrt 20");
     assertThat(vocabulary.families().get("ppcs")).contains("ppc", "er ppc");
     assertThat(vocabulary.equipment().get("streak srm 4")).containsExactlyInAnyOrder("srms", "streaks");

@@ -13,13 +13,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Builds the slang terms for the equipment that's stored, from the name files: MegaMek's names
- * (megamek/equipment-aliases.tsv), weapon families (megamek/equipment-family-slang.tsv) and the
- * hand-written shorthand (megamek/equipment-slang.tsv). Terms only link equipment some unit has,
- * which is why they're built after an import.
+ * Builds the slang terms for the equipment that's stored: MegaMek's names
+ * (megamek/equipment-aliases.tsv), the equipment groups (the equipment_group tables, see
+ * EquipmentGroups) and the hand-written shorthand (megamek/equipment-slang.tsv). Terms only stand
+ * for equipment some unit has, which is why they're built after an import.
  */
 public final class SlangTerms {
 
@@ -38,17 +39,18 @@ public final class SlangTerms {
    * @param userLookups keys of terms added by hand (POST /actuator/slang): kept as they are, so
    *     nothing here replaces them, and a key in them isn't ambiguous any more
    */
-  public static Result build(List<Equipment> stored, Set<String> userLookups) {
+  public static Result build(List<Equipment> stored, Set<String> userLookups, EquipmentGroups groups) {
     return build(stored, userLookups, EquipmentNames.readTsv(EquipmentNames.ALIASES),
-        EquipmentNames.readTsv(EquipmentNames.FAMILIES), EquipmentNames.readTsv(EquipmentNames.SHORTHAND));
+        groups, EquipmentNames.readTsv(EquipmentNames.SHORTHAND));
   }
 
   static Result build(List<Equipment> stored, Set<String> userLookups, List<String[]> aliases,
-      List<String[]> families, List<String[]> shorthand) {
+      EquipmentGroups groups, List<String[]> shorthand) {
     Map<String, List<Equipment>> byName = stored.stream()
         .collect(Collectors.groupingBy(Equipment::getName, LinkedHashMap::new, Collectors.toList()));
     Map<String, Slang> terms = new LinkedHashMap<>();
-    // keys someone decided: they're never ambiguous and nothing generated replaces them
+    // keys someone decided: they're never ambiguous, and only a group replaces them (slang added by hand
+    // not even that)
     Set<String> decided = new HashSet<>(userLookups);
 
     // several lines for one term link every item they name ("machine gun ammo": full and half tons)
@@ -69,32 +71,35 @@ public final class SlangTerms {
 
     List<AmbiguousSlang> ambiguous = addAliases(terms, decided, byName, aliases);
 
-    // family term as written -> canonical names of its weapons
-    Map<String, Set<String>> members = new LinkedHashMap<>();
-    for (String[] row : families) {
-      // "LRM 10" and "LRM 10 (OS)" are the same weapon to search
-      members.computeIfAbsent(row[0], k -> new LinkedHashSet<>()).add(EquipmentNames.normalize(row[1]));
-    }
+    // a group term names the group, and a search finds what's in it through the tree
+    Set<UUID> storedIds = stored.stream().map(Equipment::getId).collect(Collectors.toSet());
     Set<String> ambiguousKeys = ambiguous.stream().map(AmbiguousSlang::getLookup).collect(Collectors.toSet());
     Set<String> storedKeys = byName.keySet().stream().map(EquipmentNames::slangKey).collect(Collectors.toSet());
-    members.forEach((family, names) -> {
-      List<Equipment> rows = names.stream().flatMap(name -> byName.getOrDefault(name, List.of()).stream()).toList();
-      String key = EquipmentNames.slangKey(family);
-      Slang taken = terms.get(key);
-      // a family wins over a MegaMek name spelled the same, not over shorthand or slang added by hand
-      if (!userLookups.contains(key) && (taken == null || taken.getKind() == SlangKind.ALIAS)) {
-        terms.remove(key);
-        add(terms, family, key, SlangKind.FAMILY, rows);
+    for (EquipmentGroups.Group group : groups.groups()) {
+      String family = group.term();
+      // one with nothing stored under it leaves the key be
+      if (groups.everythingIn(family).stream().noneMatch(storedIds::contains)) {
+        continue;
       }
-      // "1 atm", "2 laser": the singular is the family too, unless something already has that name
-      // ("ppc" stays the PPC)
+      String key = EquipmentNames.slangKey(family);
+      // a group wins over a MegaMek name or shorthand spelled the same ("ams" is every anti-missile
+      // system, user 2026-11-01), not over slang added by hand
+      if (!userLookups.contains(key)) {
+        terms.remove(key);
+        terms.put(key, new Slang(family, key, SlangKind.FAMILY, group.id()));
+      }
+      // "1 atm", "2 laser": the singular is the group too, unless something already has that name
+      // ("ppc" stays the PPC); "artillery" has none, and "ams" isn't "am"
+      if (!family.endsWith("s") || family.length() < 4) {
+        continue;
+      }
       String singular = family.substring(0, family.length() - (family.endsWith("oes") ? 2 : 1));
       String singularKey = EquipmentNames.slangKey(singular);
       if (!terms.containsKey(singularKey) && !decided.contains(singularKey) && !ambiguousKeys.contains(singularKey)
           && !storedKeys.contains(singularKey)) {
-        add(terms, singular, singularKey, SlangKind.FAMILY_SINGULAR, rows);
+        terms.put(singularKey, new Slang(singular, singularKey, SlangKind.FAMILY_SINGULAR, group.id()));
       }
-    });
+    }
     return new Result(new ArrayList<>(terms.values()), ambiguous);
   }
 

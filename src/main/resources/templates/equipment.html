@@ -166,7 +166,7 @@
                         <td>
                             Any name or other word in the <a href="#equipment">equipment list</a>.
                             Spaces don't matter (<code>lrm 20</code> is <code>lrm20</code>), and a plural works
-                            (<code>2 large lasers</code>) unless it's a family below: <code>ppcs</code> is every PPC.
+                            (<code>2 large lasers</code>) unless it's a group below: <code>ppcs</code> is every PPC.
                         </td>
                         <td class="guide-example"><code>mechs with 2 lb 10-x ac</code><br><code>mechs with an ams</code></td>
                     </tr>
@@ -187,12 +187,17 @@
                         <td class="guide-example"><code>mechs with an artemis lrm 20</code><br><code>mechs with clan artemis v srm 6</code></td>
                     </tr>
                     <tr>
-                        <td>Family</td>
+                        <td>Group</td>
                         <td>
-                            <span class="guide-words"><code th:each="word : ${families}" th:text="${word}">lasers</code></span>
-                            <p class="hint">Every weapon in the family, counted together. The singular works when no weapon is called that (<code>2 laser</code>, but <code>ppc</code> is the PPC itself).</p>
+                            <ul class="guide-groups">
+                                <li th:each="group : ${equipment.groups}"><code th:text="${group.term}">missiles</code><th:block th:unless="${group.groups.isEmpty()}">:
+                                    <span class="guide-words"><code th:each="child : ${group.groups}" th:text="${child.term}">lrms</code></span></th:block></li>
+                                <li th:unless="${equipment.equipmentGroups.isEmpty()}">Not weapons:
+                                    <span class="guide-words"><code th:each="group : ${equipment.equipmentGroups}" th:text="${group.term}">ammo</code></span></li>
+                            </ul>
+                            <p class="hint">Everything in the group, counted together, groups under it included: <code>missiles</code> holds <code>lrms</code>, which holds <code>standard lrms</code>, <code>streak lrms</code> and the other LRM types. The <a href="#equipment">equipment list</a> shows every level. The singular works when nothing is called that (<code>2 laser</code>, but <code>ppc</code> is the PPC itself).</p>
                         </td>
-                        <td class="guide-example"><code>mechs with at least 4 lasers</code><br><code>mechs with artemis lrms</code></td>
+                        <td class="guide-example"><code>mechs with at least 4 lasers</code><br><code>mechs with artemis lrms</code><br><code>mechs with at least 3 missiles</code><br><code>mechs with 2 standard lrms</code></td>
                     </tr>
                 </tbody>
             </table>
@@ -264,28 +269,26 @@
 
         <section class="equipment-list">
             <h2 id="equipment">Equipment</h2>
-            <p class="hint">Every piece of equipment some unit carries. <b>Slang</b> is shorthand and weapon families; <b>other names</b> are MegaMek's names for it. Any of them works in a search.</p>
-            <!-- equipment-filter.js shows it and hides the rows that don't match -->
-            <input type="search" class="equipment-filter" placeholder="Filter equipment and slang"
-                   aria-label="Filter equipment and slang" autocomplete="off" hidden>
-            <table>
-                <thead>
-                    <tr>
-                    <th> Equipment </th>
-                    <th> Tech </th>
-                    <th> Slang </th>
-                    <th> Other names </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr th:each="item : ${equipment}">
-                    <td th:text="${item.name}"></td>
-                    <td th:text="${#strings.listJoin(item.techs, ', ')}"></td>
-                    <td th:text="${#strings.listJoin(item.slang, ', ')}"></td>
-                    <td class="equipment-other-names" th:text="${#strings.listJoin(item.otherNames, ', ')}"></td>
-                    </tr>
-                </tbody>
-            </table>
+            <p class="equipment-disclaimer"><b>Only what official units carry:</b> the equipment mounted on the mechs and vehicles in the Master Unit List, as MegaMek's unit files list them. An item is missing if no official unit has it, and its tech only shows IS or Clan if some official unit carries that version.</p>
+            <p class="hint">Every piece of equipment some unit carries, under the <a href="#equipment-names">groups</a> a search can name. Each group's number is how many items are in it. <b>Slang</b> is shorthand; <b>other names</b> are MegaMek's names for it. Any of them works in a search.</p>
+            <!-- equipment-filter.js shows it, hides the rows that don't match and opens the groups that do -->
+            <input type="search" class="equipment-filter" placeholder="Filter equipment, groups and slang"
+                   aria-label="Filter equipment, groups and slang" autocomplete="off" hidden>
+            <th:block th:each="group : ${equipment.groups}">
+                <details th:replace="~{fragments/equipment-tree :: group(${group}, true)}"></details>
+            </th:block>
+            <!-- everything that isn't a weapon: its own groups ("ammo", "ecm"), then the rest -->
+            <details class="equipment-group" data-group="" th:unless="${equipment.equipmentCount == 0}">
+                <summary>Other equipment <span class="equipment-count" th:text="${equipment.equipmentCount}">150</span></summary>
+                <div class="equipment-group-body">
+                    <th:block th:each="group : ${equipment.equipmentGroups}">
+                        <details th:replace="~{fragments/equipment-tree :: group(${group}, false)}"></details>
+                    </th:block>
+                    <th:block th:unless="${equipment.other.isEmpty()}">
+                        <table th:replace="~{fragments/equipment-tree :: items(${equipment.other})}"></table>
+                    </th:block>
+                </div>
+            </details>
         </section>
     </main>
 
