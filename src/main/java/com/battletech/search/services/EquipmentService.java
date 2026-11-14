@@ -4,14 +4,18 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
+import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.SlangRepository;
+import com.battletech.search.utils.EquipmentGroups;
 import com.battletech.search.utils.EquipmentNames;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,22 +27,51 @@ import org.springframework.transaction.annotation.Transactional;
 public class EquipmentService {
   private final SlangRepository slangRepo;
   private final EquipmentRepository equipRepo;
+  private final EquipmentGroupRepository groupRepo;
 
-  EquipmentService(SlangRepository slangRepo, EquipmentRepository equipRepo) {
+  EquipmentService(SlangRepository slangRepo, EquipmentRepository equipRepo, EquipmentGroupRepository groupRepo) {
     this.slangRepo = slangRepo;
     this.equipRepo = equipRepo;
+    this.groupRepo = groupRepo;
   }
 
   /**
    * A row of the equipment page: one item, every tech it's stored in, and the words a search finds
-   * it by. Slang is shorthand, user terms and families; other names are MegaMek's aliases.
+   * it by. Slang is shorthand and user terms; other names are MegaMek's aliases. Group terms
+   * ("lrms") aren't listed: the page shows the item under its groups.
    */
   public record EquipmentTerms(String name, List<String> techs, List<String> slang, List<String> otherNames) {
   }
 
+  /**
+   * A group of the equipment page's tree.
+   *
+   * @param count how many items are in it, through the groups under it too
+   * @param items the items in it itself
+   * @param groups the groups under it that have anything in them
+   */
+  public record EquipmentGroup(String term, int count, List<EquipmentTerms> items, List<EquipmentGroup> groups) {
+  }
+
+  /**
+   * The equipment page's list.
+   *
+   * @param groups the weapon group tree
+   * @param equipmentGroups the groups of the equipment section ("ammo", "ecm")
+   * @param other the items in no group, also in the equipment section
+   */
+  public record EquipmentTree(List<EquipmentGroup> groups, List<EquipmentGroup> equipmentGroups,
+      List<EquipmentTerms> other) {
+    /** How many items the equipment section has, in its groups and not. */
+    public int equipmentCount() {
+      Set<String> names = new HashSet<>();
+      collect(other, equipmentGroups, names);
+      return names.size();
+    }
+  }
+
   // slang before aliases, so a term that's both is shown as slang
-  private static final List<SlangKind> KIND_ORDER = List.of(SlangKind.SHORTHAND, SlangKind.USER,
-      SlangKind.FAMILY, SlangKind.FAMILY_SINGULAR, SlangKind.ALIAS);
+  private static final List<SlangKind> KIND_ORDER = List.of(SlangKind.SHORTHAND, SlangKind.USER, SlangKind.ALIAS);
   // in the order they're shown
   private static final Map<Tech, String> TECH_LABELS = new LinkedHashMap<>();
   static {
@@ -62,7 +95,8 @@ public class EquipmentService {
         row.techs.add(equipment.getTech());
       }
     }
-    List<Slang> slang = new ArrayList<>(slangRepo.findAllWithEquipment());
+    List<Slang> slang = new ArrayList<>(slangRepo.findAllWithEquipment().stream()
+        .filter(term -> KIND_ORDER.contains(term.getKind())).toList());
     slang.sort(Comparator.comparing((Slang s) -> KIND_ORDER.indexOf(s.getKind()))
         .thenComparing(Slang::getTerm, String.CASE_INSENSITIVE_ORDER));
     for (Slang term : slang) {
@@ -76,10 +110,47 @@ public class EquipmentService {
     return rows.values().stream().map(TermsBuilder::build).toList();
   }
 
-  /** The weapon family terms ("lasers", "lrms"), sorted. */
+  /**
+   * Every stored item (as {@link #equipmentWithSlang}) under its groups (the equipment_group tables),
+   * in their order. An item is in the groups any of its techs is in. An item in two groups is under
+   * both, and so is a group with two parents ("streak lrms" is under "lrms" and "streaks").
+   */
   @Transactional(readOnly = true)
-  public List<String> familyTerms() {
-    return slangRepo.findByKind(SlangKind.FAMILY).stream().map(Slang::getTerm).sorted().toList();
+  public EquipmentTree equipmentTree() {
+    EquipmentGroups tree = EquipmentGroups.of(groupRepo.findTree());
+    // shown name -> the groups its rows are in themselves
+    Map<String, Set<String>> direct = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    for (Equipment equipment : equipRepo.findAll()) {
+      direct.computeIfAbsent(shownName(equipment), k -> new LinkedHashSet<>()).addAll(tree.directGroupsOf(equipment.getId()));
+    }
+    Map<String, List<EquipmentTerms>> inGroup = new HashMap<>();
+    List<EquipmentTerms> other = new ArrayList<>();
+    for (EquipmentTerms row : equipmentWithSlang()) {
+      Set<String> groups = direct.getOrDefault(row.name(), Set.of());
+      groups.forEach(term -> inGroup.computeIfAbsent(term, k -> new ArrayList<>()).add(row));
+      if (groups.isEmpty()) {
+        other.add(row);
+      }
+    }
+    List<EquipmentGroup> weapons = tree.top().stream().map(term -> group(tree, term, inGroup))
+        .filter(group -> group.count() > 0).toList();
+    List<EquipmentGroup> equipment = tree.equipmentTop().stream().map(term -> group(tree, term, inGroup))
+        .filter(group -> group.count() > 0).toList();
+    return new EquipmentTree(weapons, equipment, other);
+  }
+
+  private static EquipmentGroup group(EquipmentGroups tree, String term, Map<String, List<EquipmentTerms>> inGroup) {
+    List<EquipmentTerms> items = inGroup.getOrDefault(term, List.of());
+    List<EquipmentGroup> groups = tree.children(term).stream().map(child -> group(tree, child, inGroup))
+        .filter(group -> group.count() > 0).toList();
+    Set<String> everything = new HashSet<>();
+    collect(items, groups, everything);
+    return new EquipmentGroup(term, everything.size(), items, groups);
+  }
+
+  private static void collect(List<EquipmentTerms> items, List<EquipmentGroup> groups, Set<String> names) {
+    items.forEach(item -> names.add(item.name()));
+    groups.forEach(group -> collect(group.items(), group.groups(), names));
   }
 
   private static String shownName(Equipment equipment) {

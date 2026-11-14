@@ -45,9 +45,10 @@ class ComponentNamesTest {
 
   @Test
   void noComponentNameIsAlsoEquipment() {
-    // a component is looked up before equipment, so it must never hide a MegaMek name, family or shorthand
+    // a component is looked up before equipment, so it must never hide a MegaMek name, group or shorthand
     Set<String> equipmentKeys = new HashSet<>();
-    for (String resource : List.of(EquipmentNames.ALIASES, EquipmentNames.FAMILIES, EquipmentNames.SHORTHAND)) {
+    GroupSeed.groups().keySet().forEach(term -> equipmentKeys.add(EquipmentNames.slangKey(term)));
+    for (String resource : List.of(EquipmentNames.ALIASES, EquipmentNames.SHORTHAND)) {
       for (String[] row : EquipmentNames.readTsv(resource)) {
         equipmentKeys.add(EquipmentNames.slangKey(row[0]));
         equipmentKeys.add(EquipmentNames.slangKey(row[1]));

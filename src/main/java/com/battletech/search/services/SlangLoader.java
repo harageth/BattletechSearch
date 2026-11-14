@@ -4,8 +4,10 @@ import com.battletech.search.entities.AmbiguousSlang;
 import com.battletech.search.entities.Slang;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.repositories.AmbiguousSlangRepository;
+import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.SlangRepository;
+import com.battletech.search.utils.EquipmentGroups;
 import com.battletech.search.utils.SlangTerms;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Loads the slang tables from the name files (utils/SlangTerms) for the equipment that's stored.
+ * Loads the slang tables (utils/SlangTerms) for the equipment that's stored and the equipment groups.
  * Runs after each import, so new equipment gets its terms; terms added by hand (USER) are kept.
  */
 @Slf4j
@@ -26,11 +28,14 @@ public class SlangLoader {
   private final SlangRepository slangRepo;
   private final AmbiguousSlangRepository ambiguousRepo;
   private final EquipmentRepository equipRepo;
+  private final EquipmentGroupRepository groupRepo;
 
-  public SlangLoader(SlangRepository slangRepo, AmbiguousSlangRepository ambiguousRepo, EquipmentRepository equipRepo) {
+  public SlangLoader(SlangRepository slangRepo, AmbiguousSlangRepository ambiguousRepo, EquipmentRepository equipRepo,
+      EquipmentGroupRepository groupRepo) {
     this.slangRepo = slangRepo;
     this.ambiguousRepo = ambiguousRepo;
     this.equipRepo = equipRepo;
+    this.groupRepo = groupRepo;
   }
 
   /** How many terms were loaded, and how many keys are left for someone to decide. */
@@ -43,7 +48,7 @@ public class SlangLoader {
     ambiguousRepo.deleteAllRows();
     Set<String> userLookups = slangRepo.findByKind(SlangKind.USER).stream().map(Slang::getLookup)
         .collect(Collectors.toSet());
-    SlangTerms.Result result = SlangTerms.build(equipRepo.findAll(), userLookups);
+    SlangTerms.Result result = SlangTerms.build(equipRepo.findAll(), userLookups, EquipmentGroups.of(groupRepo.findTree()));
     slangRepo.saveAll(result.terms());
     ambiguousRepo.saveAll(result.ambiguous());
 

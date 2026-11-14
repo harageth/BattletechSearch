@@ -3,6 +3,7 @@ package com.battletech.search.services;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Unit;
+import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.MechEquipmentRepository;
 import com.battletech.search.repositories.UnitRepository;
@@ -34,6 +35,7 @@ public class UnitService {
   private final UnitRepository unitRepo;
   private final EquipmentRepository equipRepo;
   private final MechEquipmentRepository mechEquipRepo;
+  private final EquipmentGroupRepository groupRepo;
   private final SlangLoader slangLoader;
   private final TransactionTemplate transaction;
   private final String mechsPath;
@@ -41,13 +43,15 @@ public class UnitService {
   private final String pdfPath;
 
   public UnitService(UnitRepository unitRepo, EquipmentRepository equipRepo,
-      MechEquipmentRepository mechEquipRepo, SlangLoader slangLoader, PlatformTransactionManager transactionManager,
+      MechEquipmentRepository mechEquipRepo, EquipmentGroupRepository groupRepo, SlangLoader slangLoader,
+      PlatformTransactionManager transactionManager,
       @Value("${battletech.import.mechs-path}") String mechsPath,
       @Value("${battletech.import.vehicles-path}") String vehiclesPath,
       @Value("${battletech.import.pdf-path}") String pdfPath) {
     this.unitRepo = unitRepo;
     this.equipRepo = equipRepo;
     this.mechEquipRepo = mechEquipRepo;
+    this.groupRepo = groupRepo;
     this.slangLoader = slangLoader;
     this.transaction = new TransactionTemplate(transactionManager);
     this.mechsPath = mechsPath;
@@ -111,7 +115,7 @@ public class UnitService {
               fileProblems.report(ImportProblems.Kind.UNKNOWN_EQUIPMENT_NAME, name);
             }
           }
-          boolean updated = transaction.execute(status -> save(unit));
+          boolean updated = transaction.execute(status -> save(unit, fileProblems));
           counts[updated ? 1 : 0]++;
         } catch (Exception e) {
           counts[3]++;
@@ -138,7 +142,7 @@ public class UnitService {
   }
 
   /** Saves the unit, replacing the stored one with the same MegaMek uuid. Returns whether it replaced one. */
-  private boolean save(Unit unit) {
+  private boolean save(Unit unit, ImportProblems.InFile problems) {
     for(UnitEquipment equip : unit.getMechEquipment()) {
       if(equip.getEquipment().getTech() == null) {
         equip.getEquipment().setTech(unit.getTech());
@@ -151,7 +155,7 @@ public class UnitService {
       equip.getEquipment().setDisplayName(EquipmentNames.displayName(written));
       List<Equipment> exists = equipRepo.findByNameAndTech(equip.getEquipment().getName(),
           equip.getEquipment().getTech());
-      Equipment equipment = exists.isEmpty() ? equipRepo.save(equip.getEquipment()) : exists.get(0);
+      Equipment equipment = exists.isEmpty() ? addEquipment(equip.getEquipment(), problems) : exists.get(0);
       if (equipment.getDisplayName() == null) {
         // stored before display names were
         equipment.setDisplayName(equip.getEquipment().getDisplayName());
@@ -170,6 +174,24 @@ public class UnitService {
     unitRepo.save(unit);
     mechEquipRepo.deleteAll(oldEquipment);
     return existing.isPresent();
+  }
+
+  /**
+   * Stores equipment no unit had before, in the equipment groups its other techs are in (the same
+   * name: a Clan ER Medium Laser goes where the IS one is), and reports which. One with no other
+   * tech in a group is reported for someone to place; the search guide lists it under Equipment.
+   */
+  private Equipment addEquipment(Equipment item, ImportProblems.InFile problems) {
+    Equipment equipment = equipRepo.save(item);
+    String shown = equipment.getDisplayName() + " (" + equipment.getTech() + ")";
+    List<String> groups = groupRepo.findGroupsOfOtherTechs(equipment.getName(), equipment.getId());
+    if (groups.isEmpty()) {
+      problems.report(ImportProblems.Kind.NEW_EQUIPMENT_UNGROUPED, shown);
+    } else {
+      groupRepo.joinGroupsOfOtherTechs(equipment.getName(), equipment.getId());
+      problems.report(ImportProblems.Kind.NEW_EQUIPMENT_GROUPED, shown + ": " + String.join(", ", groups));
+    }
+    return equipment;
   }
 
   public void importRecognitionGuide() {

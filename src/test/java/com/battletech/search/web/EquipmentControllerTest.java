@@ -17,7 +17,9 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.model.Tech;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.services.EquipmentService;
+import com.battletech.search.services.EquipmentService.EquipmentGroup;
 import com.battletech.search.services.EquipmentService.EquipmentTerms;
+import com.battletech.search.services.EquipmentService.EquipmentTree;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -44,13 +46,43 @@ class EquipmentControllerTest {
 
   @BeforeEach
   void setUp() {
-    when(equipmentService.equipmentWithSlang()).thenReturn(List.of(
-        new EquipmentTerms("LRM 20", List.of("IS", "Clan"), List.of("lrms", "lrm"), List.of("OS LRM-20"))));
-    when(equipmentService.familyTerms()).thenReturn(List.of("lasers", "lrms"));
+    EquipmentTerms lrm = new EquipmentTerms("LRM 20", List.of("IS", "Clan"), List.of("long range missile 20"),
+        List.of("OS LRM-20"));
+    EquipmentTerms laser = new EquipmentTerms("Medium Laser", List.of("IS"), List.of("ml"), List.of());
+    EquipmentTerms ams = new EquipmentTerms("AMS", List.of("Clan"), List.of("ams"), List.of());
+    EquipmentGroup standardLrms = new EquipmentGroup("standard lrms", 1, List.of(lrm), List.of());
+    EquipmentGroup lrms = new EquipmentGroup("lrms", 1, List.of(), List.of(standardLrms));
+    EquipmentGroup missiles = new EquipmentGroup("missiles", 1, List.of(), List.of(lrms));
+    EquipmentGroup lasers = new EquipmentGroup("lasers", 1, List.of(laser), List.of());
+    EquipmentGroup energy = new EquipmentGroup("energy weapons", 1, List.of(), List.of(lasers));
+    EquipmentTerms ammo = new EquipmentTerms("LRM 20 Ammo", List.of("IS"), List.of(), List.of());
+    EquipmentGroup ammoGroup = new EquipmentGroup("ammo", 1, List.of(ammo), List.of());
+    when(equipmentService.equipmentTree())
+        .thenReturn(new EquipmentTree(List.of(missiles, energy), List.of(ammoGroup), List.of(ams)));
   }
 
   private String page() throws Exception {
     return mvc.perform(get("/equipment")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+  }
+
+  @Test
+  void showsTheGroupTree() throws Exception {
+    String page = page();
+    // top groups open, the ones under them closed, each with its term for the filter
+    assertThat(page).contains("<details class=\"equipment-group\" data-group=\"missiles\" open=\"open\">")
+        .contains("<details class=\"equipment-group\" data-group=\"lrms\">")
+        .contains("<details class=\"equipment-group\" data-group=\"standard lrms\">")
+        .contains("<summary><code>standard lrms</code> <span class=\"equipment-count\">1</span></summary>");
+    // nested: standard lrms inside lrms inside missiles, and LRM 20 inside standard lrms
+    assertThat(page.indexOf("data-group=\"missiles\"")).isLessThan(page.indexOf("data-group=\"lrms\""));
+    assertThat(page.indexOf("data-group=\"standard lrms\"")).isLessThan(page.indexOf("<td>LRM 20</td>"));
+    assertThat(page.indexOf("<td>LRM 20</td>")).isLessThan(page.indexOf("data-group=\"energy weapons\""));
+    // then the equipment section: its groups (closed), then the items in no group, all counted
+    assertThat(page).contains("<summary>Other equipment <span class=\"equipment-count\">2</span></summary>")
+        .contains("<details class=\"equipment-group\" data-group=\"ammo\">");
+    assertThat(page.indexOf("Other equipment")).isGreaterThan(page.indexOf("<td>Medium Laser</td>"))
+        .isLessThan(page.indexOf("data-group=\"ammo\""));
+    assertThat(page.indexOf("<td>LRM 20 Ammo</td>")).isLessThan(page.indexOf("<td>AMS</td>"));
   }
 
   @Test
@@ -59,8 +91,10 @@ class EquipmentControllerTest {
         .andExpect(status().isOk())
         .andExpect(content().string(containsString("<td>LRM 20</td>")))
         .andExpect(content().string(containsString("<td>IS, Clan</td>")))
-        .andExpect(content().string(containsString("<td>lrms, lrm</td>")))
+        .andExpect(content().string(containsString("<td>long range missile 20</td>")))
         .andExpect(content().string(containsString("OS LRM-20")))
+        // the list only covers what official units carry
+        .andExpect(content().string(containsString("<b>Only what official units carry:</b>")))
         // the search box, so a term can be tried right away
         .andExpect(content().string(containsString("data-query-input")))
         .andExpect(content().string(containsString("src=\"/js/equipment-filter.js\"")))
@@ -83,7 +117,8 @@ class EquipmentControllerTest {
     words.addAll(QueryVocabulary.techs().keySet());
     words.addAll(QueryVocabulary.fireControls());
     QueryVocabulary.components().values().forEach(words::addAll);
-    words.addAll(List.of("lasers", "lrms"));
+    // the top groups and the ones under them
+    words.addAll(List.of("missiles", "lrms", "energy weapons", "lasers", "ammo"));
     for (String word : words) {
       assertThat(page).contains("<code>" + HtmlUtils.htmlEscape(word) + "</code>");
     }

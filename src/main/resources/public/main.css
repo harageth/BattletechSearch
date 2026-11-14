@@ -265,6 +265,13 @@ main a {
 	flex-basis: 100%;
 	margin-top: 20px;
 }
+/* what the list covers, so a missing item or tech isn't read as a gap in the data */
+.equipment-disclaimer {
+	border-left: 4px solid #c9a227;
+	background: rgba(201, 162, 39, 0.12);
+	padding: 8px 12px;
+	margin: 8px 0 12px;
+}
 .equipment-filter {
 	width: 100%;
 	box-sizing: border-box;
@@ -280,6 +287,38 @@ main a {
 }
 .equipment-list td {
 	vertical-align: top;
+}
+/* a group of the tree, the groups under it indented inside it */
+.equipment-group {
+	margin: 6px 0;
+}
+.equipment-group > summary {
+	cursor: pointer;
+	font-weight: bold;
+	padding: 3px 0;
+}
+.equipment-group-body {
+	padding-left: 20px;
+	border-left: 1px solid var(--rule);
+	margin-left: 5px;
+}
+.equipment-count {
+	font-weight: normal;
+	color: #6b6b6b;
+	font-size: 90%;
+}
+.theme-dark .equipment-count {
+	color: #9a9a9a;
+}
+.guide-groups {
+	margin: 2px 0;
+	padding-left: 18px;
+}
+.guide-groups li {
+	margin-bottom: 4px;
+}
+.guide-groups .guide-words {
+	display: inline-flex;
 }
 /* MegaMek's own names: long lists, mostly for finding an item */
 .equipment-other-names {

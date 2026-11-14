@@ -14,11 +14,14 @@ import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
+import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.SlangRepository;
+import com.battletech.search.utils.GroupSeed;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 class EquipmentServiceTest {
   SlangRepository slangRepo;
   EquipmentRepository equipRepo;
+  EquipmentGroupRepository groupRepo;
   EquipmentService service;
   Equipment isAmmo = new Equipment("gaussrifleammo", Tech.INNER_SPHERE);
   Equipment clanAmmo = new Equipment("gaussrifleammo", Tech.CLAN);
@@ -34,7 +38,8 @@ class EquipmentServiceTest {
   void setUp() {
     slangRepo = mock(SlangRepository.class);
     equipRepo = mock(EquipmentRepository.class);
-    service = new EquipmentService(slangRepo, equipRepo);
+    groupRepo = mock(EquipmentGroupRepository.class);
+    service = new EquipmentService(slangRepo, equipRepo, groupRepo);
     when(equipRepo.findAllByNameOrSlang(anyString(), anyString())).thenReturn(List.of(clanAmmo));
     when(equipRepo.findByNameIn(anyCollection())).thenReturn(List.of(isAmmo, clanAmmo));
     when(slangRepo.findByLookup(anyString())).thenReturn(Optional.empty());
@@ -87,12 +92,13 @@ class EquipmentServiceTest {
 
   private static Equipment displayed(String name, String displayName, Tech tech) {
     Equipment equipment = new Equipment(name, tech);
+    equipment.setId(UUID.randomUUID());
     equipment.setDisplayName(displayName);
     return equipment;
   }
 
   @Test
-  void listsEachItemOnceWithItsSlang() {
+  void listsEachItemOnceWithItsSlangButNotItsGroups() {
     Equipment isLrm = displayed("lrm20", "LRM 20", Tech.INNER_SPHERE);
     Equipment clanLrm = displayed("lrm20", "LRM 20", Tech.CLAN);
     Equipment ams = displayed("antimissilesystem", "AMS", Tech.CLAN);
@@ -110,9 +116,45 @@ class EquipmentServiceTest {
 
     List<EquipmentService.EquipmentTerms> rows = service.equipmentWithSlang();
 
-    // by name; the item's own name and tech-prefixed spellings of it aren't repeated
+    // by name; the item's own name and tech-prefixed spellings of it aren't repeated, and group terms
+    // ("lrms") are left to the tree
     assertThat(rows).containsExactly(
         new EquipmentService.EquipmentTerms("AMS", List.of("Clan"), List.of(), List.of("Anti-Missile System")),
-        new EquipmentService.EquipmentTerms("LRM 20", List.of("IS", "Clan"), List.of("lrms", "lrm"), List.of("OS LRM-20")));
+        new EquipmentService.EquipmentTerms("LRM 20", List.of("IS", "Clan"), List.of(), List.of("OS LRM-20")));
+  }
+
+  @Test
+  void theTreePutsEachItemUnderItsGroups() {
+    Equipment lrm = displayed("lrm20", "LRM 20", Tech.INNER_SPHERE);
+    Equipment streak = displayed("streaklrm20", "Streak LRM 20", Tech.CLAN);
+    Equipment erPulse = displayed("ermediumpulselaser", "ER Medium Pulse Laser", Tech.CLAN);
+    Equipment tc = displayed("targetingcomputer", "Targeting Computer", Tech.CLAN);
+    when(equipRepo.findAll()).thenReturn(List.of(lrm, streak, erPulse, tc));
+    // the groups V3_17 makes for these rows
+    when(groupRepo.findTree()).thenReturn(GroupSeed.rows(List.of(lrm, streak, erPulse, tc)));
+    when(slangRepo.findAllWithEquipment()).thenReturn(List.of());
+
+    EquipmentService.EquipmentTree tree = service.equipmentTree();
+
+    // only groups with something in them, in their order
+    assertThat(tree.groups()).extracting(EquipmentService.EquipmentGroup::term).containsExactly("missiles", "energy weapons");
+    EquipmentService.EquipmentGroup missiles = tree.groups().get(0);
+    assertThat(missiles.count()).isEqualTo(2);
+    assertThat(missiles.items()).isEmpty();
+    // "streak lrms" is under both "lrms" and "streaks"
+    assertThat(missiles.groups()).extracting(EquipmentService.EquipmentGroup::term).containsExactly("lrms", "streaks");
+    EquipmentService.EquipmentGroup lrms = missiles.groups().get(0);
+    assertThat(lrms.count()).isEqualTo(2);
+    assertThat(lrms.groups()).extracting(EquipmentService.EquipmentGroup::term).containsExactly("standard lrms", "streak lrms");
+    assertThat(lrms.groups().get(0).items()).extracting(EquipmentService.EquipmentTerms::name).containsExactly("LRM 20");
+    assertThat(missiles.groups().get(1).groups().get(0).items()).extracting(EquipmentService.EquipmentTerms::name)
+        .containsExactly("Streak LRM 20");
+    // energy weapons > lasers > pulse lasers > er pulse lasers
+    EquipmentService.EquipmentGroup lasers = tree.groups().get(1).groups().get(0);
+    assertThat(lasers.groups()).extracting(EquipmentService.EquipmentGroup::term).containsExactly("pulse lasers");
+    assertThat(lasers.groups().get(0).groups()).extracting(EquipmentService.EquipmentGroup::term)
+        .containsExactly("er pulse lasers");
+    assertThat(lasers.count()).isEqualTo(1);
+    assertThat(tree.other()).extracting(EquipmentService.EquipmentTerms::name).containsExactly("Targeting Computer");
   }
 }

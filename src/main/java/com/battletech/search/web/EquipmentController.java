@@ -23,8 +23,7 @@ public class EquipmentController {
   @GetMapping("/equipment")
   public ModelAndView equipment() {
     ModelAndView page = new ModelAndView("equipment");
-    page.addObject("equipment", equipmentService.equipmentWithSlang());
-    page.addObject("families", equipmentService.familyTerms());
+    page.addObject("equipment", equipmentService.equipmentTree());
     page.addObject("weightClasses", QueryVocabulary.weightClasses());
     page.addObject("omniWords", QueryVocabulary.omniWords());
     page.addObject("withWords", QueryVocabulary.withWords());
