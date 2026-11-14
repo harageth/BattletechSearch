@@ -159,6 +159,11 @@ class SlangTermsTest {
     assertThat(result.terms()).extracting(Slang::getLookup).doesNotContain("ams");
     assertThat(result.groupsWithoutTerm()).containsExactly("ams");
     assertThat(SlangTerms.build(STORED, Set.of(), TREE).groupsWithoutTerm()).isEmpty();
+    // nor its singular: a hand-written "lasers" leaves the group no "laser"
+    assertThat(terms.get("laser").getKind()).isEqualTo(SlangKind.FAMILY_SINGULAR);
+    SlangTerms.Result lasers = SlangTerms.build(STORED, Set.of("lasers"), TREE);
+    assertThat(lasers.terms()).extracting(Slang::getLookup).doesNotContain("lasers", "laser");
+    assertThat(lasers.groupsWithoutTerm()).containsExactly("lasers");
   }
 
   @Test

@@ -67,13 +67,14 @@ public final class SlangTerms {
       }
       String key = EquipmentNames.slangKey(family);
       // a group wins over a MegaMek name spelled the same ("ams" is every anti-missile system, user
-      // 2026-11-01); a hand-written term keeps its key, and the group is reported (user, 2026-11-13)
+      // 2026-11-01); a hand-written term keeps its key, and the group is reported (user, 2026-11-13) and
+      // gets no singular either
       if (handWritten.contains(key)) {
         groupsWithoutTerm.add(family);
-      } else {
-        terms.remove(key);
-        terms.put(key, new Slang(family, key, SlangKind.FAMILY, group.id()));
+        continue;
       }
+      terms.remove(key);
+      terms.put(key, new Slang(family, key, SlangKind.FAMILY, group.id()));
       // "1 atm", "2 laser": the singular is the group too, unless something already has that name
       // ("ppc" stays the PPC); "artillery" has none, and "ams" isn't "am"
       if (!family.endsWith("s") || family.length() < 4) {
