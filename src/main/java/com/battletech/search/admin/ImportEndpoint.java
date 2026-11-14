@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * management port. Mechs and vehicles come from MEGAMEK_MECHS_PATH / MEGAMEK_VEHICLES_PATH;
  * importing again updates units already stored (matched on their MegaMek uuid) instead of
  * duplicating them. The slang is loaded again after each, or on its own with "slang" (after
- * editing megamek/equipment-slang.tsv).
+ * changing the equipment groups).
  */
 @Component
 @Endpoint(id = "import")

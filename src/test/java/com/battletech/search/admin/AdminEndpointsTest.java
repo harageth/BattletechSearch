@@ -73,7 +73,7 @@ class AdminEndpointsTest {
 
   @Test
   void loadsTheSlangOnItsOwn() {
-    when(unitService.loadSlang()).thenReturn(new SlangLoader.Loaded(10, 2));
+    when(unitService.loadSlang()).thenReturn(new SlangLoader.Loaded(10, 2, 0));
     ResponseEntity<String> slang = postAdmin("import", Map.of("source", "slang"));
     assertThat(slang.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(slang.getBody()).contains("\"terms\":10", "\"ambiguous\":2");

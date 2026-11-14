@@ -1,6 +1,8 @@
 package com.battletech.search.model;
 
-/** Where a slang term came from. The slang load replaces every kind but USER. */
+import java.util.Set;
+
+/** Where a slang term came from. The slang load rebuilds every kind but the hand-written ones. */
 public enum SlangKind {
   // a MegaMek display, internal or lookup name (megamek/equipment-aliases.tsv)
   ALIAS,
@@ -8,8 +10,11 @@ public enum SlangKind {
   FAMILY,
   // a group in the singular, "atm", when no equipment already has that name
   FAMILY_SINGULAR,
-  // hand-written shorthand, "ams" (megamek/equipment-slang.tsv)
+  // hand-written shorthand, "jj" (db/data V3_19)
   SHORTHAND,
   // added with POST /actuator/slang
-  USER
+  USER;
+
+  /** Written by hand, so the slang load keeps them and nothing it builds takes their lookup. */
+  public static final Set<SlangKind> HAND_WRITTEN = Set.of(SHORTHAND, USER);
 }

@@ -4,9 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.utils.ComponentNames.Kind;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class ComponentNamesTest {
@@ -48,13 +54,26 @@ class ComponentNamesTest {
     // a component is looked up before equipment, so it must never hide a MegaMek name, group or shorthand
     Set<String> equipmentKeys = new HashSet<>();
     GroupSeed.groups().keySet().forEach(term -> equipmentKeys.add(EquipmentNames.slangKey(term)));
-    for (String resource : List.of(EquipmentNames.ALIASES, EquipmentNames.SHORTHAND)) {
-      for (String[] row : EquipmentNames.readTsv(resource)) {
-        equipmentKeys.add(EquipmentNames.slangKey(row[0]));
-        equipmentKeys.add(EquipmentNames.slangKey(row[1]));
-      }
+    for (String[] row : EquipmentNames.readTsv(EquipmentNames.ALIASES)) {
+      equipmentKeys.add(EquipmentNames.slangKey(row[0]));
+      equipmentKeys.add(EquipmentNames.slangKey(row[1]));
     }
+    // the shorthand's (term, lookup) and (lookup, equipment name) pairs
+    Matcher shorthand = Pattern.compile("\\('([^']*)', '([^']*)'\\)").matcher(read("/db/data/V3_19__shorthand_slang.sql"));
+    while (shorthand.find()) {
+      equipmentKeys.add(EquipmentNames.slangKey(shorthand.group(1)));
+      equipmentKeys.add(EquipmentNames.slangKey(shorthand.group(2)));
+    }
+    assertThat(equipmentKeys).contains("jj", "medevac");
     assertThat(ComponentNames.keys().keySet()).doesNotContainAnyElementsOf(equipmentKeys);
+  }
+
+  private static String read(String resource) {
+    try (InputStream in = ComponentNamesTest.class.getResourceAsStream(resource)) {
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Test

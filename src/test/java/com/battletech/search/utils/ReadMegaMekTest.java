@@ -221,8 +221,9 @@ class ReadMegaMekTest {
         .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTonnage, UnitEquipment::getJumpBoost)
         .containsExactly(
             tuple("communicationsequipment", 3.0, null),
-            // the booster's size is jump MP, not tons
-            tuple("mechanicaljumpbooster", 0.0, 4),
+            // the booster's size is jump MP, not tons; MegaMek names the battle armor one alike, and a
+            // mech holds the mech one
+            tuple("mechmechanicaljumpboosters", 0.0, 4),
             tuple("targetingcomputer", 0.0, null),
             // a second one of another size
             tuple("communicationsequipment", 1.0, null));

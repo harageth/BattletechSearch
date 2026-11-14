@@ -897,8 +897,10 @@ public class ReadMegaMek {
 
   // the slot's name normalized, and as written for the display name (UnitService)
   private static Equipment slotEquipment(SlotName name, Tech tech) {
-    Equipment equipment = new Equipment(EquipmentNames.normalize(name.name()), tech);
-    equipment.setDisplayName(name.name());
+    // MegaMek gives the mech and the battle armor booster the same slot name; a mech file holds the mech one
+    String written = comparable(name.name()).equals("mechanicaljumpbooster") ? "Mech Mechanical Jump Boosters" : name.name();
+    Equipment equipment = new Equipment(EquipmentNames.normalize(written), tech);
+    equipment.setDisplayName(written);
     return equipment;
   }
 
