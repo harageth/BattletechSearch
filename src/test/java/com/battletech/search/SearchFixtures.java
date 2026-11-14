@@ -17,7 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Units for search tests: imports the MegaMek files under src/test/resources/megamek (meks,
  * vehicles, and search/ for units picked for the search tests) when the test application starts,
- * then puts their equipment in its groups and loads the slang again. Import it next to
+ * then puts their equipment in its groups, adds the shorthand and loads the slang again. Import it next to
  * TestcontainersConfiguration; the different config gives these tests their own database, so
  * import tests still start empty.
  */
@@ -35,6 +35,7 @@ public class SearchFixtures {
           unitService.persistUnits(fixtures(directory), ".blk", ReadMegaMek::ReadVehicleBlk);
         }
         putEquipmentInGroups(jdbcTemplate);
+        addShorthand(jdbcTemplate);
         unitService.loadSlang();
       } catch (IOException e) {
         throw new UncheckedIOException(e);
@@ -48,7 +49,20 @@ public class SearchFixtures {
    * after it, so the groups get their terms.
    */
   public static void putEquipmentInGroups(JdbcTemplate jdbcTemplate) {
-    try (InputStream sql = SearchFixtures.class.getResourceAsStream("/db/equipment-group-members.sql")) {
+    runSql(jdbcTemplate, "/db/equipment-group-members.sql");
+  }
+
+  /**
+   * Adds the hand-written shorthand ("jj", "medevac"): runs the V3_19 data migration, which tests skip
+   * like every db/data migration. It only adds terms for stored equipment, so run it after the imports,
+   * and load the slang after it, so MegaMek's names leave the shorthand's keys alone.
+   */
+  public static void addShorthand(JdbcTemplate jdbcTemplate) {
+    runSql(jdbcTemplate, "/db/data/V3_19__shorthand_slang.sql");
+  }
+
+  private static void runSql(JdbcTemplate jdbcTemplate, String resource) {
+    try (InputStream sql = SearchFixtures.class.getResourceAsStream(resource)) {
       jdbcTemplate.execute(new String(sql.readAllBytes(), StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new UncheckedIOException(e);

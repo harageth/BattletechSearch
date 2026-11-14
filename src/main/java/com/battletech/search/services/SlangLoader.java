@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Loads the slang tables (utils/SlangTerms) for the equipment that's stored and the equipment groups.
- * Runs after each import, so new equipment gets its terms; terms added by hand (USER) are kept.
+ * Runs after each import, so new equipment gets its terms; hand-written terms (SHORTHAND, USER) are kept.
  */
 @Slf4j
 @Service
@@ -38,24 +38,29 @@ public class SlangLoader {
     this.groupRepo = groupRepo;
   }
 
-  /** How many terms were loaded, and how many keys are left for someone to decide. */
-  public record Loaded(int terms, int ambiguous) {
+  /**
+   * How many terms were loaded, how many keys are left for someone to decide, and how many groups have
+   * no term because a hand-written term has their name.
+   */
+  public record Loaded(int terms, int ambiguous, int groupsWithoutTerm) {
   }
 
   @Transactional
   public Loaded load() {
-    slangRepo.deleteByKindNot(SlangKind.USER);
+    slangRepo.deleteByKindNotIn(SlangKind.HAND_WRITTEN);
     ambiguousRepo.deleteAllRows();
-    Set<String> userLookups = slangRepo.findByKind(SlangKind.USER).stream().map(Slang::getLookup)
+    Set<String> handWritten = slangRepo.findByKindIn(SlangKind.HAND_WRITTEN).stream().map(Slang::getLookup)
         .collect(Collectors.toSet());
-    SlangTerms.Result result = SlangTerms.build(equipRepo.findAll(), userLookups, EquipmentGroups.of(groupRepo.findTree()));
+    SlangTerms.Result result = SlangTerms.build(equipRepo.findAll(), handWritten, EquipmentGroups.of(groupRepo.findTree()));
     slangRepo.saveAll(result.terms());
     ambiguousRepo.saveAll(result.ambiguous());
 
     Map<String, List<String>> ambiguous = result.ambiguous().stream().collect(Collectors.groupingBy(
         AmbiguousSlang::getLookup, TreeMap::new, Collectors.mapping(AmbiguousSlang::getEquipmentName, Collectors.toList())));
     ambiguous.forEach((lookup, names) -> log.info("Ambiguous slang {}: {}", lookup, names));
+    result.groupsWithoutTerm().forEach(group ->
+        log.warn("Equipment group {} has no slang term: a hand-written term has its name", group));
     log.info("Loaded {} slang terms; {} ambiguous keys left in ambiguous_slang", result.terms().size(), ambiguous.size());
-    return new Loaded(result.terms().size(), ambiguous.size());
+    return new Loaded(result.terms().size(), ambiguous.size(), result.groupsWithoutTerm().size());
   }
 }

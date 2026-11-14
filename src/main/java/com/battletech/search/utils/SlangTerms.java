@@ -18,17 +18,19 @@ import java.util.stream.Collectors;
 
 /**
  * Builds the slang terms for the equipment that's stored: MegaMek's names
- * (megamek/equipment-aliases.tsv), the equipment groups (the equipment_group tables, see
- * EquipmentGroups) and the hand-written shorthand (megamek/equipment-slang.tsv). Terms only stand
- * for equipment some unit has, which is why they're built after an import.
+ * (megamek/equipment-aliases.tsv) and the equipment groups (the equipment_group tables, see
+ * EquipmentGroups). Terms only stand for equipment some unit has, which is why they're built after
+ * an import. Hand-written terms (shorthand and slang added with POST /actuator/slang) are stored, not
+ * built, and keep their keys.
  */
 public final class SlangTerms {
 
   /**
    * @param terms one per lookup key, each linked to the equipment rows it stands for
-   * @param ambiguous keys MegaMek uses for more than one item, one row per candidate
+   * @param ambiguous keys MegaMek uses for more than one item where a unit has one, one row per candidate
+   * @param groupsWithoutTerm groups whose name is a hand-written term, which keeps it
    */
-  public record Result(List<Slang> terms, List<AmbiguousSlang> ambiguous) {
+  public record Result(List<Slang> terms, List<AmbiguousSlang> ambiguous, List<String> groupsWithoutTerm) {
   }
 
   private SlangTerms() {
@@ -36,38 +38,19 @@ public final class SlangTerms {
 
   /**
    * @param stored every equipment row
-   * @param userLookups keys of terms added by hand (POST /actuator/slang): kept as they are, so
+   * @param handWritten keys of the hand-written terms (SlangKind.HAND_WRITTEN): kept as they are, so
    *     nothing here replaces them, and a key in them isn't ambiguous any more
    */
-  public static Result build(List<Equipment> stored, Set<String> userLookups, EquipmentGroups groups) {
-    return build(stored, userLookups, EquipmentNames.readTsv(EquipmentNames.ALIASES),
-        groups, EquipmentNames.readTsv(EquipmentNames.SHORTHAND));
+  public static Result build(List<Equipment> stored, Set<String> handWritten, EquipmentGroups groups) {
+    return build(stored, handWritten, EquipmentNames.readTsv(EquipmentNames.ALIASES), groups);
   }
 
-  static Result build(List<Equipment> stored, Set<String> userLookups, List<String[]> aliases,
-      EquipmentGroups groups, List<String[]> shorthand) {
+  static Result build(List<Equipment> stored, Set<String> handWritten, List<String[]> aliases, EquipmentGroups groups) {
     Map<String, List<Equipment>> byName = stored.stream()
         .collect(Collectors.groupingBy(Equipment::getName, LinkedHashMap::new, Collectors.toList()));
     Map<String, Slang> terms = new LinkedHashMap<>();
-    // keys someone decided: they're never ambiguous, and only a group replaces them (slang added by hand
-    // not even that)
-    Set<String> decided = new HashSet<>(userLookups);
-
-    // several lines for one term link every item they name ("machine gun ammo": full and half tons)
-    Map<String, String> shorthandTerms = new LinkedHashMap<>();
-    Map<String, List<Equipment>> shorthandRows = new LinkedHashMap<>();
-    for (String[] row : shorthand) {
-      String key = EquipmentNames.slangKey(row[0]);
-      if (!userLookups.contains(key)) {
-        shorthandTerms.putIfAbsent(key, row[0]);
-        shorthandRows.computeIfAbsent(key, k -> new ArrayList<>())
-            .addAll(byName.getOrDefault(EquipmentNames.normalize(row[1]), List.of()));
-      }
-    }
-    shorthandTerms.forEach((key, term) -> {
-      decided.add(key);
-      add(terms, term, key, SlangKind.SHORTHAND, shorthandRows.get(key));
-    });
+    // keys someone decided: they're never ambiguous, and nothing replaces them
+    Set<String> decided = new HashSet<>(handWritten);
 
     List<AmbiguousSlang> ambiguous = addAliases(terms, decided, byName, aliases);
 
@@ -75,6 +58,7 @@ public final class SlangTerms {
     Set<UUID> storedIds = stored.stream().map(Equipment::getId).collect(Collectors.toSet());
     Set<String> ambiguousKeys = ambiguous.stream().map(AmbiguousSlang::getLookup).collect(Collectors.toSet());
     Set<String> storedKeys = byName.keySet().stream().map(EquipmentNames::slangKey).collect(Collectors.toSet());
+    List<String> groupsWithoutTerm = new ArrayList<>();
     for (EquipmentGroups.Group group : groups.groups()) {
       String family = group.term();
       // one with nothing stored under it leaves the key be
@@ -82,12 +66,15 @@ public final class SlangTerms {
         continue;
       }
       String key = EquipmentNames.slangKey(family);
-      // a group wins over a MegaMek name or shorthand spelled the same ("ams" is every anti-missile
-      // system, user 2026-11-01), not over slang added by hand
-      if (!userLookups.contains(key)) {
-        terms.remove(key);
-        terms.put(key, new Slang(family, key, SlangKind.FAMILY, group.id()));
+      // a group wins over a MegaMek name spelled the same ("ams" is every anti-missile system, user
+      // 2026-11-01); a hand-written term keeps its key, and the group is reported (user, 2026-11-13) and
+      // gets no singular either
+      if (handWritten.contains(key)) {
+        groupsWithoutTerm.add(family);
+        continue;
       }
+      terms.remove(key);
+      terms.put(key, new Slang(family, key, SlangKind.FAMILY, group.id()));
       // "1 atm", "2 laser": the singular is the group too, unless something already has that name
       // ("ppc" stays the PPC); "artillery" has none, and "ams" isn't "am"
       if (!family.endsWith("s") || family.length() < 4) {
@@ -100,7 +87,9 @@ public final class SlangTerms {
         terms.put(singularKey, new Slang(singular, singularKey, SlangKind.FAMILY_SINGULAR, group.id()));
       }
     }
-    return new Result(new ArrayList<>(terms.values()), ambiguous);
+    // a key a group's term has isn't left to decide
+    ambiguous.removeIf(candidate -> terms.containsKey(candidate.getLookup()));
+    return new Result(new ArrayList<>(terms.values()), ambiguous, groupsWithoutTerm);
   }
 
   /** Adds a term per MegaMek name of stored equipment; returns the keys that name several items. */
@@ -127,7 +116,10 @@ public final class SlangTerms {
         return;
       }
       if (names.size() > 1) {
-        names.forEach((name, term) -> ambiguous.add(new AmbiguousSlang(key, term, name)));
+        // only when a unit has one of them, as a term is only for stored equipment
+        if (names.keySet().stream().anyMatch(byName::containsKey)) {
+          names.forEach((name, term) -> ambiguous.add(new AmbiguousSlang(key, term, name)));
+        }
         return;
       }
       Map.Entry<String, String> only = names.entrySet().iterator().next();

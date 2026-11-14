@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * A key MegaMek uses for more than one item, one row per candidate, kept for someone to decide: a
- * line in megamek/equipment-slang.tsv or POST /actuator/slang settles it on the next slang load.
+ * hand-written term (POST /actuator/slang) settles it on the next slang load.
  */
 @Entity
 @Data

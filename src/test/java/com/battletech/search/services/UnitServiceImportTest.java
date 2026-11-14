@@ -69,10 +69,12 @@ class UnitServiceImportTest {
     return jdbcTemplate.queryForObject(sql, Integer.class);
   }
 
-  // what V3_17 does on a database with units: puts the stored equipment in its groups, which then get terms
-  private void groupEquipment() {
+  // what V3_17 and V3_19 do on a database with units: puts the stored equipment in its groups, which then
+  // get terms, and adds the shorthand
+  private void addGroupsAndShorthand() {
     entityManager.flush();
     SearchFixtures.putEquipmentInGroups(jdbcTemplate);
+    SearchFixtures.addShorthand(jdbcTemplate);
     unitService.loadSlang();
     entityManager.flush();
   }
@@ -219,7 +221,7 @@ class UnitServiceImportTest {
   void familyTermsCountEveryWeaponInTheFamily() throws IOException {
     importMechs();
     unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
-    groupEquipment();
+    addGroupsAndShorthand();
 
     // the Mad Cat Prime: two ER large, two ER medium and a medium pulse laser, all Clan
     assertThat(search("mechs with exactly 5 lasers")).contains("Mad Cat Prime");
@@ -247,7 +249,7 @@ class UnitServiceImportTest {
   @Test
   void groupsCountEverythingInTheGroupsUnderThem() throws IOException {
     importMechs();
-    groupEquipment();
+    addGroupsAndShorthand();
 
     // the Atlas: four medium lasers, an LRM 20, an SRM 6 and an AC/20
     assertThat(search("mechs with exactly 2 missiles and exactly 4 energy weapons and exactly 1 ballistic weapons"))
@@ -267,7 +269,7 @@ class UnitServiceImportTest {
   @Test
   void severalWeightClassesAndAny() throws IOException {
     importMechs();
-    groupEquipment();
+    addGroupsAndShorthand();
 
     // the Mad Cat Prime is a heavy with two LRMs and five lasers; the Atlas is an assault
     assertThat(search("medium or heavy mechs with at least 2 lrms and any lasers"))
@@ -288,7 +290,8 @@ class UnitServiceImportTest {
   @Test
   void clanChassisMixedTechSearches() throws IOException {
     importMechs();
-    entityManager.flush();
+    // "jj" is shorthand
+    addGroupsAndShorthand();
 
     // the Flamberge D: Clan SRM 6s and pulse lasers, IS plasma rifles
     assertThat(search("mechs with exactly 2 is plasma rifle and exactly 2 clan srm 6")).contains("Flamberge D");
@@ -338,16 +341,58 @@ class UnitServiceImportTest {
     // nothing is in a group yet (the test database has no equipment when V3_17 runs), so no group terms
     assertThat(count("SELECT count(*) FROM slang WHERE kind = 'FAMILY'")).isZero();
 
-    groupEquipment();
+    addGroupsAndShorthand();
     // a group's term names the group and links no rows; a search finds the rows through the tree
     assertThat(jdbcTemplate.queryForObject("SELECT g.name FROM slang s JOIN equipment_group g ON g.id = s.equipment_group_id"
         + " WHERE s.lookup = 'lrms'", String.class)).isEqualTo("lrms");
     assertThat(count("SELECT count(*) FROM slang s JOIN slang_equipment se ON se.slang_id = s.id WHERE s.kind = 'FAMILY'"))
         .isZero();
-    // the shorthand file settles every key MegaMek gives to two items, so nothing waits in ambiguous_slang
+    // the shorthand settles every key MegaMek gives to two items, so nothing waits in ambiguous_slang
     // (SlangTermsTest covers keys left undecided)
-    assertThat(result.problems()).doesNotContainKey(ImportProblems.Kind.AMBIGUOUS_SLANG);
     assertThat(count("SELECT count(*) FROM ambiguous_slang")).isZero();
+  }
+
+  @Test
+  void theShorthandLinksEveryItemItNamesAndSurvivesAnImport() throws IOException {
+    importMechs();
+    addGroupsAndShorthand();
+    String linked = "SELECT e.name || '/' || e.tech FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
+        + " JOIN equipment e ON e.id = se.equipment_id WHERE s.kind = 'SHORTHAND' AND s.lookup = ?";
+    // a shorthand term links every stored tech of what it names
+    assertThat(jdbcTemplate.queryForList(linked, String.class, "jj")).isNotEmpty().containsExactlyInAnyOrderElementsOf(
+        jdbcTemplate.queryForList("SELECT name || '/' || tech FROM equipment WHERE name = 'jumpjet'", String.class));
+    assertThat(count("SELECT count(*) FROM slang WHERE kind = 'SHORTHAND'")).isPositive();
+    // and only stored equipment: no fixture has paramedic equipment
+    assertThat(count("SELECT count(*) FROM slang WHERE lookup = 'paramedic'")).isZero();
+
+    // the slang load after an import keeps it
+    List<String> before = jdbcTemplate.queryForList("SELECT lookup FROM slang WHERE kind = 'SHORTHAND' ORDER BY 1", String.class);
+    importMechs();
+    entityManager.flush();
+    assertThat(jdbcTemplate.queryForList("SELECT lookup FROM slang WHERE kind = 'SHORTHAND' ORDER BY 1", String.class))
+        .isEqualTo(before);
+    assertThat(jdbcTemplate.queryForList(linked, String.class, "jj")).isNotEmpty();
+  }
+
+  @Test
+  void aNewTechOfAnItemGetsTheHandWrittenTermsOfItsOtherTechs(@TempDir Path atlas, @TempDir Path madCat)
+      throws IOException {
+    Files.copy(Path.of(fixtures("meks"), "Atlas AS7-D.mtf"), atlas.resolve("Atlas AS7-D.mtf"));
+    Files.copy(Path.of(fixtures("meks"), "Mad Cat (Timber Wolf) Prime.mtf"), madCat.resolve("Mad Cat (Timber Wolf) Prime.mtf"));
+    unitService.persistUnits(atlas.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    // someone calls the Atlas' (IS) LRM 20 a "big lrm"
+    entityManager.flush();
+    jdbcTemplate.update("INSERT INTO slang (id, term, lookup, kind) VALUES (gen_random_uuid(), 'big lrm', 'biglrm', 'USER')");
+    jdbcTemplate.update("INSERT INTO slang_equipment (slang_id, equipment_id) SELECT s.id, e.id FROM slang s, equipment e"
+        + " WHERE s.lookup = 'biglrm' AND e.name = 'lrm20'");
+
+    // the Mad Cat Prime's Clan LRM 20s are a new row, which gets the term too
+    ImportResult second = unitService.persistUnits(madCat.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    assertThat(second.problems()).containsEntry(ImportProblems.Kind.NEW_EQUIPMENT_SLANG, 1);
+    assertThat(jdbcTemplate.queryForList("SELECT e.tech FROM slang s JOIN slang_equipment se ON se.slang_id = s.id"
+        + " JOIN equipment e ON e.id = se.equipment_id WHERE s.lookup = 'biglrm'", String.class))
+        .containsExactlyInAnyOrder("INNER_SPHERE", "CLAN");
+    assertThat(search("mechs with exactly 2 big lrm")).containsExactly("Mad Cat Prime");
   }
 
   @Test

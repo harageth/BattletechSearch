@@ -94,15 +94,14 @@ class EquipmentNamesTest {
   }
 
   @Test
-  void handWrittenShorthand() {
-    assertThat(EquipmentNames.canonical("ams")).isEqualTo("anti-missilesystem");
-    assertThat(EquipmentNames.canonical("AMS")).isEqualTo("anti-missilesystem");
-    assertThat(EquipmentNames.canonical("jj")).isEqualTo("jumpjet");
+  void jumpJetsOfMechsAndVehicles() {
     assertThat(EquipmentNames.canonical("Jump Jet")).isEqualTo("jumpjet");
     assertThat(EquipmentNames.canonical("VehicleJumpJet")).isEqualTo("jumpjet");
-    // a term on several lines names a unit file's item after the first
-    assertThat(EquipmentNames.canonical("MechanicalJumpBooster")).isEqualTo("mechmechanicaljumpboosters");
-    assertThat(EquipmentNames.canonical("Machine Gun Ammo")).isEqualTo("machinegunammo[full]");
+    // shorthand ("jj") is slang in the database (db/data V3_19), not a MegaMek name
+    assertThat(EquipmentNames.canonical("jj")).isEqualTo("jj");
+    // a name MegaMek gives the mech and the battle armor booster stays as written; the mech reader names
+    // its slot (ReadMegaMekTest)
+    assertThat(EquipmentNames.canonical("MechanicalJumpBooster")).isEqualTo("mechanicaljumpbooster");
   }
 
   @Test

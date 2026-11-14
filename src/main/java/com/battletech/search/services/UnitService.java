@@ -6,6 +6,7 @@ import com.battletech.search.entities.Unit;
 import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.MechEquipmentRepository;
+import com.battletech.search.repositories.SlangRepository;
 import com.battletech.search.repositories.UnitRepository;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.ImportProblems;
@@ -36,6 +37,7 @@ public class UnitService {
   private final EquipmentRepository equipRepo;
   private final MechEquipmentRepository mechEquipRepo;
   private final EquipmentGroupRepository groupRepo;
+  private final SlangRepository slangRepo;
   private final SlangLoader slangLoader;
   private final TransactionTemplate transaction;
   private final String mechsPath;
@@ -43,7 +45,8 @@ public class UnitService {
   private final String pdfPath;
 
   public UnitService(UnitRepository unitRepo, EquipmentRepository equipRepo,
-      MechEquipmentRepository mechEquipRepo, EquipmentGroupRepository groupRepo, SlangLoader slangLoader,
+      MechEquipmentRepository mechEquipRepo, EquipmentGroupRepository groupRepo, SlangRepository slangRepo,
+      SlangLoader slangLoader,
       PlatformTransactionManager transactionManager,
       @Value("${battletech.import.mechs-path}") String mechsPath,
       @Value("${battletech.import.vehicles-path}") String vehiclesPath,
@@ -52,6 +55,7 @@ public class UnitService {
     this.equipRepo = equipRepo;
     this.mechEquipRepo = mechEquipRepo;
     this.groupRepo = groupRepo;
+    this.slangRepo = slangRepo;
     this.slangLoader = slangLoader;
     this.transaction = new TransactionTemplate(transactionManager);
     this.mechsPath = mechsPath;
@@ -133,10 +137,13 @@ public class UnitService {
     if (slang.ambiguous() > 0) {
       problemCounts.put(ImportProblems.Kind.AMBIGUOUS_SLANG, slang.ambiguous());
     }
+    if (slang.groupsWithoutTerm() > 0) {
+      problemCounts.put(ImportProblems.Kind.GROUP_TERM_TAKEN, slang.groupsWithoutTerm());
+    }
     return new ImportResult(counts[0], counts[1], counts[2], counts[3], slang.terms(), problemCounts);
   }
 
-  /** Loads the slang again on its own, e.g. after a line was added to megamek/equipment-slang.tsv. */
+  /** Loads the slang again on its own, e.g. after an equipment group was added. */
   public SlangLoader.Loaded loadSlang() {
     return slangLoader.load();
   }
@@ -180,6 +187,7 @@ public class UnitService {
    * Stores equipment no unit had before, in the equipment groups its other techs are in (the same
    * name: a Clan ER Medium Laser goes where the IS one is), and reports which. One with no other
    * tech in a group is reported for someone to place; the search guide lists it under Equipment.
+   * It also gets the hand-written slang terms its other techs have ("jj" for a Clan jump jet).
    */
   private Equipment addEquipment(Equipment item, ImportProblems.InFile problems) {
     Equipment equipment = equipRepo.save(item);
@@ -190,6 +198,11 @@ public class UnitService {
     } else {
       groupRepo.joinGroupsOfOtherTechs(equipment.getName(), equipment.getId());
       problems.report(ImportProblems.Kind.NEW_EQUIPMENT_GROUPED, shown + ": " + String.join(", ", groups));
+    }
+    List<String> terms = slangRepo.findHandWrittenTermsOfOtherTechs(equipment.getName(), equipment.getId());
+    if (!terms.isEmpty()) {
+      slangRepo.joinHandWrittenTermsOfOtherTechs(equipment.getName(), equipment.getId());
+      problems.report(ImportProblems.Kind.NEW_EQUIPMENT_SLANG, shown + ": " + String.join(", ", terms));
     }
     return equipment;
   }

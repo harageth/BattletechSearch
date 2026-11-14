@@ -31,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class EquipmentNames {
   public static final String ALIASES = "/megamek/equipment-aliases.tsv";
-  public static final String SHORTHAND = "/megamek/equipment-slang.tsv";
 
   // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret.
   // Annotations that name a different item, like "(Vehicle)" or "(B-Pods)", are kept.
@@ -43,8 +42,7 @@ public final class EquipmentNames {
   private static final Pattern ITEM_SUFFIX = Pattern.compile(":(omni|size).*$", Pattern.CASE_INSENSITIVE);
 
   /**
-   * @param aliases lookup key -> normalized display name, for keys with only one (the hand-written
-   *     shorthand wins over the generated table)
+   * @param aliases lookup key -> normalized display name, for keys with only one
    * @param displays normalized display name -> the display name as MegaMek writes it, tags removed
    * @param techs normalized display name -> the techs its prefixed names say ("ISHeavyPPC": IS)
    */
@@ -233,13 +231,6 @@ public final class EquipmentNames {
         aliases.put(key, names.iterator().next());
       }
     });
-    // a term on several lines: a unit file's item is named after the first
-    Set<String> shorthandKeys = new HashSet<>();
-    for (String[] row : readTsv(SHORTHAND)) {
-      if (shorthandKeys.add(slangKey(row[0]))) {
-        aliases.put(slangKey(row[0]), normalize(row[1]));
-      }
-    }
     log.debug("Loaded {} equipment aliases", aliases.size());
     return new AliasTable(aliases, displays, techs);
   }
