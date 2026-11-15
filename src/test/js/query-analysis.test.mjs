@@ -453,26 +453,28 @@ test('"no" anywhere but after a "with" becomes "with"', () => {
   }
 });
 
-test('a swap starting with a unit word gets "any" when no number comes before it', () => {
-  // "tripod" is a unit word, and a name with no number in front must start with a plain word
-  assert.deepEqual(texts(alternatives(token('mechs with small cockpit', 'small cockpit'), vocabulary)),
-      ['any tripod cockpit']);
+test('a swap starting with a unit word gets "any" only when it starts a query with no unit', () => {
+  // "tripod" is a unit word: starting the query, "tripod cockpit" would read as tripods
+  assert.deepEqual(texts(alternatives(token('small cockpit', 'small cockpit'), vocabulary)), ['any tripod cockpit']);
+  assert.equal(analyze(swapped('small cockpit', 'small cockpit'), vocabulary).error, null);
+  // after "with", a number or "without" a unit word can start the name (user, 2026-11-15)
+  for (const query of ['mechs with small cockpit', 'mechs with a small cockpit', 'mechs without small cockpit']) {
+    assert.deepEqual(texts(alternatives(token(query, 'small cockpit'), vocabulary)), ['tripod cockpit'], query);
+  }
   assert.equal(analyze(swapped('mechs with small cockpit', 'small cockpit'), vocabulary).error, null);
-  // after a number, a tech or "without" a unit word can start the name
-  assert.deepEqual(texts(alternatives(token('mechs with a small cockpit', 'small cockpit'), vocabulary)),
-      ['tripod cockpit']);
-  assert.deepEqual(texts(alternatives(token('mechs without small cockpit', 'small cockpit'), vocabulary)),
-      ['tripod cockpit']);
-  // equipment too: "flamers" -> "any vehicle flamer"
+  // equipment too: "flamers" starting a query -> "any vehicle flamer", after "with" -> "vehicle flamer"
   const flamers = {
     ...vocabulary,
     families: { ...vocabulary.families, flamers: ['flamer', 'vehicle flamer'] },
     equipment: { ...vocabulary.equipment, flamer: ['flamers'], 'vehicle flamer': ['flamers'] },
   };
+  const opening = alternatives(analyze('flamers', flamers).tokens.at(-1), flamers);
+  assert.ok(texts(opening).includes('any vehicle flamer'));
+  assert.ok(texts(opening).includes('flamer'));
+  assert.equal(analyze('any vehicle flamer', flamers).error, null);
   const options = alternatives(analyze('units with flamers', flamers).tokens.at(-1), flamers);
-  assert.ok(texts(options).includes('any vehicle flamer'));
-  assert.ok(texts(options).includes('flamer'));
-  assert.equal(analyze('units with any vehicle flamer', flamers).error, null);
+  assert.ok(texts(options).includes('vehicle flamer'));
+  assert.equal(analyze('units with vehicle flamer', flamers).error, null);
 });
 
 /** The query with one token swapped for the option with this label. */
@@ -481,13 +483,14 @@ function swappedTo(query, text, label) {
   return replaceToken(query, found, alternatives(found, vocabulary).find(option => option.label === label).text).text;
 }
 
-test('taking out a word in front of a unit-word name puts "any" in', () => {
-  // "with vehicle flamer" doesn't parse: a name with no number has to start with a plain word
+test('taking out a word in front of a unit-word name puts "any" in only when it starts a query', () => {
+  // "vehicle flamer" starting a query would read as vehicles; after "with" it's a name (user, 2026-11-15)
   const cases = [
-    ['units with is vehicle flamer', 'is', 'any tech', 'units with any vehicle flamer'],
-    ['units without vehicle flamer', 'without', 'with', 'units with any vehicle flamer'],
-    ['units with no vehicle flamer', 'no', 'with', 'units with any vehicle flamer'],
-    ['mechs without tripod cockpit', 'without', 'with', 'mechs with any tripod cockpit'],
+    ['is vehicle flamer', 'is', 'any tech', 'any vehicle flamer'],
+    ['units with is vehicle flamer', 'is', 'any tech', 'units with vehicle flamer'],
+    ['units without vehicle flamer', 'without', 'with', 'units with vehicle flamer'],
+    ['units with no vehicle flamer', 'no', 'with', 'units with vehicle flamer'],
+    ['mechs without tripod cockpit', 'without', 'with', 'mechs with tripod cockpit'],
     // a plain word, or a number, after it: nothing to add
     ['units with is lrm 20', 'is', 'any tech', 'units with lrm 20'],
     ['units without clan vehicle flamer', 'without', 'with', 'units with clan vehicle flamer'],

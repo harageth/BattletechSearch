@@ -84,10 +84,8 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
     if (token.role === 'without') {
       // "with no ppcs": swapping the "no" for "with" only has to take it out (see alternatives)
       token.afterWith = tokens[index - 1]?.role === 'with';
-      // "without vehicle flamer": swapped for "with", the name has no number and starts with a unit word
-      token.exposesUnitWord = next !== undefined && next.role !== 'quantity' && !startsWithWord(next.text);
     } else if (token.bare && (token.role === 'tech' || token.role === 'fire-control')) {
-      // "with is vehicle flamer": taking out the tech leaves "with vehicle flamer"
+      // "is vehicle flamer" starting a query: taking out the tech leaves "vehicle flamer" there
       token.exposesUnitWord = next !== undefined && !startsWithWord(next.text);
     }
   });
@@ -227,9 +225,10 @@ function span(terminals, text, role) {
 
 function visit(context, tokens, text, vocabulary) {
   const children = context.children ?? [];
-  if (context.ruleIndex === BattletechParser.RULE_equipmentName || context.ruleIndex === BattletechParser.RULE_bareName) {
+  if (context.ruleIndex === BattletechParser.RULE_equipmentName || context.ruleIndex === BattletechParser.RULE_bareName
+      || context.ruleIndex === BattletechParser.RULE_plainName) {
     equipmentName(children.filter(child => isTerminal(child) && !isError(child)), tokens, text, vocabulary,
-        context.ruleIndex === BattletechParser.RULE_bareName);
+        context.ruleIndex === BattletechParser.RULE_plainName);
     children.filter(isError).forEach(node => terminal(node, context, tokens, text));
     return;
   }
@@ -301,9 +300,9 @@ function terminal(node, context, tokens, text) {
   tokens.push(span([node], text, role));
 }
 
-// "clan artemis iv lrm 20" -> tech "clan", fire control "artemis iv", equipment "lrm 20". bareName: no
-// number in front ("endo steel")
-function equipmentName(words, tokens, text, vocabulary, bareName) {
+// "clan artemis iv lrm 20" -> tech "clan", fire control "artemis iv", equipment "lrm 20". plainName: no
+// number in front, starting a query with no unit ("endo steel"), so it starts with a plain word
+function equipmentName(words, tokens, text, vocabulary, plainName) {
   if (words.length === 0) {
     return;
   }
@@ -315,7 +314,7 @@ function equipmentName(words, tokens, text, vocabulary, bareName) {
   for (const tech of techs) {
     const length = tech.split(' ').length;
     if (words.length > length && words.slice(0, length).map(word => word.getText().toLowerCase()).join(' ') === tech) {
-      tokens.push({ ...span(words.slice(0, length), text, 'tech'), bare: bareName });
+      tokens.push({ ...span(words.slice(0, length), text, 'tech'), bare: plainName });
       words = words.slice(length);
       hasTech = true;
       break;
@@ -332,7 +331,7 @@ function equipmentName(words, tokens, text, vocabulary, bareName) {
     found: for (const fireControl of fireControls) {
       for (let length = 1; length < words.length; length++) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {
-          tokens.push({ ...span(words.slice(0, length), text, 'fire-control'), bare: bareName && !hasTech });
+          tokens.push({ ...span(words.slice(0, length), text, 'fire-control'), bare: plainName && !hasTech });
           words = words.slice(length);
           hasFireControl = true;
           break found;
@@ -343,7 +342,7 @@ function equipmentName(words, tokens, text, vocabulary, bareName) {
   // the whole name too, prefixes and all, for adding a tech in front of it
   const equipment = span(words, text, 'equipment');
   // bare: the name starts the chunk, so whatever replaces it has to start with a plain word too
-  const bare = bareName && !hasTech && !hasFireControl;
+  const bare = plainName && !hasTech && !hasFireControl;
   tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasFireControl, bare });
 }
 
@@ -381,12 +380,12 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
       // "without ppcs" -> "with ppcs"; the other way a number like "2" would need "fewer than".
       // Right after a "with" ("with no ppcs") taking it out is enough. Anywhere else it becomes "with":
       // taken out, "mechs no ppcs" would lose its "with", and in "without ppcs and no lasers" the
-      // lasers would still be left out. Either way "any" goes in when the name then starts with a unit
-      // word: "without vehicle flamer" -> "with any vehicle flamer".
+      // lasers would still be left out. After "with" a name can start with a unit word ("with vehicle
+      // flamer").
       if (vocabulary.withWords.length === 0) {
         return [];
       }
-      return [{ label: 'with', text: [token.afterWith ? '' : 'with', orAny(token)].filter(Boolean).join(' ') }];
+      return [{ label: 'with', text: token.afterWith ? '' : 'with' }];
     case 'omni':
       return [...others(vocabulary.omniWords), { label: 'omni or not', text: '' }];
     case 'tech': {
@@ -405,9 +404,9 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
   }
 }
 
-// A name with no number in front has to start with a plain word, so "mechs with small cockpit" can't
-// become "mechs with tripod cockpit": a swap starting with a unit word gets "any" ("any tripod
-// cockpit"), which still means at least one.
+// A name with no number starting a query with no unit has to start with a plain word, so "small cockpit"
+// can't become "tripod cockpit" (read as tripods): a swap starting with a unit word gets "any" ("any
+// tripod cockpit"), which still means at least one. After "with" it needn't (user, 2026-11-15).
 function startingAChunk(token, option) {
   if (!token.bare || option.start !== undefined || option.text === '' || startsWithWord(option.text)) {
     return option;
@@ -415,8 +414,8 @@ function startingAChunk(token, option) {
   return { ...option, text: `any ${option.text}` };
 }
 
-// "any" in place of a word taken out in front of a name like that: "with is vehicle flamer" -> "with any
-// vehicle flamer", "without vehicle flamer" -> "with any vehicle flamer"
+// "any" in place of a word taken out in front of a name like that: "is vehicle flamer" -> "any vehicle
+// flamer"
 function orAny(token) {
   return token.exposesUnitWord ? 'any' : '';
 }

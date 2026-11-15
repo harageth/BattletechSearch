@@ -569,6 +569,25 @@ class QueryVisitorTest {
   }
 
   @Test
+  void aNameWithNoNumberCanStartWithAUnitWordPastTheUnit() {
+    // user, 2026-11-15: after "with", "and" or "or" it's a name
+    EquipmentDecorator sealing = chunk(parse("units with mech environmental sealing"), 0);
+    assertThat(sealing.getEquipment().getName()).isEqualTo("mechenvironmentalsealing");
+    assertThat(sealing.getComparison()).isEqualTo(Comparison.EQUAL_OR_GREATER);
+    assertThat(sealing.getQuantity()).isEqualTo(1);
+    // (the mock finds MegaMek's name, as the alias table does)
+    assertThat(names(parse("units with vehicle flamer"))).containsExactly("flamer(vehicle)");
+    assertThat(names(parse("mechs with 2 ppc and mech sprayer"))).containsExactly("ppc", "sprayer(mech)");
+    assertThat(component(parse("mechs with lasers or tripod cockpit"), 1).getComponent().types()).containsExactly("TRIPOD");
+    assertThat(names(parse("mechs without ppcs but with vehicle flamer"))).containsExactly("ppcs", "flamer(vehicle)");
+    assertThat(names(parse("with vehicle flamer"))).containsExactly("flamer(vehicle)");
+    // with no unit in front, a unit word there is still a unit word: "mech sprayer" and "medium or mechs"
+    // (severalWeightClasses) don't read "mech" as a name
+    assertThatThrownBy(() -> parse("mech sprayer")).isInstanceOf(FailedParseException.class);
+    assertThatThrownBy(() -> parse("endo steel and mech sprayer")).isInstanceOf(FailedParseException.class);
+  }
+
+  @Test
   void aUnitHasOneOfEachComponent() {
     assertThatThrownBy(() -> parse("mechs with 2 xl engines")).isInstanceOf(FailedParseException.class)
         .hasMessage("A unit has one engine: xl engines");
