@@ -32,6 +32,11 @@ import me.BattletechParser.ChunkContext;
 import me.BattletechParser.ChunksContext;
 import me.BattletechParser.LeadContext;
 import me.BattletechParser.MoreContext;
+import me.BattletechParser.OpeningChunksContext;
+import me.BattletechParser.OpeningLeadContext;
+import me.BattletechParser.OpeningMoreContext;
+import me.BattletechParser.PlainChunkContext;
+import me.BattletechParser.PlainNameContext;
 import me.BattletechParser.WithoutChunksContext;
 import me.BattletechParser.ComparatorContext;
 import me.BattletechParser.EquipmentChunkContext;
@@ -100,6 +105,12 @@ public class QueryVisitor implements BattletechVisitor {
     return ctx.children.stream().map(ParseTree::getText).collect(Collectors.joining(" "));
   }
 
+  /** The same, starting a query with no unit. */
+  @Override
+  public String visitPlainName(PlainNameContext ctx) {
+    return ctx.children.stream().map(ParseTree::getText).collect(Collectors.joining(" "));
+  }
+
   /** "omni" true, "non-omni" false. */
   @Override
   public Boolean visitOmni(OmniContext ctx) {
@@ -127,6 +138,8 @@ public class QueryVisitor implements BattletechVisitor {
     unit.setExclusions(exclusions);
     if(ctx.chunks() != null) {
       unit.setFilters(visitChunks(ctx.chunks()));
+    }else if(ctx.openingChunks() != null) {
+      unit.setFilters(visitOpeningChunks(ctx.openingChunks()));
     }else if(ctx.withoutChunks() != null) {
       unit.setFilters(visitWithoutChunks(ctx.withoutChunks()));
     }
@@ -164,6 +177,15 @@ public class QueryVisitor implements BattletechVisitor {
     return chunks.filters;
   }
 
+  /** "2 ppc", "endo steel": no unit in front. */
+  @Override
+  public List<UnitFilter> visitOpeningChunks(OpeningChunksContext ctx) {
+    Chunks chunks = new Chunks();
+    chunks.lead(ctx.openingLead());
+    ctx.openingMore().forEach(chunks::more);
+    return chunks.filters;
+  }
+
   /** "mechs without ppcs ...": a without-chunk in place of "with". */
   @Override
   public List<UnitFilter> visitWithoutChunks(WithoutChunksContext ctx) {
@@ -192,6 +214,35 @@ public class QueryVisitor implements BattletechVisitor {
         chunk(lead.chunk());
       }else {
         bare(visitBareChunk(lead.bareChunk()));
+      }
+    }
+
+    void lead(OpeningLeadContext lead) {
+      if(lead.STOPWORD() != null) {
+        without = false;
+      }
+      if(lead.chunk() != null) {
+        chunk(lead.chunk());
+      }else if(lead.plainChunk() != null) {
+        bare(visitPlainChunk(lead.plainChunk()));
+      }else {
+        bare(visitBareChunk(lead.bareChunk()));
+      }
+    }
+
+    void more(OpeningMoreContext more) {
+      if(more.logicaloperator() != null) {
+        operator = visitLogicaloperator(more.logicaloperator());
+        lead(more.openingLead());
+        return;
+      }
+      if(more.STOPWORD() != null) {
+        without = false;
+      }
+      if(more.chunk() != null) {
+        chunk(more.chunk());
+      }else {
+        bare(visitBareChunk(more.bareChunk()));
       }
     }
 
@@ -290,14 +341,34 @@ public class QueryVisitor implements BattletechVisitor {
   }
 
   @Override
+  public UnitFilter visitOpeningLead(OpeningLeadContext ctx) {
+    return null;
+  }
+
+  @Override
   public UnitFilter visitMore(MoreContext ctx) {
+    return null;
+  }
+
+  @Override
+  public UnitFilter visitOpeningMore(OpeningMoreContext ctx) {
     return null;
   }
 
   /** No number: "endo steel" (has it), "lasers" (at least one). */
   @Override
   public UnitFilter visitBareChunk(BareChunkContext ctx) {
-    String typed = visitBareName(ctx.bareName()).toLowerCase();
+    return bareChunk(visitBareName(ctx.bareName()));
+  }
+
+  /** The same, starting a query with no unit. */
+  @Override
+  public UnitFilter visitPlainChunk(PlainChunkContext ctx) {
+    return bareChunk(visitPlainName(ctx.plainName()));
+  }
+
+  private UnitFilter bareChunk(String name) {
+    String typed = name.toLowerCase();
     ComponentFilter component = component(typed);
     if(component != null) {
       return component;
@@ -406,20 +477,16 @@ public class QueryVisitor implements BattletechVisitor {
     EquipmentNames.TechWord techWord = EquipmentNames.splitTechWord(equip);
     Tech tech = techWord.tech();
     String named = techWord.rest();
-    // "artemis lrm 20": look up the launcher, and only count ones with that fire control
-    String lookup = EquipmentNames.normalize(named);
-    FireControl.Filter fireControl = FireControl.fromSearch(lookup);
-    if(fireControl != null) {
-      lookup = fireControl.launcher();
-    }
     // validate equipment type by its name or slang: "ac 20" and "autocannon 20" both find "ac/20",
     // a family term ("lrms", or "atm" in the singular) every weapon in it, counted together, and a
     // MegaMek name with its tech built in ("cllrm20") only that tech
-    List<Equipment> found = findEquipment(lookup);
-    if(found.isEmpty() && lookup.endsWith("s")) {
-      // a plural: "2 lrm 20s", "4 medium lasers"
-      lookup = lookup.substring(0, lookup.length() - 1);
-      found = findEquipment(lookup);
+    String lookup = EquipmentNames.normalize(named);
+    List<Equipment> found = findEquipmentOrPlural(lookup);
+    // "artemis lrm 20": look up the launcher, and only count ones with that fire control; not when the
+    // whole name is a term itself ("artemis lrm ammo", a group of ammo bins, V3_20)
+    FireControl.Filter fireControl = found.isEmpty() ? FireControl.fromSearch(lookup) : null;
+    if(fireControl != null) {
+      found = findEquipmentOrPlural(fireControl.launcher());
     }
     List<Equipment> matches = found;
     if(tech != null) {
@@ -448,6 +515,15 @@ public class QueryVisitor implements BattletechVisitor {
    */
   private List<Equipment> findEquipment(String lookup) {
     return equipRepo.findAllByNameOrSlang(lookup, EquipmentNames.slangKey(lookup));
+  }
+
+  /** Like findEquipment, or else the singular of a plural: "2 lrm 20s", "4 medium lasers". */
+  private List<Equipment> findEquipmentOrPlural(String lookup) {
+    List<Equipment> found = findEquipment(lookup);
+    if(found.isEmpty() && lookup.endsWith("s")) {
+      found = findEquipment(lookup.substring(0, lookup.length() - 1));
+    }
+    return found;
   }
 
   @Override

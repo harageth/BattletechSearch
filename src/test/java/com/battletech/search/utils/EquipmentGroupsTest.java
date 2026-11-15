@@ -57,7 +57,15 @@ class EquipmentGroupsTest {
     assertThat(groupsOf("vibroblade(large)")).containsExactly("vibroblades", "physical weapons");
     assertThat(groupsOf("hatchet")).containsExactly("physical weapons");
     assertThat(ROWS.keySet().stream().filter(name -> name.contains("ammo")))
-        .isNotEmpty().allSatisfy(ammo -> assertThat(groupsOf(ammo)).as(ammo).containsExactly("ammo"));
+        .isNotEmpty().allSatisfy(ammo -> assertThat(groupsOf(ammo)).as(ammo).endsWith("ammo"));
+    // ammo with its size in the middle is typed without it, by its group (V3_20, user 2026-11-14), and
+    // Artemis- and Narc-capable bins have groups of their own under it
+    assertThat(groupsOf("ac/20ammo")).containsExactly("ammo");
+    assertThat(groupsOf("lrm20ammo")).containsExactly("lrm ammo", "ammo");
+    assertThat(groupsOf("streaksrm6ammo")).containsExactly("streak srm ammo", "srm ammo", "ammo");
+    assertThat(groupsOf("ammolrm-20artemisv-capable")).containsExactly("artemis lrm ammo", "lrm ammo", "ammo");
+    assertThat(groupsOf("ammomml-7srmnarc-capable")).containsExactly("narc mml ammo", "mml ammo", "ammo");
+    assertThat(groupsOf("shapedchargemortar4ammo")).containsExactly("mortar ammo", "ammo");
     // and what has ECM built in (user, 2026-11-01)
     for (String ecm : List.of("ecmsuite", "ecmsuite(guardian)", "angelecmsuite", "watchdogcompositeelectronicwarfaresystem(cews)",
         "novacombinedelectronicwarfaresystem(cews)", "electronicwarfareequipment")) {
@@ -71,6 +79,11 @@ class EquipmentGroupsTest {
     assertThat(TREE.directGroupsOf(ROWS.get("c3computer(master)").getId())).containsExactly("c3");
     assertThat(groupsOf("chainsaw")).containsExactly("industrial tools", "physical weapons");
     assertThat(groupsOf("trailerhitch")).containsExactly("industrial equipment");
+    // the mech's and the combat vehicle's environmental sealing are one group (V3_20, user 2026-11-14)
+    assertThat(groupsOf("environmentalsealing(mech)")).containsExactly("environmental sealing", "chassis mods");
+    assertThat(groupsOf("combatvehiclechassismod[environmentalsealing]"))
+        .containsExactly("environmental sealing", "chassis mods");
+    assertThat(groupsOf("combatvehiclechassismod[flotationhull]")).containsExactly("chassis mods");
     assertThat(groupsOf("shield(large)")).containsExactly("shields");
     assertThat(groupsOf("laserams")).containsExactly("ams");
     assertThat(groupsOf("heavymachinegunarray")).containsExactly("mg arrays", "ballistic weapons");

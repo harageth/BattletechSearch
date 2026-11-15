@@ -1,5 +1,6 @@
 package com.battletech.search.services;
 
+import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
 import com.battletech.search.model.SlangKind;
@@ -84,7 +85,8 @@ public class EquipmentService {
    * Every stored item by display name (IS and Clan rows together), with its slang. A term is left
    * out when it's the item's own name or another term again, apart from case, spacing,
    * punctuation or a MegaMek tech prefix ("CLLRM20", "IS LRM 20" for LRM 20): a search treats
-   * those the same.
+   * those the same. A term is shown the way a search can take it ("Rifle (Cannon Heavy)" for MegaMek's
+   * "Rifle (Cannon, Heavy)", QueryVocabulary.typeableSpelling).
    */
   @Transactional(readOnly = true)
   public List<EquipmentTerms> equipmentWithSlang() {
@@ -173,7 +175,7 @@ public class EquipmentService {
     void add(Slang term) {
       String shown = EquipmentNames.stripTechPrefix(term.getTerm());
       if (seen.add(EquipmentNames.slangKey(shown))) {
-        (term.getKind() == SlangKind.ALIAS ? otherNames : slang).add(shown);
+        (term.getKind() == SlangKind.ALIAS ? otherNames : slang).add(QueryVocabulary.typeableSpelling(shown));
       }
     }
 

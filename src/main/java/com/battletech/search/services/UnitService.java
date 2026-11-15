@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -187,9 +188,13 @@ public class UnitService {
    * Stores equipment no unit had before, in the equipment groups its other techs are in (the same
    * name: a Clan ER Medium Laser goes where the IS one is), and reports which. One with no other
    * tech in a group is reported for someone to place; the search guide lists it under Equipment.
-   * It also gets the hand-written slang terms its other techs have ("jj" for a Clan jump jet).
+   * It also gets the hand-written slang terms its other techs have ("jj" for a Clan jump jet), and
+   * their display name, which may differ from MegaMek's ("Heavy Rifle" for Rifle (Cannon, Heavy),
+   * db/data/V3_21), so the search guide still shows the item once.
    */
   private Equipment addEquipment(Equipment item, ImportProblems.InFile problems) {
+    equipRepo.findByName(item.getName()).stream().map(Equipment::getDisplayName).filter(Objects::nonNull)
+        .findFirst().ifPresent(item::setDisplayName);
     Equipment equipment = equipRepo.save(item);
     String shown = equipment.getDisplayName() + " (" + equipment.getTech() + ")";
     List<String> groups = groupRepo.findGroupsOfOtherTechs(equipment.getName(), equipment.getId());

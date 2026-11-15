@@ -16,7 +16,7 @@ query: line NEWLINE? EOF ;
 // "mechs except lams and quads", "units that aren't vtols".
 line: unitWords exceptUnits? (STOPWORD chunks | withoutChunks)?
     | (omni | NONUNIT)* weightClasses? (omni | NONUNIT)* STOPWORD chunks
-    | chunks ;
+    | openingChunks ;
 unitWords: (omni | NONUNIT)* weightClasses? (omni | NONUNIT)* unit ;
 exceptUnits: EXCEPT unit ((COMMA | COMMA? logicaloperator) unit)* ;
 // A chunk can leave out its number ("endo steel", "ppcs": at least one) only first or right after
@@ -24,14 +24,21 @@ exceptUnits: EXCEPT unit ((COMMA | COMMA? logicaloperator) unit)* ;
 // ANDed. "with" can come again to end a list of things the unit is without ("without ppcs or lasers
 // but with 2 lrm 20").
 chunks: lead more* ;
+// no unit in front ("2 ppc", "endo steel"): a name with no number there starts with a plain word, at the
+// start and after "and" / "or", so "mechs at least 2 ppc" still misses its "with" and "medium or mechs"
+// a weight class instead of reading "mechs" as a name
+openingChunks: openingLead openingMore* ;
 withoutChunks: withoutChunk more* ;
 lead: chunk | bareChunk | STOPWORD (chunk | bareChunk) ;
+openingLead: chunk | plainChunk | STOPWORD (chunk | bareChunk) ;
 more: logicaloperator lead | chunk | STOPWORD (chunk | bareChunk) ;
+openingMore: logicaloperator openingLead | chunk | STOPWORD (chunk | bareChunk) ;
 chunk: equipmentChunk | withoutChunk | ratingChunk ;
 // equipment or a component ("an xl engine")
 equipmentChunk: comparator? QUANTITY equipmentName | QUANTITY comparator equipmentName ;
-// no number: "endo steel", "lasers" (at least one)
+// no number: "endo steel", "lasers" (at least one), "mech environmental sealing"
 bareChunk: bareName ;
+plainChunk: plainName ;
 // none of it: "without an xl engine", "no ppcs", "lacking lasers", "but not lasers"; the chunks after
 // it are without too ("without ppcs or lasers": neither) until one has its own count or a "with"
 withoutChunk: negation QUANTITY? equipmentName ;
@@ -40,13 +47,18 @@ negation: WITHOUT | NO | EXCEPT ;
 ratingChunk: QUANTITY? WORD RATING (comparator? QUANTITY | QUANTITY comparator) ;
 // "lrm 20", "streak srm 6": a name can end in one number. A number followed by another word starts
 // the next chunk instead, so "2 ppc 3 srm6" is still two chunks. Unit words can be part of a name
-// ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else.
-equipmentName: (WORD | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT
-    | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ QUANTITY? ;
-// A name with no number in front starts with a plain word, so "mechs at least 2 ppc" still misses its
-// "with" instead of reading "mechs" as a name
-bareName: WORD (WORD | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT
-    | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)* QUANTITY? ;
+// ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else. A
+// bracketed part is one word ("flamer (vehicle)", "machine gun ammo [half]", "lrm 20 (os)"), and so is
+// "triple strength" (TSM; "triple" is a number otherwise).
+equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
+// A name with no number in front, after "with", "and" or "or": past the unit, so it can start with a
+// unit word too ("units with vehicle flamer", user 2026-11-15)
+bareName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
+// ...and starting a query with no unit, where it starts with a plain word (openingChunks)
+plainName: (WORD | TRIPLESTRENGTH) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
+    | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)* (QUANTITY BRACKETED?)? ;
 // "omni mechs", "non-omni vehicles"
 omni: OMNI | NONOMNI ;
 // "ultra light", "medium or heavy", "light, medium, or heavy": a unit in any of them; "and" reads the
@@ -229,5 +241,11 @@ IlClan
 */
 
 NEWLINE             : ('\r'? '\n' | '\r')+ ;
-WORD: [a-zA-Z0-9\-/]+ ;
+// a bracketed part of an equipment name: "(vehicle)", "[half]". No comma inside, since commas separate
+// lists (user, 2026-11-14): "rifle (cannon, heavy)" is typed "heavy rifle"
+BRACKETED: '(' ~[(),\r\n]* ')' | '[' ~[\],\r\n]* ']' ;
+// "triple strength myomer": the longer match keeps "triple" from being a number
+TRIPLESTRENGTH: T R I P L E GAP S T R E N G T H ;
+// an apostrophe is part of a word and dropped from names ("'mech mortar 1", "ppc's")
+WORD: [a-zA-Z0-9\-/']+ ;
 WHITESPACE : [ \t]+ -> skip ;

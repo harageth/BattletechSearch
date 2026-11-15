@@ -36,6 +36,7 @@ public class SearchFixtures {
         }
         putEquipmentInGroups(jdbcTemplate);
         addShorthand(jdbcTemplate);
+        addTypeableNames(jdbcTemplate);
         unitService.loadSlang();
       } catch (IOException e) {
         throw new UncheckedIOException(e);
@@ -59,6 +60,14 @@ public class SearchFixtures {
    */
   public static void addShorthand(JdbcTemplate jdbcTemplate) {
     runSql(jdbcTemplate, "/db/data/V3_19__shorthand_slang.sql");
+  }
+
+  /**
+   * Runs the V3_21 data migration: the rifles' display names, the ammo groups' terms and the separate-word
+   * spellings ("large shield"). Like {@link #addShorthand}, after the imports and before the slang load.
+   */
+  public static void addTypeableNames(JdbcTemplate jdbcTemplate) {
+    runSql(jdbcTemplate, "/db/data/V3_21__typeable_names.sql");
   }
 
   private static void runSql(JdbcTemplate jdbcTemplate, String resource) {

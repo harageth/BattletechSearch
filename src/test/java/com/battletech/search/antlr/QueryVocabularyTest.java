@@ -6,6 +6,7 @@ import com.battletech.search.model.FireControl;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.EquipmentNames;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import me.BattletechLexer;
 import org.antlr.v4.runtime.CharStreams;
@@ -99,8 +100,12 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.isTypeable("streak srm 6")).isTrue();
     assertThat(QueryVocabulary.isTypeable("ac/20")).isTrue();
     assertThat(QueryVocabulary.isTypeable("lb 10-x ac")).isTrue();
-    // no parentheses in a query
-    assertThat(QueryVocabulary.isTypeable("flamer (vehicle)")).isFalse();
+    // a bracketed part, an apostrophe and "triple strength" are words of a name (2026-11-01)
+    assertThat(QueryVocabulary.isTypeable("flamer (vehicle)")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("'mech mortar 1")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("industrial triple strength myomer")).isTrue();
+    // but a bracket can't hold a comma (user, 2026-11-14): commas separate lists
+    assertThat(QueryVocabulary.isTypeable("rifle (cannon, heavy)")).isFalse();
     // the number ends the name, so "ammo" would start another chunk
     assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isFalse();
     assertThat(QueryVocabulary.isTypeable("")).isFalse();
@@ -111,12 +116,31 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.typedName("lrm 20")).isEqualTo("lrm 20");
     // user decision: binary lasers are just "blazers"
     assertThat(QueryVocabulary.typedName("binary laser (blazer) cannon")).isEqualTo("blazer");
-    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("vehicle flamer");
+    // a bracketed part can be typed (2026-11-01)
+    assertThat(QueryVocabulary.typedName("flamer (vehicle)")).isEqualTo("flamer (vehicle)");
     // each spelling finds the equipment it stands for
     for (String name : List.of("binary laser (blazer) cannon", "flamer (vehicle)")) {
       assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)
           .isEqualTo(EquipmentNames.normalize(name));
     }
-    assertThat(QueryVocabulary.typedName("some (thing)")).isNull();
+    // a number in the middle can't: "lrm ammo" is the group of every LRM ammo
+    assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isNull();
+  }
+
+  @Test
+  void theGuideShowsEveryTermSoASearchCanTakeIt() {
+    // MegaMek's other names that can't be typed as written; the guide lists them respelled (2026-11-14)
+    Map<String, String> respelled = Map.of(
+        "Rifle (Cannon, Heavy)", "Rifle (Cannon Heavy)",
+        "ELRM 10 Ammo", "ELRM10 Ammo",
+        "CommsGear:5", "CommsGear 5",
+        "C3 Master Boosted System with TAG", "C3 Master Boosted System with-TAG");
+    respelled.forEach((term, shown) -> {
+      assertThat(QueryVocabulary.typeableSpelling(term)).isEqualTo(shown);
+      assertThat(QueryVocabulary.isTypeable(EquipmentNames.typed(shown))).as(shown).isTrue();
+      // only spacing and punctuation change, so it's the same slang term
+      assertThat(EquipmentNames.slangKey(shown)).isEqualTo(EquipmentNames.slangKey(term));
+    });
+    assertThat(QueryVocabulary.typeableSpelling("Flamer (Vehicle)")).isEqualTo("Flamer (Vehicle)");
   }
 }
