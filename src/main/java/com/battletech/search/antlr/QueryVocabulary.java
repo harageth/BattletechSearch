@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import me.BattletechLexer;
 import me.BattletechParser;
@@ -120,9 +121,40 @@ public final class QueryVocabulary {
     return isTypeable(name) ? name : null;
   }
 
+  // "Rifle (Cannon, Heavy)": a comma can't go in a bracket
+  private static final Pattern COMMA = Pattern.compile(",\\s*");
+  // "CommsGear:5": a size after a colon
+  private static final Pattern SIZE = Pattern.compile(":(\\d+)$");
+  // "ELRM 10 Ammo": a number with a word after it would start the next chunk
+  private static final Pattern MIDDLE_NUMBER = Pattern.compile("(?<=\\S) (\\d+)(?= \\S)");
+  private static final Pattern PLAIN_WORD = Pattern.compile("[A-Za-z]+");
+
   /**
-   * Whether a query can name this equipment as typed, as one equipment name: "lrm 20" can, "flamer
-   * (vehicle)" can't (no parentheses), and neither can a name the grammar splits into two chunks.
+   * A term (MegaMek's "Rifle (Cannon, Heavy)", "ELRM 10 Ammo", "CommsGear:5", "C3 Master Boosted System
+   * with TAG") spelled so a query can take it as written: "Rifle (Cannon Heavy)", "ELRM10 Ammo",
+   * "CommsGear 5", "C3 Master Boosted System with-TAG" (a word the query reads as a keyword joins the
+   * next). Only spacing and punctuation change, which a search ignores, so it still finds the same slang
+   * term. A term that can be typed already is returned as it is.
+   */
+  public static String typeableSpelling(String term) {
+    if (isTypeable(EquipmentNames.typed(term))) {
+      return term;
+    }
+    String spelled = SIZE.matcher(COMMA.matcher(term).replaceAll(" ")).replaceAll(" $1");
+    String[] words = MIDDLE_NUMBER.matcher(spelled).replaceAll("$1").split(" ");
+    StringBuilder joined = new StringBuilder(words[0]);
+    for (int i = 1; i < words.length; i++) {
+      String before = words[i - 1];
+      boolean keyword = PLAIN_WORD.matcher(before).matches() && !isTypeable(before.toLowerCase());
+      joined.append(keyword ? "-" : " ").append(words[i]);
+    }
+    return joined.toString();
+  }
+
+  /**
+   * Whether a query can name this equipment as typed, as one equipment name: "lrm 20" and "flamer
+   * (vehicle)" can, "rifle (cannon, heavy)" can't (a comma in a bracket), and neither can a name the
+   * grammar splits into two chunks.
    */
   public static boolean isTypeable(String name) {
     BattletechLexer lexer = new BattletechLexer(CharStreams.fromString("units with 1 " + name));

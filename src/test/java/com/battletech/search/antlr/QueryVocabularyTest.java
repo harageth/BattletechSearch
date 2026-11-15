@@ -6,6 +6,7 @@ import com.battletech.search.model.FireControl;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.EquipmentNames;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import me.BattletechLexer;
 import org.antlr.v4.runtime.CharStreams;
@@ -124,5 +125,22 @@ class QueryVocabularyTest {
     }
     // a number in the middle can't: "lrm ammo" is the group of every LRM ammo
     assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isNull();
+  }
+
+  @Test
+  void theGuideShowsEveryTermSoASearchCanTakeIt() {
+    // MegaMek's other names that can't be typed as written; the guide lists them respelled (2026-11-14)
+    Map<String, String> respelled = Map.of(
+        "Rifle (Cannon, Heavy)", "Rifle (Cannon Heavy)",
+        "ELRM 10 Ammo", "ELRM10 Ammo",
+        "CommsGear:5", "CommsGear 5",
+        "C3 Master Boosted System with TAG", "C3 Master Boosted System with-TAG");
+    respelled.forEach((term, shown) -> {
+      assertThat(QueryVocabulary.typeableSpelling(term)).isEqualTo(shown);
+      assertThat(QueryVocabulary.isTypeable(EquipmentNames.typed(shown))).as(shown).isTrue();
+      // only spacing and punctuation change, so it's the same slang term
+      assertThat(EquipmentNames.slangKey(shown)).isEqualTo(EquipmentNames.slangKey(term));
+    });
+    assertThat(QueryVocabulary.typeableSpelling("Flamer (Vehicle)")).isEqualTo("Flamer (Vehicle)");
   }
 }
