@@ -323,10 +323,12 @@ function equipmentName(words, tokens, text, vocabulary, bareName) {
   }
   // fire control: like FireControl.fromSearch, on letters and digits, so "artemisiv lrm 20" too;
   // not when the whole name is the system itself ("artemis iv"), or a term looked up whole, as
-  // QueryVisitor does ("artemis lrm ammo", a group of ammo bins)
+  // QueryVisitor does ("artemis lrm ammo", a group of ammo bins), its plural too ("artemis lrm ammos")
   const fireControls = [...vocabulary.fireControls].sort((a, b) => key(b).length - key(a).length);
   const whole = key(words.map(word => word.getText()).join(''));
-  if (![...fireControls, ...vocabulary.fireControlTerms].some(name => key(name) === whole)) {
+  const singular = whole.endsWith('s') ? whole.slice(0, -1) : whole;
+  if (!fireControls.some(fireControl => key(fireControl) === whole)
+      && !vocabulary.fireControlTerms.some(term => key(term) === whole || key(term) === singular)) {
     found: for (const fireControl of fireControls) {
       for (let length = 1; length < words.length; length++) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {

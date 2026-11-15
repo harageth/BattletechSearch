@@ -148,6 +148,7 @@ test('a leading tech word, then a fire control, then the equipment', () => {
   // like the server, a term that starts with a fire control is read whole: a group of ammo bins
   assert.deepEqual(roles('mechs with 2 artemis lrm ammo').slice(3), ['artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 clan artemis lrm ammo').slice(3), ['clan:tech', 'artemis lrm ammo:equipment']);
+  assert.deepEqual(roles('mechs with 2 artemis lrm ammos').slice(3), ['artemis lrm ammos:equipment']);
 });
 
 test('a tech word or fire control alone is the equipment', () => {

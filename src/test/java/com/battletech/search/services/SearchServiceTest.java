@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.battletech.search.SearchFixtures;
 import com.battletech.search.TestcontainersConfiguration;
-import com.battletech.search.antlr.QueryVocabulary;
+import com.battletech.search.antlr.QueryParser;
+import com.battletech.search.entities.UnitEquipment;
+import com.battletech.search.model.EquipmentDecorator;
+import com.battletech.search.model.UnitDecorator;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.utils.EquipmentNames;
@@ -243,35 +246,54 @@ class SearchServiceTest {
   }
 
   /**
-   * The search guide (/equipment) lists every stored item by name, and a search finds it by that name. Ammo
-   * with its size in the middle ("LRM 20 Ammo") is the exception: it's typed as its group ("lrm ammo"),
-   * which the guide lists it under (V3_20).
+   * The search guide (/equipment) lists every stored item by name, with its slang and other names, and a
+   * search finds the item by each of them, through the parser as a typed query is. Ammo with its size in
+   * the middle ("LRM 20 Ammo") is the exception: it's typed as its group ("lrm ammo"), which the guide
+   * lists it under (V3_20); its other names ("Ammo LRM-20") still work.
    */
   @Test
   void everyNameOnTheGuideCanBeTyped() {
     EquipmentService.EquipmentTree tree = equipmentService.equipmentTree();
     List<String> checked = new ArrayList<>();
+    List<String> failed = new ArrayList<>();
     Stream.concat(tree.groups().stream(), tree.equipmentGroups().stream())
-        .forEach(group -> collectTypeable(group, checked));
-    tree.other().forEach(item -> checkTypeable(item.name(), checked));
-    assertThat(checked).isNotEmpty();
+        .forEach(group -> collectTypeable(group, checked, failed));
+    tree.other().forEach(item -> checkTypeable(item, true, checked, failed));
+    assertThat(checked).hasSizeGreaterThan(100);
+    assertThat(failed).isEmpty();
   }
 
-  private void collectTypeable(EquipmentService.EquipmentGroup group, List<String> checked) {
+  private void collectTypeable(EquipmentService.EquipmentGroup group, List<String> checked, List<String> failed) {
     // "lrm ammo", not "ammo" itself
     boolean typedAsGroup = group.term().endsWith(" ammo");
-    if (!typedAsGroup) {
-      group.items().forEach(item -> checkTypeable(item.name(), checked));
-    }
-    group.groups().forEach(child -> collectTypeable(child, checked));
+    group.items().forEach(item -> checkTypeable(item, !typedAsGroup, checked, failed));
+    group.groups().forEach(child -> collectTypeable(child, checked, failed));
   }
 
-  private void checkTypeable(String name, List<String> checked) {
-    String typed = EquipmentNames.typed(name);
-    assertThat(QueryVocabulary.isTypeable(typed)).as(name).isTrue();
-    assertThat(equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(typed), EquipmentNames.slangKey(typed)))
-        .as(name).extracting(equipment -> equipment.getDisplayName()).contains(name);
-    checked.add(name);
+  private void checkTypeable(EquipmentService.EquipmentTerms item, boolean byName, List<String> checked, List<String> failed) {
+    List<String> names = new ArrayList<>(item.slang());
+    names.addAll(item.otherNames());
+    if (byName) {
+      names.add(item.name());
+    }
+    for (String name : names) {
+      String typed = EquipmentNames.typed(name);
+      List<String> found = new ArrayList<>();
+      try {
+        UnitDecorator unit = (UnitDecorator) QueryParser.parse("units with at least 1 " + typed, equipRepo);
+        // a component ("xl engine") would be another kind of filter, and find nothing here
+        for (UnitEquipment link = unit.getFilters().getFirst() instanceof EquipmentDecorator first ? first : null; link != null;
+            link = link instanceof EquipmentDecorator decorator ? decorator.getDecoratedEquipment() : null) {
+          found.add(link.getEquipment().getDisplayName());
+        }
+      } catch (FailedParseException e) {
+        found.add(e.getMessage());
+      }
+      checked.add(name);
+      if (!found.contains(item.name())) {
+        failed.add(item.name() + ": \"" + typed + "\" finds " + found);
+      }
+    }
   }
 
   @Test
