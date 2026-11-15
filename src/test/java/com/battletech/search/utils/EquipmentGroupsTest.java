@@ -79,6 +79,11 @@ class EquipmentGroupsTest {
     assertThat(TREE.directGroupsOf(ROWS.get("c3computer(master)").getId())).containsExactly("c3");
     assertThat(groupsOf("chainsaw")).containsExactly("industrial tools", "physical weapons");
     assertThat(groupsOf("trailerhitch")).containsExactly("industrial equipment");
+    // the mech's and the combat vehicle's environmental sealing are one group (V3_20, user 2026-11-14)
+    assertThat(groupsOf("environmentalsealing(mech)")).containsExactly("environmental sealing", "chassis mods");
+    assertThat(groupsOf("combatvehiclechassismod[environmentalsealing]"))
+        .containsExactly("environmental sealing", "chassis mods");
+    assertThat(groupsOf("combatvehiclechassismod[flotationhull]")).containsExactly("chassis mods");
     assertThat(groupsOf("shield(large)")).containsExactly("shields");
     assertThat(groupsOf("laserams")).containsExactly("ams");
     assertThat(groupsOf("heavymachinegunarray")).containsExactly("mg arrays", "ballistic weapons");

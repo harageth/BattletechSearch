@@ -122,11 +122,9 @@ SELECT g.id, e.id FROM (VALUES
     ('case', 'case'),
     ('case', 'caseii'),
     ('chassis mods', 'armoredmotivesystem'),
-    ('chassis mods', 'combatvehiclechassismod[environmentalsealing]'),
     ('chassis mods', 'combatvehiclechassismod[flotationhull]'),
     ('chassis mods', 'combatvehiclechassismod[fullyamphibious]'),
     ('chassis mods', 'combatvehiclechassismod[limitedamphibious]'),
-    ('chassis mods', 'environmentalsealing(mech)'),
     ('chassis mods', 'svchassismod[armoredchassis]'),
     ('chassis mods', 'svchassismod[off-road]'),
     ('chemical lasers', 'largechemicallaser'),
@@ -449,7 +447,9 @@ SELECT g.id, e.id FROM (VALUES
     ('mortar ammo', 'shapedchargemortar1ammo'),
     ('mortar ammo', 'shapedchargemortar2ammo'),
     ('mortar ammo', 'shapedchargemortar4ammo'),
-    ('mortar ammo', 'shapedchargemortar8ammo')
+    ('mortar ammo', 'shapedchargemortar8ammo'),
+    ('environmental sealing', 'environmentalsealing(mech)'),
+    ('environmental sealing', 'combatvehiclechassismod[environmentalsealing]')
 ) AS v (group_name, equipment_name)
 JOIN equipment_group g ON g.name = v.group_name
 JOIN equipment e ON e.name = v.equipment_name

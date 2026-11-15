@@ -157,3 +157,30 @@ INSERT INTO equipment_group_member (group_id, equipment_id)
 SELECT g.id, e.id FROM moved
 JOIN equipment_group g ON g.name = moved.group_name
 JOIN equipment e ON e.name = moved.equipment_name;
+
+-- Environmental sealing (user, 2026-11-14): the mech's and the combat vehicle's are one group under "chassis
+-- mods", so "environmental sealing" is either. They move out of "chassis mods" itself, which still counts them.
+UPDATE equipment_group SET position = position + 1 WHERE position > 93;
+
+INSERT INTO equipment_group (id, name, section, position) VALUES
+    (gen_random_uuid(), 'environmental sealing', NULL, 94);
+
+INSERT INTO equipment_group_parent (group_id, parent_id)
+SELECT g.id, p.id FROM (VALUES
+    ('environmental sealing', 'chassis mods')
+) AS v (name, parent)
+JOIN equipment_group g ON g.name = v.name
+JOIN equipment_group p ON p.name = v.parent;
+
+WITH moved (group_name, equipment_name) AS (VALUES
+    ('environmental sealing', 'environmentalsealing(mech)'),
+    ('environmental sealing', 'combatvehiclechassismod[environmentalsealing]')
+), out_of_chassis_mods AS (
+    DELETE FROM equipment_group_member m
+    USING equipment_group a, equipment e, moved
+    WHERE m.group_id = a.id AND a.name = 'chassis mods' AND m.equipment_id = e.id AND e.name = moved.equipment_name
+)
+INSERT INTO equipment_group_member (group_id, equipment_id)
+SELECT g.id, e.id FROM moved
+JOIN equipment_group g ON g.name = moved.group_name
+JOIN equipment e ON e.name = moved.equipment_name;

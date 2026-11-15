@@ -1,11 +1,14 @@
 -- Every name on the search guide can be typed as listed (2026-11-14). The grammar now reads brackets
 -- ("flamer (vehicle)"), apostrophes and "triple strength"; this updates what's stored to match:
---   1. names drop apostrophes ("'Mech Mortar 1" is the Mech Mortar 1), as the importer now writes them
+--   1. names and terms drop apostrophes ("'Mech Mortar 1" is the Mech Mortar 1), as the importer and the
+--      slang load now write them
 --   2. "Rifle (Cannon, Heavy)" and the like are shown as "Heavy Rifle": a comma can't be typed inside a
 --      bracket, since commas separate lists (user, 2026-11-14). "Flamer (Vehicle)" is shown as "Vehicle
---      Flamer", which reads better (user, 2026-11-14), like its ammo. The names stay, so imports still match
---      them, and "flamer (vehicle)" still finds it.
---   3. terms for the ammo groups V3_20 adds ("lrm ammo")
+--      Flamer", which reads better (user, 2026-11-14), like its ammo, and so is every name whose bracket
+--      holds a size or kind ("Large Shield", "Mech Sprayer"), a chassis mod ("Flotation Hull") or a C3 role
+--      ("C3 Master"). A bracket holding a short form or brand stays ("ECM Suite (Guardian)", "(AES)"). The
+--      names stay, so imports still match them, and "flamer (vehicle)" still finds it.
+--   3. terms for the groups V3_20 adds ("lrm ammo", "environmental sealing")
 --   4. separate-word spellings shown on the guide in place of MegaMek's run-together ones ("large shield",
 --      not "LargeShield"), and "blazer" (user, 2026-10-29: binary lasers are just blazers)
 --
@@ -16,13 +19,36 @@
 UPDATE equipment SET name = replace(name, '''', ''), display_name = replace(display_name, '''', '')
 WHERE name LIKE '%''%' OR display_name LIKE '%''%';
 
+UPDATE slang SET term = replace(term, '''', '') WHERE term LIKE '%''%';
+
 -- 2.
 UPDATE equipment e SET display_name = v.display_name
 FROM (VALUES
     ('rifle(cannon,light)', 'Light Rifle'),
     ('rifle(cannon,medium)', 'Medium Rifle'),
     ('rifle(cannon,heavy)', 'Heavy Rifle'),
-    ('flamer(vehicle)', 'Vehicle Flamer')
+    ('flamer(vehicle)', 'Vehicle Flamer'),
+    ('shield(large)', 'Large Shield'),
+    ('shield(medium)', 'Medium Shield'),
+    ('shield(small)', 'Small Shield'),
+    ('vibroblade(large)', 'Large Vibroblade'),
+    ('vibroblade(medium)', 'Medium Vibroblade'),
+    ('vibroblade(small)', 'Small Vibroblade'),
+    ('bridgelayer(medium)', 'Medium Bridge Layer'),
+    ('sprayer(mech)', 'Mech Sprayer'),
+    ('fluidsuctionsystem(light-mech)', 'Light Fluid Suction System'),
+    ('searchlight(mounted)', 'Searchlight'),
+    ('environmentalsealing(mech)', 'Mech Environmental Sealing'),
+    ('combatvehiclechassismod[environmentalsealing]', 'Environmental Sealing Chassis'),
+    ('combatvehiclechassismod[flotationhull]', 'Flotation Hull'),
+    ('combatvehiclechassismod[fullyamphibious]', 'Fully Amphibious Chassis'),
+    ('combatvehiclechassismod[limitedamphibious]', 'Limited Amphibious Chassis'),
+    ('svchassismod[off-road]', 'Off-Road Chassis'),
+    ('svchassismod[armoredchassis]', 'Armored Chassis'),
+    ('c3computer(master)', 'C3 Master'),
+    ('c3computer(slave)', 'C3 Slave'),
+    ('c3boostedsystem(master)', 'C3 Boosted Master'),
+    ('c3boostedsystem(slave)', 'C3 Boosted Slave')
 ) AS v (name, display_name)
 WHERE e.name = v.name AND e.display_name IS DISTINCT FROM v.display_name;
 
@@ -30,7 +56,7 @@ WHERE e.name = v.name AND e.display_name IS DISTINCT FROM v.display_name;
 INSERT INTO slang (id, term, lookup, kind, equipment_group_id)
 SELECT gen_random_uuid(), g.name, replace(g.name, ' ', ''), 'FAMILY', g.id
 FROM equipment_group g
-WHERE g.name LIKE '% ammo'
+WHERE (g.name LIKE '% ammo' OR g.name = 'environmental sealing')
   AND EXISTS (SELECT 1 FROM equipment_group_member m
               WHERE m.group_id = g.id
                  OR m.group_id IN (SELECT p.group_id FROM equipment_group_parent p WHERE p.parent_id = g.id))
@@ -55,7 +81,9 @@ WITH typed (term, lookup) AS (VALUES
     ('ground-mobile hpg', 'groundmobilehpg'),
     ('drone carrier control system', 'dronecarriercontrolsystem'),
     ('drone operating system', 'droneoperatingsystem'),
-    ('environmental sealing', 'environmentalsealing')
+    ('mech environmental sealing', 'mechenvironmentalsealing'),
+    ('environmental sealing chassis', 'environmentalsealingchassis'),
+    ('light fluid suction system', 'lightfluidsuctionsystem')
 ), taken AS (
     UPDATE slang s SET kind = 'SHORTHAND', term = typed.term
     FROM typed
@@ -84,8 +112,9 @@ FROM (VALUES
     ('groundmobilehpg', 'mobilehyperpulsegenerators(ground-mobilehpg)'),
     ('dronecarriercontrolsystem', 'drone(remote)carriercontrolsystem'),
     ('droneoperatingsystem', 'drone(remote)operatingsystem'),
-    ('environmentalsealing', 'environmentalsealing(mech)'),
-    ('environmentalsealing', 'combatvehiclechassismod[environmentalsealing]')
+    ('mechenvironmentalsealing', 'environmentalsealing(mech)'),
+    ('environmentalsealingchassis', 'combatvehiclechassismod[environmentalsealing]'),
+    ('lightfluidsuctionsystem', 'fluidsuctionsystem(light-mech)')
 ) AS l (lookup, name)
 JOIN slang s ON s.lookup = l.lookup AND s.kind = 'SHORTHAND'
 JOIN equipment e ON e.name = l.name
