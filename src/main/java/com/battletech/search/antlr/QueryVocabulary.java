@@ -105,7 +105,7 @@ public final class QueryVocabulary {
 
   // what to offer instead of a name as MegaMek writes it; each must find that equipment
   private static final Map<String, String> TYPED_INSTEAD = Map.of(
-      // user decision (2026-10-29): binary lasers are just "blazers" (a slang term, equipment-slang.tsv)
+      // user decision (2026-10-29): binary lasers are just "blazers" (a hand-written term, db/data/V3_21)
       "binary laser (blazer) cannon", "blazer");
 
   /**

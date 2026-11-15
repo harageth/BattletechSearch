@@ -46,10 +46,12 @@ class QueryVisitorTest {
   void setUp() {
     equipRepo = mock(EquipmentRepository.class);
     // Every non-empty equipment name resolves to a single matching row by default, like the real data.
-    // Like the slang tables, MegaMek's names find the display name ("ac 20" -> "ac/20").
+    // Like the slang tables, MegaMek's names find the display name ("ac 20" -> "ac/20"). Nothing is named
+    // with a fire control in front ("artemislrm20"), so that's looked up as the launcher.
     when(equipRepo.findAllByNameOrSlang(anyString(), anyString())).thenAnswer(invocation -> {
       String name = invocation.getArgument(0);
-      return name.isEmpty() ? List.of() : List.of(equipment(EquipmentNames.canonical(name), Tech.INNER_SPHERE));
+      return name.isEmpty() || FireControl.fromSearch(name) != null
+          ? List.of() : List.of(equipment(EquipmentNames.canonical(name), Tech.INNER_SPHERE));
     });
   }
 
@@ -335,6 +337,15 @@ class QueryVisitorTest {
     EquipmentDecorator plain = chunk(parse("mechs with 2 lrm 20"), 0);
     assertThat(plain.getFireControls()).isNull();
     assertThat(plain.getQuery()).doesNotContain("fire_control");
+
+    // a term that starts with a fire control is looked up whole: the group of Artemis-capable LRM ammo
+    // (V3_20), whose bins have no fire control of their own
+    Equipment artemisAmmo = equipment("ammolrm-20artemis-capable", Tech.INNER_SPHERE);
+    when(equipRepo.findAllByNameOrSlang(eq("artemislrmammo"), anyString())).thenReturn(List.of(artemisAmmo));
+    EquipmentDecorator ammo = chunk(parse("mechs with 2 artemis lrm ammo"), 0);
+    assertThat(ammo.getEquipment()).isSameAs(artemisAmmo);
+    assertThat(ammo.getFireControls()).isNull();
+    assertThat(ammo.getQuery()).doesNotContain("fire_control");
   }
 
   @Test
@@ -348,6 +359,21 @@ class QueryVisitorTest {
     assertThat(names(both)).containsExactly("lrm20", "srm6");
     assertThat(chunk(both, 0).getQuantity()).isEqualTo(2);
     assertThat(chunk(both, 1).getQuantity()).isEqualTo(3);
+  }
+
+  @Test
+  void guideNamesTypeAsListed() {
+    // a bracketed part is a word of the name, anywhere in it (2026-11-01)
+    assertThat(names(parse("mechs with a flamer (vehicle)"))).containsExactly("flamer(vehicle)");
+    assertThat(names(parse("mechs with 2 machine gun ammo [half]"))).containsExactly("machinegunammo[half]");
+    assertThat(names(parse("vehicles with a drone (remote) operating system"))).containsExactly("drone(remote)operatingsystem");
+    assertThat(names(parse("mechs with 2 lrm 20 (os)"))).containsExactly("lrm20");
+    // the apostrophe is dropped, and "triple strength" isn't a number
+    assertThat(names(parse("mechs with a 'mech mortar 1"))).containsExactly("mechmortar1");
+    assertThat(names(parse("mechs with triple strength myomer"))).containsExactly("triplestrengthmyomer");
+    assertThat(names(parse("mechs with an industrial triple strength myomer"))).containsExactly("industrialtriplestrengthmyomer");
+    // a bracket doesn't stop the next chunk
+    assertThat(names(parse("mechs with a flamer (vehicle) 2 srm 6"))).containsExactly("flamer(vehicle)", "srm6");
   }
 
   @Test
@@ -461,8 +487,12 @@ class QueryVisitorTest {
     // "with" can come again ("without ppcs but with 2 lrm 20"), so what's missing is after it
     assertThatThrownBy(() -> parse("mechs with at least 2 ppc with"))
         .hasMessage("Unable to parse query: expected a quantity like '2' or 'at least 2' after 'with'." + example);
-    assertThatThrownBy(() -> parse("mechs with at least 2 ppc's"))
-        .hasMessage("Unable to parse query: can't use ''' (character 26). Use letters, numbers, '-' and '/'.");
+    assertThatThrownBy(() -> parse("mechs with at least 2 ppc#"))
+        .hasMessage("Unable to parse query: can't use '#' (character 26). Use letters, numbers, '-', '/', apostrophes and brackets.");
+    // a comma separates lists, so a bracket can't hold one (user, 2026-11-14)
+    assertThatThrownBy(() -> parse("mechs with a rifle (cannon, heavy)"))
+        .hasMessageStartingWith("Unable to parse query: can't use '(cannon,' (character 20).")
+        .hasMessageEndingWith("A bracket in a name needs its closing bracket and can't hold a comma.");
     assertThatThrownBy(() -> parse(""))
         .hasMessage("Unable to parse query: the query is empty." + example);
   }

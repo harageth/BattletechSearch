@@ -41,6 +41,7 @@ const vocabulary = {
     structure: ['endo steel structure'],
     cockpit: ['small cockpit', 'tripod cockpit'],
   },
+  fireControlTerms: ['artemis lrm ammo'],
 };
 
 /** "text:role" for each token, to compare readably. */
@@ -144,6 +145,9 @@ test('a leading tech word, then a fire control, then the equipment', () => {
       ['is:tech', 'artemis:fire-control', 'lrm 20:equipment']);
   assert.deepEqual(roles('mechs with at least 1 Artemis IV SRM 6').slice(4), ['Artemis IV:fire-control', 'SRM 6:equipment']);
   assert.deepEqual(roles('mechs with 1 apollo mrm 40').slice(3), ['apollo:fire-control', 'mrm 40:equipment']);
+  // like the server, a term that starts with a fire control is read whole: a group of ammo bins
+  assert.deepEqual(roles('mechs with 2 artemis lrm ammo').slice(3), ['artemis lrm ammo:equipment']);
+  assert.deepEqual(roles('mechs with 2 clan artemis lrm ammo').slice(3), ['clan:tech', 'artemis lrm ammo:equipment']);
 });
 
 test('a tech word or fire control alone is the equipment', () => {
@@ -167,11 +171,25 @@ test('marks where the query goes wrong', () => {
   assert.ok(extra.error);
   assert.deepEqual(extra.tokens.filter(token => token.role === 'error').map(token => token.text), [',']);
 
-  const character = analyze("mechs with at least 2 ppc's", vocabulary);
+  const character = analyze('mechs with at least 2 ppc#s', vocabulary);
   assert.ok(character.error);
-  assert.deepEqual(character.tokens.filter(token => token.role === 'error').map(token => token.text), ["'"]);
+  assert.deepEqual(character.tokens.filter(token => token.role === 'error').map(token => token.text), ['#']);
   // the word around it is split, not overlapped, so each character is drawn once
-  assert.deepEqual(character.tokens.slice(-3).map(token => `${token.text}:${token.role}`), ['ppc:equipment', "':error", 's:equipment']);
+  assert.deepEqual(character.tokens.slice(-3).map(token => `${token.text}:${token.role}`), ['ppc:equipment', '#:error', 's:equipment']);
+
+  // a comma separates lists, so a bracket can't hold one (user, 2026-11-14)
+  const comma = analyze('mechs with a rifle (cannon, heavy)', vocabulary);
+  assert.ok(comma.error);
+});
+
+test('brackets, apostrophes and "triple strength" are part of an equipment name', () => {
+  assert.deepEqual(roles('mechs with a flamer (vehicle)').slice(2), ['a:quantity', 'flamer (vehicle):equipment']);
+  assert.deepEqual(roles('vehicles with a drone (remote) operating system').slice(2),
+      ['a:quantity', 'drone (remote) operating system:equipment']);
+  assert.deepEqual(roles('mechs with 2 machine gun ammo [half] and 1 ppc').slice(2, 4),
+      ['2:quantity', 'machine gun ammo [half]:equipment']);
+  assert.deepEqual(roles("mechs with a 'mech mortar 1").slice(2), ['a:quantity', "'mech mortar 1:equipment"]);
+  assert.deepEqual(roles('mechs with triple strength myomer').slice(2), ['triple strength myomer:equipment']);
 });
 
 test('the empty query is an error with nothing to mark', () => {
@@ -369,10 +387,10 @@ test('weight classes are spelled as the server reads them', () => {
 });
 
 test('adding a tech to a word split by an error keeps the rest once', () => {
-  const query = "mechs with 1 medium laser's";
+  const query = 'mechs with 1 medium laser#s';
   const laser = token(query, 'medium laser');
   const clan = alternatives(laser, vocabulary).find(option => option.label === 'clan only');
-  assert.equal(replaceToken(query, { ...laser, start: clan.start }, clan.text).text, "mechs with 1 clan medium laser's");
+  assert.equal(replaceToken(query, { ...laser, start: clan.start }, clan.text).text, 'mechs with 1 clan medium laser#s');
 });
 
 test('body plans, omni words and without', () => {

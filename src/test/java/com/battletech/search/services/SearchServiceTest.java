@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.battletech.search.SearchFixtures;
 import com.battletech.search.TestcontainersConfiguration;
+import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.model.search.FailedParseException;
+import com.battletech.search.repositories.EquipmentRepository;
+import com.battletech.search.utils.EquipmentNames;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +30,10 @@ import org.springframework.context.annotation.Import;
 class SearchServiceTest {
   @Autowired
   SearchService service;
+  @Autowired
+  EquipmentService equipmentService;
+  @Autowired
+  EquipmentRepository equipRepo;
 
   private List<String> search(String query) throws IOException {
     return service.performQuery(query).stream()
@@ -232,6 +240,38 @@ class SearchServiceTest {
     assertThat(search("units except mechs")).isEqualTo(search("vehicles"));
     assertThat(search("units that aren't vtols")).doesNotContain("Cavalry Attack Helicopter (BA)")
         .contains("Badger (C) Tracked Transport A", "Atlas AS7-D");
+  }
+
+  /**
+   * The search guide (/equipment) lists every stored item by name, and a search finds it by that name. Ammo
+   * with its size in the middle ("LRM 20 Ammo") is the exception: it's typed as its group ("lrm ammo"),
+   * which the guide lists it under (V3_20).
+   */
+  @Test
+  void everyNameOnTheGuideCanBeTyped() {
+    EquipmentService.EquipmentTree tree = equipmentService.equipmentTree();
+    List<String> checked = new ArrayList<>();
+    Stream.concat(tree.groups().stream(), tree.equipmentGroups().stream())
+        .forEach(group -> collectTypeable(group, checked));
+    tree.other().forEach(item -> checkTypeable(item.name(), checked));
+    assertThat(checked).isNotEmpty();
+  }
+
+  private void collectTypeable(EquipmentService.EquipmentGroup group, List<String> checked) {
+    // "lrm ammo", not "ammo" itself
+    boolean typedAsGroup = group.term().endsWith(" ammo");
+    if (!typedAsGroup) {
+      group.items().forEach(item -> checkTypeable(item.name(), checked));
+    }
+    group.groups().forEach(child -> collectTypeable(child, checked));
+  }
+
+  private void checkTypeable(String name, List<String> checked) {
+    String typed = EquipmentNames.typed(name);
+    assertThat(QueryVocabulary.isTypeable(typed)).as(name).isTrue();
+    assertThat(equipRepo.findAllByNameOrSlang(EquipmentNames.canonical(typed), EquipmentNames.slangKey(typed)))
+        .as(name).extracting(equipment -> equipment.getDisplayName()).contains(name);
+    checked.add(name);
   }
 
   @Test

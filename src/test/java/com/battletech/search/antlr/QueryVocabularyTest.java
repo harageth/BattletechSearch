@@ -101,9 +101,10 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.isTypeable("lb 10-x ac")).isTrue();
     // a bracketed part, an apostrophe and "triple strength" are words of a name (2026-11-01)
     assertThat(QueryVocabulary.isTypeable("flamer (vehicle)")).isTrue();
-    assertThat(QueryVocabulary.isTypeable("rifle (cannon, heavy)")).isTrue();
     assertThat(QueryVocabulary.isTypeable("'mech mortar 1")).isTrue();
     assertThat(QueryVocabulary.isTypeable("industrial triple strength myomer")).isTrue();
+    // but a bracket can't hold a comma (user, 2026-11-14): commas separate lists
+    assertThat(QueryVocabulary.isTypeable("rifle (cannon, heavy)")).isFalse();
     // the number ends the name, so "ammo" would start another chunk
     assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isFalse();
     assertThat(QueryVocabulary.isTypeable("")).isFalse();
@@ -121,7 +122,7 @@ class QueryVocabularyTest {
       assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)
           .isEqualTo(EquipmentNames.normalize(name));
     }
-    // a number in the middle can't: generic ammo names ("lrm ammo") are slang instead
+    // a number in the middle can't: "lrm ammo" is the group of every LRM ammo
     assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isNull();
   }
 }

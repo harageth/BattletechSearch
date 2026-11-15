@@ -41,7 +41,7 @@ ratingChunk: QUANTITY? WORD RATING (comparator? QUANTITY | QUANTITY comparator) 
 // "lrm 20", "streak srm 6": a name can end in one number. A number followed by another word starts
 // the next chunk instead, so "2 ppc 3 srm6" is still two chunks. Unit words can be part of a name
 // ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else. A
-// bracketed part is one word ("flamer (vehicle)", "rifle (cannon, heavy)", "lrm 20 (os)"), and so is
+// bracketed part is one word ("flamer (vehicle)", "machine gun ammo [half]", "lrm 20 (os)"), and so is
 // "triple strength" (TSM; "triple" is a number otherwise).
 equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
     | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
@@ -231,8 +231,9 @@ IlClan
 */
 
 NEWLINE             : ('\r'? '\n' | '\r')+ ;
-// a bracketed part of an equipment name, commas and all: "(vehicle)", "(cannon, heavy)", "[half]"
-BRACKETED: '(' ~[()\r\n]* ')' | '[' ~[\]\r\n]* ']' ;
+// a bracketed part of an equipment name: "(vehicle)", "[half]". No comma inside, since commas separate
+// lists (user, 2026-11-14): "rifle (cannon, heavy)" is typed "heavy rifle"
+BRACKETED: '(' ~[(),\r\n]* ')' | '[' ~[\],\r\n]* ']' ;
 // "triple strength myomer": the longer match keeps "triple" from being a number
 TRIPLESTRENGTH: T R I P L E GAP S T R E N G T H ;
 // an apostrophe is part of a word and dropped from names ("'mech mortar 1", "ppc's")

@@ -69,12 +69,13 @@ class UnitServiceImportTest {
     return jdbcTemplate.queryForObject(sql, Integer.class);
   }
 
-  // what V3_17 and V3_19 do on a database with units: puts the stored equipment in its groups, which then
-  // get terms, and adds the shorthand
+  // what V3_17, V3_19, V3_20 and V3_21 do on a database with units: puts the stored equipment in its groups,
+  // which then get terms, and adds the shorthand and the typeable spellings
   private void addGroupsAndShorthand() {
     entityManager.flush();
     SearchFixtures.putEquipmentInGroups(jdbcTemplate);
     SearchFixtures.addShorthand(jdbcTemplate);
+    SearchFixtures.addTypeableNames(jdbcTemplate);
     unitService.loadSlang();
     entityManager.flush();
   }
@@ -418,6 +419,44 @@ class UnitServiceImportTest {
         .containsExactlyInAnyOrder("INNER_SPHERE", "CLAN");
     assertThat(search("mechs with exactly 2 standard lrms")).containsExactly("Mad Cat Prime");
     assertThat(search("mechs with exactly 2 missiles")).containsExactly("Mad Cat Prime");
+  }
+
+  @Test
+  void aNewTechOfAnItemTakesTheDisplayNameOfItsOtherTechs(@TempDir Path atlas, @TempDir Path madCat) throws IOException {
+    Files.copy(Path.of(fixtures("meks"), "Atlas AS7-D.mtf"), atlas.resolve("Atlas AS7-D.mtf"));
+    Files.copy(Path.of(fixtures("meks"), "Mad Cat (Timber Wolf) Prime.mtf"), madCat.resolve("Mad Cat (Timber Wolf) Prime.mtf"));
+    unitService.persistUnits(atlas.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    // the guide shows the Atlas' (IS) LRM 20 under another name, as V3_21 does for the rifles
+    entityManager.flush();
+    jdbcTemplate.update("UPDATE equipment SET display_name = 'Big LRM 20' WHERE name = 'lrm20'");
+    // the import reads it back in this test's transaction, which still holds the row as it was
+    entityManager.clear();
+
+    // so the Mad Cat Prime's Clan LRM 20, a new row, is shown under it too: one item on the guide
+    unitService.persistUnits(madCat.toString(), ".mtf", ReadMegaMek::ReadMechMTF);
+    assertThat(count("SELECT count(*) FROM equipment WHERE name = 'lrm20' AND tech = 'CLAN' AND display_name = 'Big LRM 20'"))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void guideNamesThatCantBeTypedAsMegaMekWritesThem() throws IOException {
+    importMechs();
+    addGroupsAndShorthand();
+
+    // ammo is searched without its size (V3_20): the Atlas and the Mad Cat Prime carry two tons of LRM 20
+    // ammo, the Viking IIC seven of Artemis V LRM ammo
+    assertThat(search("mechs with exactly 2 lrm ammo")).contains("Atlas AS7-D", "Mad Cat Prime");
+    assertThat(search("mechs with exactly 2 artemis lrm ammo")).isEmpty();
+    List<String> viking = search("mechs with exactly 7 artemis lrm ammo");
+    assertThat(viking).hasSize(1).isEqualTo(search("mechs with exactly 7 lrm ammo"));
+    // and its half ton of machine gun ammo is ammo too
+    assertThat(search("mechs with exactly 8 ammo")).containsAll(viking);
+    // "Rifle (Cannon, Heavy)" can't be typed (a comma in a bracket), so it's shown as "Heavy Rifle" (V3_21)
+    assertThat(count("SELECT count(DISTINCT display_name) FROM equipment WHERE name = 'rifle(cannon,heavy)'")).isEqualTo(1);
+    assertThat(jdbcTemplate.queryForObject("SELECT display_name FROM equipment WHERE name = 'rifle(cannon,heavy)' LIMIT 1",
+        String.class)).isEqualTo("Heavy Rifle");
+    // the Deep Lord's
+    assertThat(search("mechs with at least 1 heavy rifle")).hasSize(1).isEqualTo(search("mechs with at least 1 rifles"));
   }
 
   @Test

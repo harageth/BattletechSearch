@@ -37,6 +37,8 @@ class VocabularyControllerTest {
     assertThat(vocabulary.withWords()).isEqualTo(QueryVocabulary.withWords());
     assertThat(vocabulary.techs()).containsEntry("clan", Tech.CLAN).containsEntry("is", Tech.INNER_SPHERE);
     assertThat(vocabulary.fireControls()).contains("artemis", "apollo");
+    // the Centurion's Artemis-capable LRM 10 ammo is in this group (V3_20), named whole, not Artemis on "lrm ammo"
+    assertThat(vocabulary.fireControlTerms()).contains("artemis lrm ammo").doesNotContain("lrm ammo");
   }
 
   @Test
@@ -48,8 +50,8 @@ class VocabularyControllerTest {
     assertThat(vocabulary.families().get("lrms")).contains("lrm 20", "lrm 10").doesNotContain("lrt 20");
     assertThat(vocabulary.families().get("ppcs")).contains("ppc", "er ppc");
     assertThat(vocabulary.equipment().get("streak srm 4")).containsExactlyInAnyOrder("srms", "streaks");
-    // as MegaMek names it: a bracketed part can be typed
-    assertThat(vocabulary.families().get("flamers")).contains("flamer (vehicle)");
+    // as the guide shows it: "Flamer (Vehicle)" is "Vehicle Flamer" (V3_21)
+    assertThat(vocabulary.families().get("flamers")).contains("vehicle flamer").doesNotContain("flamer (vehicle)");
     assertThat(vocabulary.families().values()).allSatisfy(members ->
         assertThat(members).allMatch(QueryVocabulary::isTypeable));
   }

@@ -12,7 +12,7 @@ import BattletechParser from './grammar/me/BattletechParser.js';
 /** Before /api/vocabulary loads: everything still gets a role, nothing has alternatives. */
 export const EMPTY_VOCABULARY = Object.freeze({
   weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [], withWords: [],
-  techs: {}, fireControls: [], families: {}, equipment: {}, omniWords: [], components: {},
+  techs: {}, fireControls: [], families: {}, equipment: {}, omniWords: [], components: {}, fireControlTerms: [],
 });
 
 /**
@@ -322,10 +322,11 @@ function equipmentName(words, tokens, text, vocabulary, bareName) {
     }
   }
   // fire control: like FireControl.fromSearch, on letters and digits, so "artemisiv lrm 20" too;
-  // not when the whole name is the system itself ("artemis iv")
+  // not when the whole name is the system itself ("artemis iv"), or a term looked up whole, as
+  // QueryVisitor does ("artemis lrm ammo", a group of ammo bins)
   const fireControls = [...vocabulary.fireControls].sort((a, b) => key(b).length - key(a).length);
   const whole = key(words.map(word => word.getText()).join(''));
-  if (!fireControls.some(fireControl => key(fireControl) === whole)) {
+  if (![...fireControls, ...vocabulary.fireControlTerms].some(name => key(name) === whole)) {
     found: for (const fireControl of fireControls) {
       for (let length = 1; length < words.length; length++) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {
@@ -418,11 +419,13 @@ function orAny(token) {
   return token.exposesUnitWord ? 'any' : '';
 }
 
-// whether the text starts with a plain word, not a unit word or a number
+// whether the text starts with a plain word, not a unit word or a number; "triple strength" counts, as
+// in the grammar's bareName
 function startsWithWord(text) {
   const lexer = new BattletechLexer(new InputStream(text, false));
   lexer.removeErrorListeners();
-  return lexer.nextToken().type === BattletechLexer.WORD;
+  const type = lexer.nextToken().type;
+  return type === BattletechLexer.WORD || type === BattletechLexer.TRIPLESTRENGTH;
 }
 
 /** One word for each tech but the one given: "inner sphere" and "clan", not "is" too. */

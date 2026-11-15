@@ -51,8 +51,13 @@ public class QueryParser {
       if (!(recognizer instanceof Parser parser) || !(offendingSymbol instanceof Token token)) {
         // lexer errors look like "token recognition error at: '''"
         String character = msg.substring(msg.indexOf("at: ") + 4);
+        // "(cannon," : a bracket that isn't closed, or holds a comma (BRACKETED)
+        if (character.startsWith("'(") || character.startsWith("'[")) {
+          throw new FailedParseException("Unable to parse query: can't use " + character + " (character " + column
+              + "). A bracket in a name needs its closing bracket and can't hold a comma.");
+        }
         throw new FailedParseException("Unable to parse query: can't use " + character
-            + " (character " + column + "). Use letters, numbers, '-' and '/'.");
+            + " (character " + column + "). Use letters, numbers, '-', '/', apostrophes and brackets.");
       }
 
       TokenStream tokens = parser.getTokenStream();

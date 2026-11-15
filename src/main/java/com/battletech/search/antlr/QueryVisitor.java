@@ -406,20 +406,16 @@ public class QueryVisitor implements BattletechVisitor {
     EquipmentNames.TechWord techWord = EquipmentNames.splitTechWord(equip);
     Tech tech = techWord.tech();
     String named = techWord.rest();
-    // "artemis lrm 20": look up the launcher, and only count ones with that fire control
-    String lookup = EquipmentNames.normalize(named);
-    FireControl.Filter fireControl = FireControl.fromSearch(lookup);
-    if(fireControl != null) {
-      lookup = fireControl.launcher();
-    }
     // validate equipment type by its name or slang: "ac 20" and "autocannon 20" both find "ac/20",
     // a family term ("lrms", or "atm" in the singular) every weapon in it, counted together, and a
     // MegaMek name with its tech built in ("cllrm20") only that tech
-    List<Equipment> found = findEquipment(lookup);
-    if(found.isEmpty() && lookup.endsWith("s")) {
-      // a plural: "2 lrm 20s", "4 medium lasers"
-      lookup = lookup.substring(0, lookup.length() - 1);
-      found = findEquipment(lookup);
+    String lookup = EquipmentNames.normalize(named);
+    List<Equipment> found = findEquipmentOrPlural(lookup);
+    // "artemis lrm 20": look up the launcher, and only count ones with that fire control; not when the
+    // whole name is a term itself ("artemis lrm ammo", a group of ammo bins, V3_20)
+    FireControl.Filter fireControl = found.isEmpty() ? FireControl.fromSearch(lookup) : null;
+    if(fireControl != null) {
+      found = findEquipmentOrPlural(fireControl.launcher());
     }
     List<Equipment> matches = found;
     if(tech != null) {
@@ -448,6 +444,15 @@ public class QueryVisitor implements BattletechVisitor {
    */
   private List<Equipment> findEquipment(String lookup) {
     return equipRepo.findAllByNameOrSlang(lookup, EquipmentNames.slangKey(lookup));
+  }
+
+  /** Like findEquipment, or else the singular of a plural: "2 lrm 20s", "4 medium lasers". */
+  private List<Equipment> findEquipmentOrPlural(String lookup) {
+    List<Equipment> found = findEquipment(lookup);
+    if(found.isEmpty() && lookup.endsWith("s")) {
+      found = findEquipment(lookup.substring(0, lookup.length() - 1));
+    }
+    return found;
   }
 
   @Override

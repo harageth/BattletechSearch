@@ -4,6 +4,7 @@ import com.battletech.search.antlr.QueryVocabulary;
 import com.battletech.search.antlr.QueryVocabulary.UnitWord;
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Slang;
+import com.battletech.search.model.FireControl;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
 import com.battletech.search.repositories.EquipmentGroupRepository;
@@ -14,6 +15,7 @@ import com.battletech.search.utils.EquipmentNames;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,11 +59,13 @@ public class VocabularyController {
    * @param equipment a weapon as typed -> the families it's in
    * @param omniWords "omni", "non-omni", in front of a unit word
    * @param components component kind ("engine") -> its types as typed ("xl engine", ...)
+   * @param fireControlTerms terms that start with a fire control word, read whole ("artemis lrm ammo")
    */
   public record Vocabulary(List<String> weightClasses, List<UnitWord> units,
       List<String> comparatorsBefore, List<String> comparatorsAfter, List<String> operators,
       List<String> withWords, Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
-      Map<String, List<String>> equipment, List<String> omniWords, Map<String, List<String>> components) {
+      Map<String, List<String>> equipment, List<String> omniWords, Map<String, List<String>> components,
+      List<String> fireControlTerms) {
   }
 
   @GetMapping("/api/vocabulary")
@@ -94,9 +98,19 @@ public class VocabularyController {
     Vocabulary vocabulary = new Vocabulary(QueryVocabulary.weightClasses(), QueryVocabulary.units(),
         QueryVocabulary.comparatorsBefore(), QueryVocabulary.comparatorsAfter(),
         QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
-        families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components());
+        families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components(), fireControlTerms());
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);
+  }
+
+  /**
+   * Terms that start with a fire control word but are looked up whole, as QueryVisitor does: "artemis
+   * lrm ammo" is a group of ammo bins (V3_20), not Artemis on "lrm ammo".
+   */
+  private List<String> fireControlTerms() {
+    return slangRepo.findByKindIn(EnumSet.allOf(SlangKind.class)).stream()
+        .filter(term -> FireControl.fromSearch(term.getLookup()) != null)
+        .map(Slang::getTerm).distinct().sorted().toList();
   }
 
   private static int firstNumber(String name) {
