@@ -359,12 +359,12 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
     case 'weight-class':
       return others(vocabulary.weightClasses);
     case 'unit': {
-      // "tracked vees" is the unit word "tracked"
+      // "support vehicles" is one unit word; "tracked vees" is the unit word "tracked"
       const first = typed.split(' ')[0];
-      const current = vocabulary.units.find(unit => unit.singular === first || unit.plural === first);
+      const exact = vocabulary.units.find(unit => unit.singular === typed || unit.plural === typed);
+      const current = exact ?? vocabulary.units.find(unit => unit.singular === first || unit.plural === first);
       // keep the number that was typed: "light mechs" -> "light tanks", "tracked vees" -> "mechs"
-      const plural = current && current.singular !== current.plural && first === typed
-        ? current.plural === typed : typed.endsWith('s');
+      const plural = exact && exact.singular !== exact.plural ? exact.plural === typed : typed.endsWith('s');
       return vocabulary.units.filter(unit => unit !== current)
           .map(unit => (plural ? unit.plural : unit.singular))
           .map(word => ({ label: word, text: word }));

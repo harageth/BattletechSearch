@@ -1,4 +1,4 @@
--- The equipment group members V3_17 and V3_20 add, for test databases. Their equipment comes from the fixture
+-- The equipment group members V3_17, V3_20 and V3_23 add, for test databases. Their equipment comes from the fixture
 -- imports, after the migrations ran, so they found nothing to put in the groups. SearchFixtures runs
 -- this once the fixtures are in. Keep it in step with the groups the migrations add.
 INSERT INTO equipment_group_member (group_id, equipment_id)
@@ -449,7 +449,46 @@ SELECT g.id, e.id FROM (VALUES
     ('mortar ammo', 'shapedchargemortar4ammo'),
     ('mortar ammo', 'shapedchargemortar8ammo'),
     ('environmental sealing', 'environmentalsealing(mech)'),
-    ('environmental sealing', 'combatvehiclechassismod[environmentalsealing]')
+    ('environmental sealing', 'combatvehiclechassismod[environmentalsealing]'),
+    ('infantry weapons', 'supportlaser'),
+    ('infantry weapons', 'supportlaser(heavy)'),
+    ('infantry weapons', 'supportlaser(semi-portable)'),
+    ('infantry weapons', 'machinegun(support)'),
+    ('infantry weapons', 'machinegun(semi-portable)'),
+    ('infantry weapons', 'auto-rifle(modern,generic)'),
+    ('infantry weapons', 'gaussrifle,light(kingdavid)'),
+    ('infantry weapons', 'grenadelauncher(auto)'),
+    ('infantry weapons', 'grenadelauncher(heavy)'),
+    ('infantry weapons', 'recoillessrifle(heavy)'),
+    ('infantry weapons', 'srmlauncher(light)'),
+    ('infantry weapons', 'srmlauncher(std,two-shot)'),
+    ('infantry weapons', 'plasmarifle(man-portable)'),
+    ('infantry weapons', 'laserrifle(mauseriicias)'),
+    ('infantry weapons', 'tag(light,man-portable)'),
+    ('infantry weapons', 'wire-guidedmissilelauncher'),
+    ('infantry weapons', 'autocannon(semi-portable)'),
+    ('infantry weapons', 'autocannon(bearhuntersuperheavy)'),
+    ('autocannons', 'primitiveprototypeautocannon/20'),
+    ('ammo', 'primitiveprototypeautocannon/20ammo'),
+    ('chassis mods', 'svchassismod[amphibious]'),
+    ('chassis mods', 'svchassismod[bicycle]'),
+    ('chassis mods', 'svchassismod[convertible]'),
+    ('chassis mods', 'svchassismod[dunebuggy]'),
+    ('chassis mods', 'svchassismod[hydrofoil]'),
+    ('chassis mods', 'svchassismod[monocycle]'),
+    ('chassis mods', 'svchassismod[omni]'),
+    ('chassis mods', 'svchassismod[snowmobile]'),
+    ('chassis mods', 'svchassismod[submersible]'),
+    ('chassis mods', 'svchassismod[tractor]'),
+    ('chassis mods', 'svchassismod[trailer]'),
+    ('chassis mods', 'svchassismod[ultra-light]'),
+    ('environmental sealing', 'environmentalsealing'),
+    ('industrial equipment', 'sprayer(vehicular)'),
+    ('industrial equipment', 'manipulator(non-mech/non-battlearmor)'),
+    ('industrial equipment', 'ladder'),
+    ('industrial equipment', 'bridgelayer(heavy)'),
+    ('industrial equipment', 'fluidsuctionsystem(standard)'),
+    ('cargo', 'cargocontainer(10tons)')
 ) AS v (group_name, equipment_name)
 JOIN equipment_group g ON g.name = v.group_name
 JOIN equipment e ON e.name = v.equipment_name

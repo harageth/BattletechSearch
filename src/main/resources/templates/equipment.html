@@ -66,16 +66,18 @@
                             <dl class="guide-units">
                                 <dt><code>units</code></dt><dd>everything</dd>
                                 <dt><code>mechs</code></dt><dd>every mech</dd>
-                                <dt><code>vehicles</code>, <code>vees</code></dt><dd>every vehicle, VTOLs too</dd>
-                                <dt><code>tanks</code></dt><dd>every ground vehicle</dd>
+                                <dt><code>vehicles</code>, <code>vees</code></dt><dd>every vehicle, VTOLs and support vehicles too</dd>
+                                <dt><code>tanks</code></dt><dd>every ground vehicle, support vehicles too</dd>
                                 <dt><code>wheeled</code>, <code>tracked</code>, <code>hovercraft</code></dt><dd>ground vehicles by how they move, alone or before <code>vehicles</code>, <code>vees</code> or <code>tanks</code>: <code>tracked vees</code>, <code>hover tanks</code>, <code>hovertanks</code></dd>
                                 <dt><code>vtols</code>, <code>helicopters</code></dt><dd>VTOLs (<code>vtol vehicles</code> too)</dd>
+                                <dt><code>support vehicles</code>, <code>support tanks</code>, <code>support vtols</code></dt><dd>only support vehicles: trucks, transports, MASH and engineering vehicles. <code>support</code> goes before any vehicle word: <code>support tracked vehicles</code></dd>
+                                <dt><code>combat vehicles</code>, <code>combat tanks</code>, <code>combat vtols</code></dt><dd>only combat vehicles</dd>
                                 <dt><code>omnimechs</code>, <code>omnis</code></dt><dd>OmniMechs</dd>
                                 <dt><code>bipeds</code>, <code>quads</code>, <code>tripods</code>, <code>lams</code>, <code>quadvees</code></dt><dd>mechs with that body</dd>
                             </dl>
                             <p class="hint">The singular works too: <code>mech</code>, <code>lam</code>.</p>
                         </td>
-                        <td class="guide-example"><code>tripods</code><br><code>hovercraft with an lrm 20</code></td>
+                        <td class="guide-example"><code>tripods</code><br><code>hovercraft with an lrm 20</code><br><code>support vehicles with a mash equipment</code></td>
                     </tr>
                     <tr>
                         <td>Omni or not</td>
@@ -226,6 +228,11 @@
                         <td>Engine rating</td>
                         <td><code>engine rating</code> or <code>engine rating of</code>, then a number with or without a comparator.</td>
                         <td class="guide-example"><code>mechs with an engine rating of at least 300</code><br><code>mechs with engine rating 300 or more</code></td>
+                    </tr>
+                    <tr>
+                        <td>BAR rating</td>
+                        <td>Support vehicles' barrier armor rating, 2 to 10: <code>bar rating</code> or <code>bar rating of</code>, then a number with or without a comparator. <code>bar armor</code> is any of it.</td>
+                        <td class="guide-example"><code>vehicles with a bar rating of at least 7</code><br><code>tanks with bar armor</code></td>
                     </tr>
                 </tbody>
             </table>

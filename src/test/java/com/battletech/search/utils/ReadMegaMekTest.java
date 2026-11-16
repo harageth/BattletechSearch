@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.entities.Mech;
+import com.battletech.search.entities.SupportTank;
+import com.battletech.search.entities.SupportVtol;
 import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.UnitEquipment;
@@ -769,9 +771,53 @@ class ReadMegaMekTest {
   }
 
   @Test
-  void skipsSupportVehicles() throws IOException {
-    // importers skill bug 13; also checks a one-line <Model></Model> doesn't break parsing
-    assertThat(vehicle("Air Car.blk")).isNull();
+  void readsSupportVehicles() throws IOException {
+    // importers skill bug 13 (user, 2026-11-15); also checks a one-line <Model></Model> doesn't break parsing
+    assertThat(vehicle("Air Car.blk")).isInstanceOf(SupportTank.class)
+        .extracting(unit -> ((Tank) unit).getMotiveSystem()).isEqualTo(MotiveSystem.Hover);
+    Unit sherpa = ReadMegaMek.ReadVehicleBlk(fixture("support/Sherpa Armored Truck (MASH).blk"));
+    assertThat(sherpa).isInstanceOf(SupportTank.class);
+    assertThat(((Tank) sherpa).getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
+    assertThat(sherpa.getArmorType()).isEqualTo(ArmorType.BAR_10);
+    assertThat(sherpa.getMechEquipment()).extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getMashTheaters)
+        .contains(tuple("mash equipment", 5));
+    // a LargeSupportTank is a support tank with more sections
+    Unit dromedary = ReadMegaMek.ReadVehicleBlk(fixture("support/Dromedary Water Transport.blk"));
+    assertThat(dromedary).isInstanceOf(SupportTank.class);
+    assertThat(dromedary.getArmorType()).isEqualTo(ArmorType.BAR_5);
+    assertThat(dromedary.getWeightClass()).isEqualTo(WeightClass.ULTRA_HEAVY);
+    Unit stChristopher = ReadMegaMek.ReadVehicleBlk(fixture("support/St. Christopher Cargo Transport C1.blk"));
+    assertThat(stChristopher).isInstanceOf(SupportVtol.class);
+    assertThat(stChristopher.getArmorType()).isEqualTo(ArmorType.BAR_10);
+  }
+
+  @Test
+  void supportVehiclesHaveMegaMeksSupportEngineRating() throws IOException {
+    // cruise MP x tonnage, fractional tonnage kept, no suspension factor (MegaMek Engine.getRating(Entity))
+    Unit napFind = ReadMegaMek.ReadVehicleBlk(fixture("support/Hi-Scout Drone (NapFind).blk"));
+    assertThat(napFind.getEngineRating()).isEqualTo(38); // 15 x 2.5
+    assertThat(napFind.getWeight()).isEqualTo(2);
+    assertThat(napFind.getArmorType()).isEqualTo(ArmorType.BAR_2);
+    assertThat(ReadMegaMek.ReadVehicleBlk(fixture("support/Dromedary Water Transport.blk")).getEngineRating()).isEqualTo(300);
+    assertThat(ReadMegaMek.supportEngineRating(10, 60)).isEqualTo(500);
+  }
+
+  @Test
+  void turretMountNotesComeOffTheEndOnly() {
+    // sponson (ST) and pintle (PT) turrets; the bracket before the note is part of the name
+    assertThat(ReadMegaMek.convertToEquipment(List.of("Flamer (Vehicle)(ST)", "Machine Gun (Light)(PT):SIZE:1.0",
+            "InfantryAssaultRifle(PT):SIZE:10.0", "ISMGA(ST)"),
+        new UnprefixedTech(Tech.INNER_SPHERE, false), Location.FRONT, problems()))
+        .extracting(equip -> equip.getEquipment().getName())
+        .containsExactly("flamer (vehicle)", "machine gun (light)", "infantryassaultrifle", "mga");
+  }
+
+  @Test
+  void skipsFixedWingSupportAircraft() throws IOException {
+    ImportProblems problems = new ImportProblems();
+    File zugvogel = fixture("support/Zugvogel Omni Support Aircraft A.blk");
+    assertThat(ReadMegaMek.ReadVehicleBlk(zugvogel, problems.in(zugvogel))).isNull();
+    assertThat(problems.counts()).containsEntry(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE, 1);
   }
 
   @Test

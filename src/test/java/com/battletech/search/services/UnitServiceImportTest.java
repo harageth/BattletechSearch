@@ -114,12 +114,12 @@ class UnitServiceImportTest {
   }
 
   @Test
-  void importsVehiclesAndSkipsSupportVehicles() throws IOException {
+  void importsVehicles() throws IOException {
     ImportResult result = unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
 
-    // Air Car is a SupportTank
-    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(6, 0, 1, 0));
-    assertThat(result.problems()).containsEntry(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE, 1);
+    // Air Car is a SupportTank, imported since 2026-11-15
+    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(7, 0, 0, 0));
+    assertThat(result.problems()).doesNotContainKey(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE);
     Unit bulldog = unitRepo.findByMegamekUuid(UUID.fromString("019f583e-e260-75d2-84ad-b6927336283b")).orElseThrow();
     assertThat(bulldog.getName()).isEqualTo("Bulldog Medium Tank");
     assertThat(bulldog.getMulId()).isEqualTo(439);
@@ -140,6 +140,45 @@ class UnitServiceImportTest {
     assertThat(searchService.performQuery("tanks with at least 2 machine gun"))
         .extracting(row -> row.get("name"))
         .contains("Bulldog Medium Tank", "Condor Heavy Hover Tank");
+  }
+
+  private List<String> names(String query) throws IOException {
+    return searchService.performQuery(query).stream().map(row -> (String) row.get("name")).toList();
+  }
+
+  @Test
+  void supportVehiclesAreVehiclesUnlessASearchAsksForCombat() throws IOException {
+    // the fixed-wing aircraft waits for an aircraft unit type
+    ImportResult result = unitService.persistUnits(fixtures("support"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    assertThat(result).usingRecursiveComparison().ignoringFields("slangTerms", "problems").isEqualTo(new ImportResult(4, 0, 1, 0));
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    List<String> support = List.of("Sherpa Armored Truck", "Dromedary Water Transport", "St. Christopher Cargo Transport",
+        "Hi-Scout Drone", "Air Car");
+    // user, 2026-11-15: vehicle words mean both; "support" and "combat" narrow them
+    assertThat(names("vehicles")).containsAll(support).contains("Bulldog Medium Tank");
+    assertThat(names("support vehicles")).containsExactlyInAnyOrderElementsOf(support);
+    assertThat(names("combat vehicles")).doesNotContainAnyElementsOf(support).contains("Bulldog Medium Tank");
+    assertThat(names("tanks")).contains("Sherpa Armored Truck", "Bulldog Medium Tank").doesNotContain("St. Christopher Cargo Transport");
+    assertThat(names("tracked")).contains("Sherpa Armored Truck", "Bulldog Medium Tank").doesNotContain("Dromedary Water Transport");
+    assertThat(names("support vtols")).containsExactly("St. Christopher Cargo Transport");
+    assertThat(names("vtols")).contains("St. Christopher Cargo Transport", "Warrior Attack Helicopter");
+    assertThat(names("support vehicles with mash equipment")).containsExactly("Sherpa Armored Truck");
+  }
+
+  @Test
+  void searchesBarArmor() throws IOException {
+    unitService.persistUnits(fixtures("support"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    // Sherpa and St. Christopher BAR 10, Dromedary BAR 5, Hi-Scout Drone BAR 2; the Air Car has standard armor
+    assertThat(names("vehicles with a bar rating of at least 9"))
+        .containsExactlyInAnyOrder("Sherpa Armored Truck", "St. Christopher Cargo Transport");
+    assertThat(names("vehicles with bar rating 5")).containsExactly("Dromedary Water Transport");
+    assertThat(names("units with bar armor")).containsExactlyInAnyOrder("Sherpa Armored Truck", "St. Christopher Cargo Transport",
+        "Dromedary Water Transport", "Hi-Scout Drone");
   }
 
   private List<String> search(String query) throws IOException {

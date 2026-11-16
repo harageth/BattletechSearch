@@ -115,7 +115,7 @@ class QueryVisitorTest {
     assertThat(tank("Tank with at least 1 ppc").getMotiveSystem()).isNull();
     // boats are filed as tanks too, so plain "tank" leaves them out
     assertThat(parse("tanks with at least 1 ppc").getQuery())
-        .contains("dtype = 'Tank' AND (motive_system IS NULL OR motive_system NOT IN ('Hydrofoil', 'Naval', 'Submarine'))");
+        .contains("dtype IN ('Tank', 'SupportTank') AND (motive_system IS NULL OR motive_system NOT IN ('Hydrofoil', 'Naval', 'Submarine'))");
   }
 
   @Test
@@ -123,7 +123,7 @@ class QueryVisitorTest {
     assertThat(tank("tracked with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
     assertThat(tank("wheeled with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Wheeled);
     assertThat(tank("hovertanks with at least 1 ppc").getMotiveSystem()).isEqualTo(MotiveSystem.Hover);
-    assertThat(parse("tracked with at least 1 ppc").getQuery()).contains("dtype = 'Tank' AND motive_system = 'Tracked'");
+    assertThat(parse("tracked with at least 1 ppc").getQuery()).contains("dtype IN ('Tank', 'SupportTank') AND motive_system = 'Tracked'");
   }
 
   @Test
@@ -137,7 +137,7 @@ class QueryVisitorTest {
     assertThat(tank("heavy tracked vehicles").getMotiveSystem()).isEqualTo(MotiveSystem.Tracked);
     assertThat(parse("vtol vehicles with at least 1 ppc").getDecoratedUnit()).isExactlyInstanceOf(Vtol.class);
     assertThat(parse("vehicles except tracked vees").getQuery())
-        .contains("AND NOT COALESCE((dtype = 'Tank' AND motive_system = 'Tracked'), false)");
+        .contains("AND NOT COALESCE((dtype IN ('Tank', 'SupportTank') AND motive_system = 'Tracked'), false)");
   }
 
   @Test
@@ -163,9 +163,9 @@ class QueryVisitorTest {
   void everySpellingOfAUnitWordWorksAfterNon() {
     // the same words as the unit tokens: "hover" and "helicopter" are spellings of hovercraft and vtol
     assertThat(parse("non-hover tanks").getQuery())
-        .contains("AND NOT COALESCE((dtype = 'Tank' AND motive_system = 'Hover'), false)");
+        .contains("AND NOT COALESCE((dtype IN ('Tank', 'SupportTank') AND motive_system = 'Hover'), false)");
     assertThat(parse("non hovertank vehicles").getQuery())
-        .contains("AND NOT COALESCE((dtype = 'Tank' AND motive_system = 'Hover'), false)");
+        .contains("AND NOT COALESCE((dtype IN ('Tank', 'SupportTank') AND motive_system = 'Hover'), false)");
     assertThat(parse("non-helicopter vehicles").getQuery()).isEqualTo(parse("non-vtol vehicles").getQuery());
     assertThat(parse("non-vees units").getQuery()).isEqualTo(parse("non-vehicle units").getQuery());
   }
@@ -691,7 +691,40 @@ class QueryVisitorTest {
         .isEqualTo(Comparison.EQUAL);
     assertThat(parse("mechs with engine rating at most 200 and 2 ppc").getQuery())
         .contains("id IN (SELECT id FROM unit WHERE engine_rating <= 200) AND id IN (");
-    assertThatThrownBy(() -> parse("mechs with fuel rating 300")).hasMessage("Can only search engine rating: fuel rating");
+    assertThatThrownBy(() -> parse("mechs with fuel rating 300")).hasMessage("Can only search engine or bar rating: fuel rating");
+  }
+
+  @Test
+  void barRatingIsTheBarArmorTypesItCompares() {
+    // support vehicles' barrier armor rating is in the armor type (BAR_2 to BAR_10)
+    assertThat(parse("vehicles with a bar rating of at least 9").getQuery())
+        .contains("id IN (SELECT id FROM unit WHERE armor_type IN ('BAR_9', 'BAR_10'))");
+    assertThat(parse("units with bar rating less than 4").getQuery())
+        .contains("armor_type IN ('BAR_2', 'BAR_3')");
+    assertThat(parse("units with a bar rating of 7").getQuery()).contains("armor_type IN ('BAR_7')");
+    // a rating no BAR armor has matches nothing
+    assertThat(parse("units with a bar rating of at least 11").getQuery()).contains("id IN (SELECT id FROM unit WHERE false)");
+    // any BAR armor is a component
+    assertThat(component(parse("vehicles with bar armor"), 0).getComponent().types())
+        .containsExactly("BAR_2", "BAR_3", "BAR_4", "BAR_5", "BAR_6", "BAR_7", "BAR_8", "BAR_9", "BAR_10");
+  }
+
+  @Test
+  void supportAndCombatNarrowAVehicleWord() {
+    // user, 2026-11-15: without either, a vehicle word means both
+    assertThat(parse("vehicles").getQuery()).contains("dtype IN ('Tank', 'Vtol', 'SupportTank', 'SupportVtol')");
+    assertThat(parse("units").getQuery()).contains("dtype IN ('Tank', 'Vtol', 'Mech', 'SupportTank', 'SupportVtol')");
+    assertThat(parse("support vehicles").getQuery()).contains("dtype IN ('SupportTank', 'SupportVtol')");
+    assertThat(parse("combat vehicles").getQuery()).contains("dtype IN ('Tank', 'Vtol')");
+    assertThat(parse("support tanks with a mash equipment").getQuery()).contains("dtype = 'SupportTank' AND (motive_system");
+    assertThat(parse("combat vtols").getQuery()).contains("dtype = 'Vtol'");
+    assertThat(parse("support tracked vehicles").getQuery()).contains("dtype = 'SupportTank' AND motive_system = 'Tracked'");
+    assertThat(parse("heavy support vtols").getQuery()).contains("dtype = 'SupportVtol'").contains("weight_class IN ('HEAVY')");
+    assertThat(parse("units except support vehicles").getQuery())
+        .contains("AND NOT COALESCE((dtype IN ('SupportTank', 'SupportVtol')), false)");
+    // still words of a name
+    assertThat(names(parse("units with a support laser"))).containsExactly("supportlaser");
+    assertThat(names(parse("units with combat vehicle escape pod"))).containsExactly("combatvehicleescapepod");
   }
 
   private static ComponentFilter component(UnitDecorator unit, int index) {

@@ -91,9 +91,12 @@ class ComponentNamesTest {
   }
 
   @Test
-  void barArmorIsLeftOutForNow() {
-    // a number mid-name doesn't parse ("bar 2 armor"), and no imported unit has it: planned as a rating
-    assertThat(ComponentNames.names().get(Kind.ARMOR)).noneMatch(name -> name.startsWith("bar"));
+  void barArmorIsOneName() {
+    // a number mid-name doesn't parse ("bar 2 armor"); the rating is searched like the engine's
+    assertThat(ComponentNames.names().get(Kind.ARMOR).stream().filter(name -> name.startsWith("bar")))
+        .containsExactly("bar armor");
+    assertThat(ComponentNames.find("bar armor").types())
+        .containsExactly("BAR_2", "BAR_3", "BAR_4", "BAR_5", "BAR_6", "BAR_7", "BAR_8", "BAR_9", "BAR_10");
     assertThat(ComponentNames.find("bar 2 armor")).isNull();
   }
 }

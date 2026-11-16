@@ -122,9 +122,22 @@ class EquipmentGroupsTest {
   }
 
   @Test
+  void supportVehicleWeaponsKeepOutOfTheVehicleFamilies() {
+    // V3_23: an infantry machine gun or support laser isn't one of the "machine guns" or "lasers"
+    for (String infantry : List.of("machinegun(support)", "supportlaser", "autocannon(semi-portable)", "grenadelauncher(heavy)")) {
+      assertThat(groupsOf(infantry)).as(infantry).containsExactly("infantry weapons");
+    }
+    // a primitive autocannon is an autocannon, but not a standard one
+    assertThat(groupsOf("primitiveprototypeautocannon/20")).containsExactly("autocannons", "ballistic weapons");
+    assertThat(TREE.everythingIn("standard acs")).doesNotContain(ROWS.get("primitiveprototypeautocannon/20").getId());
+    assertThat(groupsOf("svchassismod[tractor]")).contains("chassis mods");
+    assertThat(groupsOf("environmentalsealing")).contains("environmental sealing", "chassis mods");
+  }
+
+  @Test
   void theTreeHangsTogether() {
     assertThat(TREE.top()).containsExactly(
-        "missiles", "energy weapons", "ballistic weapons", "artillery", "physical weapons", "ams", "pods");
+        "missiles", "energy weapons", "ballistic weapons", "artillery", "physical weapons", "ams", "pods", "infantry weapons");
     // not weapons: their own section of the guide, and not in the search box's families
     assertThat(TREE.equipmentTop()).containsExactly("ammo", "ecm", "probes", "c3", "jump jets", "case", "myomers",
         "speed boosters", "stealth systems", "heat", "shields", "industrial equipment", "chassis mods", "drones", "cargo",

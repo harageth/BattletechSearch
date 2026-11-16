@@ -40,9 +40,16 @@ class QueryVocabularyTest {
   @Test
   void unitWordsAreOneUnitTokenInBothNumbers() {
     for (QueryVocabulary.UnitWord unit : QueryVocabulary.units()) {
-      assertThat(tokenTypes(unit.singular())).as(unit.singular()).hasSize(1).allMatch(UNITS::contains);
+      List<Integer> types = tokenTypes(unit.singular());
+      // "support vehicle": support or combat in front of a vehicle word
+      if (types.size() == 2) {
+        assertThat(types.get(0)).as(unit.singular()).isIn(BattletechLexer.SUPPORT, BattletechLexer.COMBAT);
+        types = types.subList(1, 2);
+      }
+      assertThat(types).as(unit.singular()).hasSize(1).allMatch(UNITS::contains);
       assertThat(tokenTypes(unit.plural())).as(unit.plural()).isEqualTo(tokenTypes(unit.singular()));
     }
+    assertThat(QueryVocabulary.units()).extracting(QueryVocabulary.UnitWord::plural).contains("support vehicles", "combat tanks");
   }
 
   @Test

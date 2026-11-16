@@ -2,12 +2,14 @@ package com.battletech.search.antlr;
 
 import com.battletech.search.entities.Equipment;
 import com.battletech.search.model.ComponentFilter;
+import com.battletech.search.model.BarRatingFilter;
 import com.battletech.search.model.EngineRatingFilter;
 import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.model.FireControl;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.UnitDecorator;
+import com.battletech.search.model.VehicleClass;
 import com.battletech.search.model.UnitFilter;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.model.search.Comparison;
@@ -441,14 +443,17 @@ public class QueryVisitor implements BattletechVisitor {
   /** "an engine rating of at least 300", "engine rating 300 or more". */
   @Override
   public UnitFilter visitRatingChunk(RatingChunkContext ctx) {
-    if(!ctx.WORD().getText().equalsIgnoreCase("engine")) {
-      throw new FailedParseException("Can only search engine rating: " + ctx.WORD().getText() + " " + ctx.RATING().getText());
+    String rated = ctx.WORD().getText();
+    if(!rated.equalsIgnoreCase("engine") && !rated.equalsIgnoreCase("bar")) {
+      throw new FailedParseException("Can only search engine or bar rating: " + rated + " " + ctx.RATING().getText());
     }
     // the rating is the last number; one before "engine" is just "an"
     List<TerminalNode> numbers = ctx.QUANTITY();
     String rating = numbers.get(numbers.size() - 1).getText();
-    return new EngineRatingFilter(
-        Comparison.fromToken((String) visitComparator(ctx.comparator())), QuantityConverter.toInt(rating));
+    Comparison comparison = Comparison.fromToken((String) visitComparator(ctx.comparator()));
+    // "a bar rating of at least 7": barrier armor, support vehicles' (2 to 10)
+    return rated.equalsIgnoreCase("bar") ? new BarRatingFilter(comparison, QuantityConverter.toInt(rating))
+        : new EngineRatingFilter(comparison, QuantityConverter.toInt(rating));
   }
 
   /** The component a chunk names ("xl engine", "clan endo steel", "xl engines"), or null. */
@@ -535,8 +540,14 @@ public class QueryVisitor implements BattletechVisitor {
     if(ctx.children == null) {
       return UnitBuilder.buildUnit("genericunit");
     }
+    // "support vehicles", "combat tanks": the vehicle word after it says which unit
+    VehicleClass vehicleClass = ctx.SUPPORT() != null ? VehicleClass.SUPPORT
+        : ctx.COMBAT() != null ? VehicleClass.COMBAT : null;
+    Token type = vehicleClass == null ? ctx.getStart() : ((TerminalNode) ctx.getChild(1)).getSymbol();
     // "tracked vehicles": the motive type says it all, the vehicle word after it adds nothing
-    return UnitBuilder.buildUnit(vocab.getSymbolicName(ctx.getStart().getType()));
+    UnitDecorator unit = (UnitDecorator) UnitBuilder.buildUnit(vocab.getSymbolicName(type.getType()));
+    unit.setVehicleClass(vehicleClass);
+    return unit;
   }
 
   @Override

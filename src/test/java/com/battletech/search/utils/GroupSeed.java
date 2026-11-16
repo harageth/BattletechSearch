@@ -23,12 +23,13 @@ import java.util.stream.Collectors;
 /**
  * The equipment group tree as the migrations write it, for tests without a database: its groups,
  * parents and (group, equipment name) members, read from the migration files. V3_17 writes the tree;
- * V3_20 adds groups to it (the ammo groups, environmental sealing) and moves items out of the group above
- * into them, statement by statement.
+ * V3_20 and V3_23 add groups to it (the ammo groups, environmental sealing, infantry weapons), add items
+ * to groups and move items out of the group above into them, statement by statement.
  */
 public final class GroupSeed {
   static final String MIGRATION = "/db/migration/V3_17__equipment_group_rows.sql";
-  static final String GROUPS_MIGRATION = "/db/migration/V3_20__ammo_groups.sql";
+  static final List<String> GROUPS_MIGRATIONS = List.of("/db/migration/V3_20__ammo_groups.sql",
+      "/db/migration/V3_23__support_vehicle_groups.sql");
   static final String TEST_MEMBERS = "/db/equipment-group-members.sql";
 
   private static final Pattern GROUP = Pattern.compile("\\(gen_random_uuid\\(\\), '((?:[^']|'')*)', (?:NULL|'(\\w+)'), (\\d+)\\)");
@@ -50,7 +51,7 @@ public final class GroupSeed {
     Map<String, GroupSection> sections = new HashMap<>();
     Map<String, Integer> positions = new HashMap<>();
     addGroups(read(MIGRATION), sections, positions);
-    for (String statement : statements(read(GROUPS_MIGRATION))) {
+    for (String statement : groupsStatements()) {
       Matcher shift = SHIFT.matcher(statement);
       if (shift.find()) {
         int by = Integer.parseInt(shift.group(1));
@@ -78,15 +79,17 @@ public final class GroupSeed {
 
   static List<Pair> parents() {
     List<Pair> parents = pairs(section(read(MIGRATION), "INSERT INTO equipment_group_parent", "INSERT INTO equipment_group_member"));
-    statements(read(GROUPS_MIGRATION)).stream().filter(statement -> statement.startsWith("INSERT INTO equipment_group_parent"))
+    groupsStatements().stream().filter(statement -> statement.startsWith("INSERT INTO equipment_group_parent"))
         .forEach(statement -> parents.addAll(pairs(statement)));
     return parents;
   }
 
   static List<Pair> members() {
     List<Pair> members = pairs(section(read(MIGRATION), "INSERT INTO equipment_group_member", null));
-    for (String statement : statements(read(GROUPS_MIGRATION))) {
-      if (statement.startsWith("WITH moved")) {
+    for (String statement : groupsStatements()) {
+      if (statement.startsWith("INSERT INTO equipment_group_member")) {
+        members.addAll(pairs(statement));
+      } else if (statement.startsWith("WITH moved")) {
         List<Pair> moved = pairs(statement);
         Matcher outOf = MOVED_OUT_OF.matcher(statement);
         outOf.find();
@@ -131,6 +134,10 @@ public final class GroupSeed {
   private static String section(String sql, String start, String end) {
     int from = sql.indexOf(start);
     return end == null ? sql.substring(from) : sql.substring(from, sql.indexOf(end));
+  }
+
+  private static List<String> groupsStatements() {
+    return GROUPS_MIGRATIONS.stream().flatMap(migration -> statements(read(migration)).stream()).toList();
   }
 
   // a migration's statements, without its comments (a comment can hold a ";")

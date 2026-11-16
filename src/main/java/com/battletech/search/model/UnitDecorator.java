@@ -6,6 +6,7 @@ import com.battletech.search.entities.Unit;
 import com.battletech.search.entities.Vehicle;
 import com.battletech.search.entities.Vtol;
 import com.battletech.search.model.search.LogicalOperator;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,6 +22,8 @@ public class UnitDecorator extends Unit {
   Locomotion locomotion;
   // "omni mechs" true, "non-omni mechs" false, null for either
   Boolean omniFilter;
+  // "support vehicles", "combat tanks"; null for both
+  VehicleClass vehicleClass;
   // the chunks after "with": equipment, components, engine rating
   List<UnitFilter> filters = List.of();
   // units left out: "non-lam mechs", "mechs except quads", "units that aren't vtols"
@@ -73,11 +76,11 @@ public class UnitDecorator extends Unit {
   String unitCondition() {
     StringBuilder builder = new StringBuilder();
     if(decoratedUnit.getClass().equals(Unit.class)) {
-      builder.append("(dtype = 'Tank' OR dtype = 'Vtol' OR dtype = 'Mech') ");
+      builder.append(dtypes(List.of(TANK, VTOL, MECH), List.of(SUPPORT_TANK, SUPPORT_VTOL)));
     }else if(decoratedUnit.getClass().equals(Vtol.class)) {
-      builder.append("dtype = 'Vtol' ");
+      builder.append(dtypes(List.of(VTOL), List.of(SUPPORT_VTOL)));
     }else if(decoratedUnit.getClass().equals(Tank.class)) {
-      builder.append("dtype = 'Tank' ");
+      builder.append(dtypes(List.of(TANK), List.of(SUPPORT_TANK)));
       MotiveSystem motive = ((Tank) decoratedUnit).getMotiveSystem();
       if(motive != null) {
         // "tracked", "wheeled", "hovercraft"; built from the enum, not user text
@@ -92,9 +95,9 @@ public class UnitDecorator extends Unit {
     }else if(decoratedUnit.getClass().equals(Mech.class)) {
       builder.append("dtype = 'Mech' ");
     }else if(decoratedUnit.getClass().equals(Vehicle.class)) {
-      builder.append("(dtype = 'Tank' OR dtype = 'Vtol') ");
+      builder.append(dtypes(List.of(TANK, VTOL), List.of(SUPPORT_TANK, SUPPORT_VTOL)));
     }else {
-      builder.append("(dtype = 'Tank' OR dtype = 'Vtol' OR dtype = 'Mech') ");
+      builder.append(dtypes(List.of(TANK, VTOL, MECH), List.of(SUPPORT_TANK, SUPPORT_VTOL)));
     }
     if(locomotion != null) {
       // built from the enum, not user text
@@ -104,5 +107,25 @@ public class UnitDecorator extends Unit {
       builder.append(" AND omni = ").append(omniFilter).append(" ");
     }
     return builder.toString();
+  }
+
+  // the entities' dtype values
+  private static final String MECH = "Mech";
+  private static final String TANK = "Tank";
+  private static final String VTOL = "Vtol";
+  private static final String SUPPORT_TANK = "SupportTank";
+  private static final String SUPPORT_VTOL = "SupportVtol";
+
+  /** The dtypes a word means: its combat types, its support types or both (vehicleClass). */
+  private String dtypes(List<String> combat, List<String> support) {
+    List<String> types = new ArrayList<>();
+    if(vehicleClass != VehicleClass.SUPPORT) {
+      types.addAll(combat);
+    }
+    if(vehicleClass != VehicleClass.COMBAT) {
+      types.addAll(support);
+    }
+    return types.size() == 1 ? "dtype = '" + types.get(0) + "' "
+        : "dtype IN (" + types.stream().map(type -> "'" + type + "'").collect(Collectors.joining(", ")) + ") ";
   }
 }

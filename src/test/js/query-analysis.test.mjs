@@ -110,6 +110,21 @@ test('a motive type and a vehicle word are one unit', () => {
   assert.deepEqual(roles('hover tanks').slice(0, 1), ['hover tanks:unit']);
 });
 
+test('support or combat and a vehicle word are one unit', () => {
+  // user, 2026-11-15: they narrow a vehicle word to support or combat vehicles
+  assert.deepEqual(roles('heavy support vehicles with 1 ppc').slice(0, 3),
+      ['heavy:weight-class', 'support vehicles:unit', 'with:with']);
+  assert.deepEqual(roles('combat tracked tanks').slice(0, 1), ['combat tracked tanks:unit']);
+  // and still words of a name
+  assert.deepEqual(roles('units with a support laser').slice(-1), ['support laser:equipment']);
+  // swapped whole, keeping the number
+  const supports = { ...vocabulary, units: [...vocabulary.units, { singular: 'support vehicle', plural: 'support vehicles' }] };
+  assert.deepEqual(texts(alternatives(token('support vehicles with 1 ppc', 'support vehicles'), supports)),
+      ['units', 'mechs', 'tanks', 'tracked', 'lams']);
+  assert.deepEqual(texts(alternatives(token('light mech', 'mech'), supports)),
+      ['unit', 'tank', 'tracked', 'lam', 'support vehicle']);
+});
+
 test('every comparator, before and after the quantity', () => {
   for (const comparator of ['at least', 'at most', 'exactly', '=', 'no more than', 'fewer than', 'less than', 'greater than']) {
     assert.deepEqual(roles(`mechs with ${comparator} 3 ppc`).slice(2, 4), [`${comparator}:comparator`, '3:quantity']);

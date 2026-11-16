@@ -49,6 +49,11 @@ public enum ArmorType {
     return text;
   }
 
+  /** The barrier armor rating of BAR armor ("BAR 7" is 7); null for any other armor. */
+  public Integer getBarRating() {
+    return name().startsWith("BAR_") ? Integer.valueOf(name().substring(4)) : null;
+  }
+
   public static ArmorType fromString(String text) {
     for (ArmorType type : values()) {
       if (type.text.equalsIgnoreCase(text.trim())) {
