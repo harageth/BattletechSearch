@@ -165,6 +165,16 @@ class UnitServiceImportTest {
     assertThat(names("support vtols")).containsExactly("St. Christopher Cargo Transport");
     assertThat(names("vtols")).contains("St. Christopher Cargo Transport", "Warrior Attack Helicopter");
     assertThat(names("support vehicles with mash equipment")).containsExactly("Sherpa Armored Truck");
+    // each bay is its own item (Copilot on PR #26), not an infantry bay
+    assertThat(names("units with at least 1 cargo bay"))
+        .containsExactlyInAnyOrder("Dromedary Water Transport", "St. Christopher Cargo Transport", "Hi-Scout Drone");
+    assertThat(names("units with a liquid cargo bay")).containsExactly("Dromedary Water Transport");
+    assertThat(names("units with standard seating")).containsExactlyInAnyOrder("St. Christopher Cargo Transport", "Hi-Scout Drone");
+    // troop space is the Infantry Compartment
+    unitService.persistUnits(fixtures("search/vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+    assertThat(search("units with an infantry compartment"))
+        .containsExactlyInAnyOrder("Badger (C) Tracked Transport A", "Cavalry Attack Helicopter (BA)");
   }
 
   @Test

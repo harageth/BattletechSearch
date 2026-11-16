@@ -1,6 +1,6 @@
 -- Names and terms for the support vehicles' equipment (db/data/V3_22, groups V3_23; user, 2026-11-15):
---   1. terms for the "infantry weapons" group, and its singular ("an infantry weapon"), as the slang load
---      makes them
+--   1. terms for the "infantry weapons" group and the transport bay groups, and their singulars ("an infantry
+--      weapon"), as the slang load makes them
 --   2. names shown the way V3_21 shows bracketed items (user, 2026-11-14 and 2026-11-15): a bracket holding a
 --      size or kind goes in front ("Support Laser (Heavy)" is the Heavy Support Laser), a chassis mod is a
 --      chassis ("Tractor Chassis"), and a comma inside a bracket, which a search can't type, goes ("Gauss
@@ -13,14 +13,22 @@
 -- Each step only changes what isn't done yet. Data migrations after V3_8 update what's stored; see the
 -- importers skill.
 
--- 1. A group's term points at the group and links no rows (as V3_18); only once something is in the group
+-- 1. A group's term points at the group and links no rows (as V3_18); only once something is in the group. A
+-- singular only where nothing has that name ("cargo bay" is the Cargo Bay)
 INSERT INTO slang (id, term, lookup, kind, equipment_group_id)
 SELECT gen_random_uuid(), v.term, v.lookup, v.kind, g.id
 FROM (VALUES
-    ('infantry weapons', 'infantryweapons', 'FAMILY'),
-    ('infantry weapon', 'infantryweapon', 'FAMILY_SINGULAR')
-) AS v (term, lookup, kind)
-JOIN equipment_group g ON g.name = 'infantry weapons'
+    ('infantry weapons', 'infantryweapons', 'FAMILY', 'infantry weapons'),
+    ('infantry weapon', 'infantryweapon', 'FAMILY_SINGULAR', 'infantry weapons'),
+    ('cargo bays', 'cargobays', 'FAMILY', 'cargo bays'),
+    ('infantry transport', 'infantrytransport', 'FAMILY', 'infantry transport'),
+    ('vehicle bays', 'vehiclebays', 'FAMILY', 'vehicle bays'),
+    ('vehicle bay', 'vehiclebay', 'FAMILY_SINGULAR', 'vehicle bays'),
+    ('seating', 'seating', 'FAMILY', 'seating'),
+    ('quarters', 'quarters', 'FAMILY', 'quarters'),
+    ('quarter', 'quarter', 'FAMILY_SINGULAR', 'quarters')
+) AS v (term, lookup, kind, group_name)
+JOIN equipment_group g ON g.name = v.group_name
 WHERE EXISTS (SELECT 1 FROM equipment_group_member m WHERE m.group_id = g.id)
   AND NOT EXISTS (SELECT 1 FROM slang s WHERE s.lookup = v.lookup);
 

@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -818,6 +819,54 @@ class ReadMegaMekTest {
     File zugvogel = fixture("support/Zugvogel Omni Support Aircraft A.blk");
     assertThat(ReadMegaMek.ReadVehicleBlk(zugvogel, problems.in(zugvogel))).isNull();
     assertThat(problems.counts()).containsEntry(ImportProblems.Kind.UNSUPPORTED_UNIT_TYPE, 1);
+  }
+
+  @Test
+  void readsEveryTransportBayInTons() throws IOException {
+    // one item per <transporters> line, in tons (Copilot on PR #26; user, 2026-11-15): not all an "infantry bay"
+    assertThat(bays(ReadMegaMek.ReadVehicleBlk(fixture("support/Dromedary Water Transport.blk"))))
+        .containsExactly(tuple("Cargo Bay", 4.0), tuple("Liquid Cargo Bay", 45.5));
+    // seats in tons: MegaMek's 0.075 per standard seat
+    assertThat(bays(ReadMegaMek.ReadVehicleBlk(fixture("support/St. Christopher Cargo Transport C1.blk"))))
+        .containsExactly(tuple("Cargo Bay", 8.55), tuple("Standard Seating", 0.45));
+    assertThat(bays(ReadMegaMek.ReadVehicleBlk(fixture("support/Hi-Scout Drone (NapFind).blk"))))
+        .containsExactly(tuple("Standard Seating", 0.075), tuple("Cargo Bay", 0.015));
+    // troop space is the Infantry Compartment; the battle armor handles every combat tank has aren't a bay
+    assertThat(bays(ReadMegaMek.ReadVehicleBlk(fixture("search/vehicles/Badger (C) Tracked Transport A.blk"))))
+        .containsExactly(tuple("Infantry Compartment", 5.0));
+  }
+
+  @Test
+  void transportBaysCountedInSomethingElseAreTurnedIntoTons() {
+    ImportProblems problems = new ImportProblems();
+    List<UnitEquipment> bays = ReadMegaMek.readTransporters(List.of(
+        "infantrybay:2.0:1:2:Foot:-1:0:omni",   // 2 foot platoons, 5 t each
+        "infantrybay:1.0:1:1:Jump:-1:0",        // 6 t a jump platoon
+        "battlearmorbay:3.0:1:3::-1:2",         // Clan: 3 x 2 x 5
+        "battlearmorbay:4.5:1:1::-1:0",         // Inner Sphere: 4.5 x 2 x 4
+        "lightvehiclebay:1.0:1:1::-1:0:omni",   // 50 t a vehicle
+        "pillionseats:5.0:0:-1::-1:0",
+        "2ndclassquarters:14.0:2:-1::-1:0",
+        "BattleArmorHandles - troopers:-1",
+        "mekbay:1.0:1:1::-1:0"), Tech.INNER_SPHERE, problems.in(new File("test.blk")));
+    assertThat(bays).extracting(bay -> bay.getEquipment().getDisplayName(), UnitEquipment::getTonnage, UnitEquipment::isOmniPod)
+        .containsExactly(
+            tuple("Infantry Compartment", 10.0, true),
+            tuple("Infantry Compartment", 6.0, false),
+            tuple("Infantry Compartment", 30.0, false),
+            tuple("Infantry Compartment", 36.0, false),
+            tuple("Light Vehicle Bay", 50.0, true),
+            tuple("Pillion Seating", 0.125, false),
+            tuple("Second Class Quarters", 14.0, false));
+    assertThat(bays).allSatisfy(bay -> assertThat(bay.getLocation()).isEqualTo(Location.BODY));
+    // a bay a vehicle can't have is reported, not stored
+    assertThat(problems.counts()).containsEntry(ImportProblems.Kind.UNKNOWN_TRANSPORTER, 1);
+  }
+
+  private static List<Tuple> bays(Unit unit) {
+    return unit.getMechEquipment().stream()
+        .filter(equip -> TransportBay.isBayName(equip.getEquipment().getName()))
+        .map(equip -> tuple(equip.getEquipment().getDisplayName(), equip.getTonnage())).toList();
   }
 
   @Test

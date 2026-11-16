@@ -21,7 +21,7 @@ public class UnitEquipment implements Searchable {
 
   @Enumerated(EnumType.STRING)
   Location location;
-  // the tons of a variable-size item (cargo, communications equipment) or infantry bay; else 0
+  // the tons of a variable-size item (cargo, communications equipment) or a vehicle bay (TransportBay); else 0
   double tonnage;
 
   @ManyToOne

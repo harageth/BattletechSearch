@@ -117,6 +117,9 @@ test('support or combat and a vehicle word are one unit', () => {
   assert.deepEqual(roles('combat tracked tanks').slice(0, 1), ['combat tracked tanks:unit']);
   // and still words of a name
   assert.deepEqual(roles('units with a support laser').slice(-1), ['support laser:equipment']);
+  // with no unit in front too (Copilot on PR #26)
+  assert.deepEqual(roles('support laser'), ['support laser:equipment']);
+  assert.deepEqual(roles('2 ppc and combat vehicle escape pod').slice(-1), ['combat vehicle escape pod:equipment']);
   // swapped whole, keeping the number
   const supports = { ...vocabulary, units: [...vocabulary.units, { singular: 'support vehicle', plural: 'support vehicles' }] };
   assert.deepEqual(texts(alternatives(token('support vehicles with 1 ppc', 'support vehicles'), supports)),

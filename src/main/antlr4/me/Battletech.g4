@@ -56,8 +56,10 @@ equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE
 // unit word too ("units with vehicle flamer", user 2026-11-15)
 bareName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
     | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY BRACKETED?)? ;
-// ...and starting a query with no unit, where it starts with a plain word (openingChunks)
-plainName: (WORD | TRIPLESTRENGTH) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
+// ...and starting a query with no unit, where it starts with a plain word (openingChunks); "support" and
+// "combat" are only a unit with a vehicle word after them, so "support laser" is a name (line tries the
+// unit first)
+plainName: (WORD | TRIPLESTRENGTH | SUPPORT | COMBAT) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
     | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)* (QUANTITY BRACKETED?)? ;
 // "omni mechs", "non-omni vehicles"
 omni: OMNI | NONOMNI ;

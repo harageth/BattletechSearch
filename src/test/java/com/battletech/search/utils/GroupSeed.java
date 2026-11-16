@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * The equipment group tree as the migrations write it, for tests without a database: its groups,
  * parents and (group, equipment name) members, read from the migration files. V3_17 writes the tree;
- * V3_20 and V3_23 add groups to it (the ammo groups, environmental sealing, infantry weapons), add items
+ * V3_20 and V3_23 add groups to it (the ammo groups, environmental sealing, infantry weapons, transport bays), add items
  * to groups and move items out of the group above into them, statement by statement.
  */
 public final class GroupSeed {
@@ -86,6 +86,8 @@ public final class GroupSeed {
 
   static List<Pair> members() {
     List<Pair> members = pairs(section(read(MIGRATION), "INSERT INTO equipment_group_member", null));
+    // db/data/V3_22 renames the troop space V3_17 calls the infantry bay, before V3_23 moves it
+    members.replaceAll(pair -> pair.other().equals("infantrybay") ? new Pair(pair.group(), "infantrycompartment") : pair);
     for (String statement : groupsStatements()) {
       if (statement.startsWith("INSERT INTO equipment_group_member")) {
         members.addAll(pairs(statement));

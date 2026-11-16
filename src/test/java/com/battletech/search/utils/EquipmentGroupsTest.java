@@ -135,13 +135,25 @@ class EquipmentGroupsTest {
   }
 
   @Test
+  void transportBaysHaveGroupsOfTheirOwn() {
+    // V3_23 (Copilot on PR #26): the cargo bays are cargo; the Infantry Compartment (the old "infantry bay")
+    // moved out of it
+    assertThat(groupsOf("refrigeratedcargobay")).containsExactly("cargo bays", "cargo");
+    assertThat(groupsOf("infantrycompartment")).containsExactly("infantry transport");
+    assertThat(groupsOf("pillionseating")).containsExactly("seating");
+    assertThat(groupsOf("secondclassquarters")).containsExactly("quarters");
+    assertThat(groupsOf("lightvehiclebay")).containsExactly("vehicle bays");
+    assertThat(TREE.everythingIn("cargo")).doesNotContain(ROWS.get("infantrycompartment").getId());
+  }
+
+  @Test
   void theTreeHangsTogether() {
     assertThat(TREE.top()).containsExactly(
         "missiles", "energy weapons", "ballistic weapons", "artillery", "physical weapons", "ams", "pods", "infantry weapons");
     // not weapons: their own section of the guide, and not in the search box's families
     assertThat(TREE.equipmentTop()).containsExactly("ammo", "ecm", "probes", "c3", "jump jets", "case", "myomers",
         "speed boosters", "stealth systems", "heat", "shields", "industrial equipment", "chassis mods", "drones", "cargo",
-        "medical");
+        "infantry transport", "vehicle bays", "seating", "quarters", "medical");
     // every group is under a top group of either section; ofGroups() checks the parents exist and there are no loops
     Set<String> reached = Stream.concat(TREE.top().stream(), TREE.equipmentTop().stream())
         .flatMap(top -> reachable(top).stream()).collect(Collectors.toSet());

@@ -111,18 +111,35 @@ public class ReadMegaMek {
       }
     });
 
-    if(value.get("transporters") != null && !value.get("transporters").get(0).isEmpty()){
-      Equipment equip = new Equipment("infantry bay", chassisTech);
-      equip.setDisplayName("Infantry Bay");
-      equip.setTonnage(0.5);
-      UnitEquipment infantryBay = new UnitEquipment();
-      infantryBay.setEquipment(equip);
-      infantryBay.setLocation(Location.BODY);
-      infantryBay.setTonnage(Double.parseDouble(value.get("transporters").get(0).split(":")[1]));
-      vee.setMechEquipment(Collections.singletonList(infantryBay));
+    if(value.get("transporters") != null) {
+      vee.setMechEquipment(readTransporters(value.get("transporters"), chassisTech, problems));
     }
 
     return vee;
+  }
+
+  /** One item per bay, with its tons (TransportBay); the battle armor handles aren't a bay. */
+  static List<UnitEquipment> readTransporters(List<String> lines, Tech chassisTech, ImportProblems.InFile problems) {
+    List<UnitEquipment> bays = new ArrayList<>();
+    for (String line : lines) {
+      if (line.isBlank() || TransportBay.isHandles(line)) {
+        continue;
+      }
+      TransportBay bay = TransportBay.of(line);
+      if (bay == null) {
+        problems.report(ImportProblems.Kind.UNKNOWN_TRANSPORTER, line.trim());
+        continue;
+      }
+      Equipment equip = new Equipment(bay.getDisplayName(), chassisTech);
+      equip.setDisplayName(bay.getDisplayName());
+      UnitEquipment item = new UnitEquipment();
+      item.setEquipment(equip);
+      item.setLocation(Location.BODY);
+      item.setOmniPod(TransportBay.isOmniPod(line));
+      item.setTonnage(bay.tons(line, chassisTech));
+      bays.add(item);
+    }
+    return bays;
   }
 
   static List<UnitEquipment> convertToEquipment(List<String> equipment, UnprefixedTech unprefixed, Location location,

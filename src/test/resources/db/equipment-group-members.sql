@@ -1,4 +1,5 @@
--- The equipment group members V3_17, V3_20 and V3_23 add, for test databases. Their equipment comes from the fixture
+-- The equipment group members V3_17, V3_20 and V3_23 add (with db/data/V3_22's infantry bay renamed
+-- infantry compartment), for test databases. Their equipment comes from the fixture
 -- imports, after the migrations ran, so they found nothing to put in the groups. SearchFixtures runs
 -- this once the fixtures are in. Keep it in step with the groups the migrations add.
 INSERT INTO equipment_group_member (group_id, equipment_id)
@@ -117,7 +118,6 @@ SELECT g.id, e.id FROM (VALUES
     ('c3i', 'novacombinedelectronicwarfaresystem(cews)'),
     ('cargo', 'bombbay'),
     ('cargo', 'cargo'),
-    ('cargo', 'infantrybay'),
     ('cargo', 'liquidstorage'),
     ('case', 'case'),
     ('case', 'caseii'),
@@ -488,7 +488,21 @@ SELECT g.id, e.id FROM (VALUES
     ('industrial equipment', 'ladder'),
     ('industrial equipment', 'bridgelayer(heavy)'),
     ('industrial equipment', 'fluidsuctionsystem(standard)'),
-    ('cargo', 'cargocontainer(10tons)')
+    ('cargo', 'cargocontainer(10tons)'),
+    ('cargo bays', 'cargobay'),
+    ('cargo bays', 'liquidcargobay'),
+    ('cargo bays', 'insulatedcargobay'),
+    ('cargo bays', 'refrigeratedcargobay'),
+    ('cargo bays', 'livestockcargobay'),
+    ('vehicle bays', 'lightvehiclebay'),
+    ('seating', 'standardseating'),
+    ('seating', 'pillionseating'),
+    ('seating', 'ejectionseating'),
+    ('quarters', 'crewquarters'),
+    ('quarters', 'steeragequarters'),
+    ('quarters', 'secondclassquarters'),
+    ('quarters', 'firstclassquarters'),
+    ('infantry transport', 'infantrycompartment')
 ) AS v (group_name, equipment_name)
 JOIN equipment_group g ON g.name = v.group_name
 JOIN equipment e ON e.name = v.equipment_name

@@ -9,8 +9,9 @@
 --     "autocannons" itself. Its ammo goes in "ammo".
 --   - support vehicle chassis mods, environmental sealing, industrial equipment and a cargo container join
 --     the groups the combat vehicle versions are in
+--   - the transport bays, at the end
 -- Fire control, satellite imagers, the field kitchen, lifeboat, pintle mount and handheld searchlight stay
--- ungrouped. The new group's term is db/data/V3_24.
+-- ungrouped. The new groups' terms are db/data/V3_24.
 
 -- the new group comes right after "pods", the last weapons group, on the guide
 UPDATE equipment_group SET position = position + 1 WHERE position > 57;
@@ -62,3 +63,54 @@ SELECT g.id, e.id FROM (VALUES
 ) AS v (group_name, equipment_name)
 JOIN equipment_group g ON g.name = v.group_name
 JOIN equipment e ON e.name = v.equipment_name;
+
+-- Transport bays (Copilot on PR #26; user, 2026-11-15): each bay on a vehicle is its own item, in tons
+-- (db/data/V3_22 and V3_25). The cargo bays go under "cargo"; the Infantry Compartment (the "Infantry Bay" until
+-- V3_22) moves out of "cargo" into a group of its own, and the vehicle bay, seating and quarters get theirs,
+-- after "cargo" on the guide.
+UPDATE equipment_group SET position = position + 5 WHERE position > 97;
+
+INSERT INTO equipment_group (id, name, section, position) VALUES
+    (gen_random_uuid(), 'cargo bays', NULL, 98),
+    (gen_random_uuid(), 'infantry transport', 'EQUIPMENT', 99),
+    (gen_random_uuid(), 'vehicle bays', 'EQUIPMENT', 100),
+    (gen_random_uuid(), 'seating', 'EQUIPMENT', 101),
+    (gen_random_uuid(), 'quarters', 'EQUIPMENT', 102);
+
+INSERT INTO equipment_group_parent (group_id, parent_id)
+SELECT g.id, p.id FROM (VALUES
+    ('cargo bays', 'cargo')
+) AS v (name, parent)
+JOIN equipment_group g ON g.name = v.name
+JOIN equipment_group p ON p.name = v.parent;
+
+INSERT INTO equipment_group_member (group_id, equipment_id)
+SELECT g.id, e.id FROM (VALUES
+    ('cargo bays', 'cargobay'),
+    ('cargo bays', 'liquidcargobay'),
+    ('cargo bays', 'insulatedcargobay'),
+    ('cargo bays', 'refrigeratedcargobay'),
+    ('cargo bays', 'livestockcargobay'),
+    ('vehicle bays', 'lightvehiclebay'),
+    ('seating', 'standardseating'),
+    ('seating', 'pillionseating'),
+    ('seating', 'ejectionseating'),
+    ('quarters', 'crewquarters'),
+    ('quarters', 'steeragequarters'),
+    ('quarters', 'secondclassquarters'),
+    ('quarters', 'firstclassquarters')
+) AS v (group_name, equipment_name)
+JOIN equipment_group g ON g.name = v.group_name
+JOIN equipment e ON e.name = v.equipment_name;
+
+WITH moved (group_name, equipment_name) AS (VALUES
+    ('infantry transport', 'infantrycompartment')
+), out_of_cargo AS (
+    DELETE FROM equipment_group_member m
+    USING equipment_group a, equipment e, moved
+    WHERE m.group_id = a.id AND a.name = 'cargo' AND m.equipment_id = e.id AND e.name = moved.equipment_name
+)
+INSERT INTO equipment_group_member (group_id, equipment_id)
+SELECT g.id, e.id FROM moved
+JOIN equipment_group g ON g.name = moved.group_name
+JOIN equipment e ON e.name = moved.equipment_name;

@@ -725,6 +725,14 @@ class QueryVisitorTest {
     // still words of a name
     assertThat(names(parse("units with a support laser"))).containsExactly("supportlaser");
     assertThat(names(parse("units with combat vehicle escape pod"))).containsExactly("combatvehicleescapepod");
+    // with no unit in front too, first or after "and" / "or" (Copilot on PR #26)
+    assertThat(names(parse("support laser"))).containsExactly("supportlaser");
+    assertThat(names(parse("combat vehicle escape pod"))).containsExactly("combatvehicleescapepod");
+    assertThat(names(parse("2 ppc and support laser"))).containsExactly("ppc", "supportlaser");
+    assertThat(names(parse("support laser or 2 ppc"))).containsExactly("supportlaser", "ppc");
+    // a vehicle word after it still makes a unit
+    assertThat(parse("support vehicles").getQuery()).contains("dtype IN ('SupportTank', 'SupportVtol')");
+    assertThat(names(parse("combat tanks with a support laser"))).containsExactly("supportlaser");
   }
 
   private static ComponentFilter component(UnitDecorator unit, int index) {
