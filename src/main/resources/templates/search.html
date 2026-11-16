@@ -12,6 +12,8 @@
         <form th:replace="~{fragments/search-form :: form}"></form>
 
         <p class="error" th:if="${error}" th:text="${error}"></p>
+        <p class="result-count" th:unless="${error}" th:with="count=${#lists.size(form.units)}"
+           th:text="${count == 1 ? '1 unit found' : #numbers.formatInteger(count, 1, 'COMMA') + ' units found'}"></p>
 
         <table th:object="${form}" class="table">
             <thead>
