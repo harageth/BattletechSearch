@@ -11,6 +11,7 @@ import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.services.SearchService;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -50,7 +51,21 @@ class SearchControllerTest {
         .andExpect(content().string(containsString("AWS-8Q")))
         .andExpect(content().string(containsString("<a href=\"https://www.sarna.net/wiki/Awesome#AWS-8Q\">Sarna Link</a>")))
         .andExpect(content().string(containsString("value=\"mechs with 2 ppc\"")))
+        .andExpect(content().string(containsString("1 unit found")))
         .andExpect(content().string(not(containsString("class=\"error\""))));
+  }
+
+  @Test
+  void countsTheResults() throws Exception {
+    List<Map<String, Object>> many = IntStream.range(0, 1248)
+        .mapToObj(i -> Map.<String, Object>of("name", "Unit", "designation", "U-" + i)).toList();
+    when(searchService.performQuery("tanks")).thenReturn(many);
+    when(searchService.performQuery("mechs with 9 ppc")).thenReturn(List.of());
+
+    mvc.perform(get("/search/").param("query", "tanks"))
+        .andExpect(content().string(containsString("1,248 units found")));
+    mvc.perform(get("/search/").param("query", "mechs with 9 ppc"))
+        .andExpect(content().string(containsString("0 units found")));
   }
 
   @Test
@@ -61,6 +76,8 @@ class SearchControllerTest {
     mvc.perform(get("/search/").param("query", "mechs with"))
         .andExpect(status().isOk())
         .andExpect(content().string(containsString("Unable to parse query at position 10")))
-        .andExpect(content().string(containsString("value=\"mechs with\"")));
+        .andExpect(content().string(containsString("value=\"mechs with\"")))
+        // a query that didn't parse found nothing; it wasn't searched
+        .andExpect(content().string(not(containsString("found"))));
   }
 }

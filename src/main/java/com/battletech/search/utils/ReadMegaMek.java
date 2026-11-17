@@ -1,6 +1,8 @@
 package com.battletech.search.utils;
 
 import com.battletech.search.entities.Equipment;
+import com.battletech.search.entities.SupportTank;
+import com.battletech.search.entities.SupportVtol;
 import com.battletech.search.entities.Tank;
 import com.battletech.search.entities.UnitEquipment;
 import com.battletech.search.entities.Vehicle;
@@ -52,15 +54,15 @@ public class ReadMegaMek {
     Map<String, List<String>> value = readBlkAllParameters(reader);
 
     String type = value.get("unittype").get(0);
-    /*
-    SupportTank
-    SupportVTOL
-    LargeSupportTank
-     */
+    // support vehicles too (user, 2026-11-15); a large one only has more sections. FixedWingSupport
+    // aircraft wait for an aircraft unit type
     if (type.equalsIgnoreCase("VTOL")) {
       vee = new Vtol();
-    } else if (type.equalsIgnoreCase("Tank")) {
-      Tank tank = new Tank();
+    } else if (type.equalsIgnoreCase("SupportVTOL")) {
+      vee = new SupportVtol();
+    } else if (type.equalsIgnoreCase("Tank") || type.equalsIgnoreCase("SupportTank")
+        || type.equalsIgnoreCase("LargeSupportTank")) {
+      Tank tank = type.equalsIgnoreCase("Tank") ? new Tank() : new SupportTank();
       String motion = first(value, "motion_type");
       tank.setMotiveSystem(motion == null ? null : MotiveSystem.fromString(motion));
       if(tank.getMotiveSystem() == null) {
@@ -109,18 +111,35 @@ public class ReadMegaMek {
       }
     });
 
-    if(value.get("transporters") != null && !value.get("transporters").get(0).isEmpty()){
-      Equipment equip = new Equipment("infantry bay", chassisTech);
-      equip.setDisplayName("Infantry Bay");
-      equip.setTonnage(0.5);
-      UnitEquipment infantryBay = new UnitEquipment();
-      infantryBay.setEquipment(equip);
-      infantryBay.setLocation(Location.BODY);
-      infantryBay.setTonnage(Double.parseDouble(value.get("transporters").get(0).split(":")[1]));
-      vee.setMechEquipment(Collections.singletonList(infantryBay));
+    if(value.get("transporters") != null) {
+      vee.setMechEquipment(readTransporters(value.get("transporters"), chassisTech, problems));
     }
 
     return vee;
+  }
+
+  /** One item per bay, with its tons (TransportBay); the battle armor handles aren't a bay. */
+  static List<UnitEquipment> readTransporters(List<String> lines, Tech chassisTech, ImportProblems.InFile problems) {
+    List<UnitEquipment> bays = new ArrayList<>();
+    for (String line : lines) {
+      if (line.isBlank() || TransportBay.isHandles(line)) {
+        continue;
+      }
+      TransportBay bay = TransportBay.of(line);
+      if (bay == null) {
+        problems.report(ImportProblems.Kind.UNKNOWN_TRANSPORTER, line.trim());
+        continue;
+      }
+      Equipment equip = new Equipment(bay.getDisplayName(), chassisTech);
+      equip.setDisplayName(bay.getDisplayName());
+      UnitEquipment item = new UnitEquipment();
+      item.setEquipment(equip);
+      item.setLocation(Location.BODY);
+      item.setOmniPod(TransportBay.isOmniPod(line));
+      item.setTonnage(bay.tons(line, chassisTech));
+      bays.add(item);
+    }
+    return bays;
   }
 
   static List<UnitEquipment> convertToEquipment(List<String> equipment, UnprefixedTech unprefixed, Location location,
@@ -154,11 +173,9 @@ public class ReadMegaMek {
         value.getEquipment().setDisplayName("Dumper");
         equip = "dumper";
       }
-      //sponson equipped
-      if(equip.contains("(st)")) {
-        equip = equip.split("\\(")[0].strip();
-        // add a sponson equipment if not already equipped?
-      }
+      // sponson (ST) and pintle (PT) turret mounts: only the note goes, so "flamer (vehicle)(st)" stays the
+      // vehicle flamer and "machine gun (light)(pt)" the light machine gun
+      equip = TURRET_MOUNT.matcher(equip).replaceAll("").strip();
       if(equip.contains("(i-os)") || equip.contains("(os)")) {
 
         equip = equip.split("\\(")[0].strip();
@@ -319,8 +336,11 @@ public class ReadMegaMek {
     vee.setEngineTech(clanEngine == null ? chassisTech
         : Boolean.parseBoolean(clanEngine) ? Tech.CLAN : Tech.INNER_SPHERE);
     String motion = first(value, "motion_type");
-    vee.setEngineRating(engineRating(vee.getEngineType(), vee.getMovement().getWalk(),
-        Double.parseDouble(value.get("tonnage").get(0)), motion == null ? null : MotiveSystem.fromString(motion)));
+    double tonnage = Double.parseDouble(value.get("tonnage").get(0));
+    vee.setEngineRating(vee instanceof SupportTank || vee instanceof SupportVtol
+        ? supportEngineRating(vee.getMovement().getWalk(), tonnage)
+        : engineRating(vee.getEngineType(), vee.getMovement().getWalk(), tonnage,
+            motion == null ? null : MotiveSystem.fromString(motion)));
 
     String armorCode = first(value, "armor_type");
     vee.setArmorType(ArmorType.fromCode(armorCode == null ? 0 : Integer.parseInt(armorCode)));
@@ -355,6 +375,14 @@ public class ReadMegaMek {
     }
     int rating = Math.max(10, cruiseMp * (int) tonnage - suspensionFactor(motive, tonnage));
     return rating % 5 == 0 ? rating : rating + 5 - rating % 5;
+  }
+
+  /**
+   * MegaMek's support vehicle engine rating (Engine.getRating(Entity)): cruise MP x tonnage, fractional
+   * tonnage kept, no suspension factor, at most 500; rounded to a whole number here.
+   */
+  static int supportEngineRating(int cruiseMp, double tonnage) {
+    return (int) Math.round(Math.min(500, cruiseMp * tonnage));
   }
 
   /** MegaMek's Tank.getSuspensionFactor. */
@@ -578,6 +606,8 @@ public class ReadMegaMek {
 
   // How a slot is mounted, not what's in it; (T) is turret-mounted
   private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  // A vehicle weapon on a sponson (ST) or pintle (PT) turret, MegaMek's BLKFile; at the end of the name
+  private static final Pattern TURRET_MOUNT = Pattern.compile("\\s*\\((st|pt)\\)\\s*$", Pattern.CASE_INSENSITIVE);
   // A dumper says which way it dumps, "Dumper (Rear)", "Dumper (Right):OMNI": all are the Dumper, and
   // a rear one is rear-facing. Each takes one slot, so a mech with two has two.
   private static final Pattern DUMPER = Pattern.compile("dumper\\s*\\((front|rear|left|right)\\)", Pattern.CASE_INSENSITIVE);

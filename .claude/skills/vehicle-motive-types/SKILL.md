@@ -11,11 +11,13 @@ MegaMek's `<motion_type>` is imported for tanks and searchable. (The V2 baseline
 
 The user decided on 2026-10-27 that `tank` means **every ground vehicle**: every `Tank` row (dtype `Tank`) but not VTOLs. `tracked`, `wheeled` and `hovercraft` narrow it down.
 
-MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those aren't ground vehicles, plain `tank` excludes them (`MotiveSystem.WATER`). Rows with no motive type stay included (there are none since the baseline was removed). That exclusion was my reading of "ground vehicles"; the user hasn't confirmed it. `vehicle` still means every Tank and VTOL, boats included.
+**Support vehicles count** (user, 2026-11-15): a `SupportTank` (dtype `SupportTank`, a subclass of `Tank`) is a tank, so `tank` / `tracked` / `wheeled` / `hovercraft` cover dtypes `Tank` and `SupportTank`, `vtol` covers `Vtol` and `SupportVtol`, and `vehicle` all four. `support tanks` and `combat tanks` narrow to one of them (`UnitDecorator.vehicleClass`; query-grammar skill).
+
+MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those aren't ground vehicles, plain `tank` excludes them (`MotiveSystem.WATER`). Rows with no motive type stay included (there are none since the baseline was removed). That exclusion was my reading of "ground vehicles"; the user hasn't confirmed it. `vehicle` still means every Tank and VTOL, boats included. Support vehicles include more boats, rail vehicles and the like (Rail 8, Hydrofoil 7, ...), with the same rule.
 
 ## How it works
 
-- **Schema:** `V3_1__vehicle_motive_system.sql` adds `unit.motive_system` (varchar, enum name; only set for dtype `Tank`).
+- **Schema:** `V3_1__vehicle_motive_system.sql` adds `unit.motive_system` (varchar, enum name; only set for dtypes `Tank` and `SupportTank`).
 - **Entity:** `Tank.motiveSystem` (`@Enumerated(STRING)`). `entities/Vehicle.java` isn't an `@Entity` / `@MappedSuperclass`, so fields there aren't persisted. VTOLs don't store one; they're always VTOL.
 - **Enum:** `model/MotiveSystem`: Tracked, Wheeled, Hover, VTOL, Naval, Hydrofoil, Submarine, WiGE, Aerodyne, Rail. Stored by name, so new values can go anywhere. `fromString` is case-insensitive.
 - **Importer:** `ReadVehicleBlk` maps `motion_type`; unknown values are logged and stored as null. At the pinned mm-data commit every tank's value is recognized (Tracked 572, Hover 328, Wheeled 314, WiGE 36, Submarine 15, Naval 9, Aerodyne 9, Rail 8, Hydrofoil 7, across Tank and support types).
@@ -32,4 +34,3 @@ MegaMek also files boats as `Tank` (Naval, Hydrofoil, Submarine). Since those ar
 ## Ideas not done
 
 - Tokens for WiGE / naval / submarine / hydrofoil searches.
-- Motive type for support vehicles, which aren't imported yet (importers skill, bug 13).

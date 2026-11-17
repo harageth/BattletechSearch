@@ -12,6 +12,7 @@ import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.ImportProblems;
 import com.battletech.search.utils.ReadMegaMek;
 import com.battletech.search.utils.ReadPDF;
+import com.battletech.search.utils.TransportBay;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -96,7 +97,7 @@ public class UnitService {
     }
     int[] counts = new int[4]; // added, updated, skipped, failed
     ImportProblems problems = new ImportProblems();
-    // reported once each; most are expected (Artemis-capable ammo, infantry bays)
+    // reported once each; most are expected (Artemis-capable ammo)
     Set<String> unknownNames = new HashSet<>();
     try (Stream<Path> files = Files.walk(Paths.get(directory))) {
       files.filter(file -> file.toString().endsWith(extension)).forEach(file -> {
@@ -116,7 +117,9 @@ public class UnitService {
           }
           for (UnitEquipment equip : unit.getMechEquipment()) {
             String name = equip.getEquipment().getName();
-            if (!EquipmentNames.isKnown(name) && unknownNames.add(EquipmentNames.normalize(name))) {
+            // the reader names the bays itself (TransportBay)
+            if (!EquipmentNames.isKnown(name) && !TransportBay.isBayName(name)
+                && unknownNames.add(EquipmentNames.normalize(name))) {
               fileProblems.report(ImportProblems.Kind.UNKNOWN_EQUIPMENT_NAME, name);
             }
           }

@@ -46,7 +46,14 @@ public final class QueryVocabulary {
       new UnitWord("quad", "quads"),
       new UnitWord("tripod", "tripods"),
       new UnitWord("lam", "lams"),
-      new UnitWord("quadvee", "quadvees"));
+      new UnitWord("quadvee", "quadvees"),
+      // vehicle words mean support and combat vehicles both; these narrow them (user, 2026-11-15)
+      new UnitWord("support vehicle", "support vehicles"),
+      new UnitWord("support tank", "support tanks"),
+      new UnitWord("support vtol", "support vtols"),
+      new UnitWord("combat vehicle", "combat vehicles"),
+      new UnitWord("combat tank", "combat tanks"),
+      new UnitWord("combat vtol", "combat vtols"));
   // in front of the unit word: "omni mechs", "non-omni vehicles"
   static final List<String> OMNI_WORDS = List.of("omni", "non-omni");
   // before the quantity ("at least 2") and after it ("2 or more"); the grammar takes either anywhere,

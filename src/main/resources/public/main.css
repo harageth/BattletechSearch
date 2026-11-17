@@ -210,6 +210,15 @@ main a {
 	color: var(--error-text);
 }
 
+.result-count {
+	flex-basis: 100%;
+	margin: 20px 0 0;
+	font-weight: bold;
+}
+.result-count + table {
+	margin-top: 10px;
+}
+
 .hint {
 	margin: 10px 0 0;
 	font-size: 90%;

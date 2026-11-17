@@ -51,14 +51,16 @@ ratingChunk: QUANTITY? WORD RATING (comparator? QUANTITY | QUANTITY comparator) 
 // bracketed part is one word ("flamer (vehicle)", "machine gun ammo [half]", "lrm 20 (os)"), and so is
 // "triple strength" (TSM; "triple" is a number otherwise).
 equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
-    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY BRACKETED?)? ;
 // A name with no number in front, after "with", "and" or "or": past the unit, so it can start with a
 // unit word too ("units with vehicle flamer", user 2026-11-15)
 bareName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
-    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)+ (QUANTITY BRACKETED?)? ;
-// ...and starting a query with no unit, where it starts with a plain word (openingChunks)
-plainName: (WORD | TRIPLESTRENGTH) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
-    | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH)* (QUANTITY BRACKETED?)? ;
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY BRACKETED?)? ;
+// ...and starting a query with no unit, where it starts with a plain word (openingChunks); "support" and
+// "combat" are only a unit with a vehicle word after them, so "support laser" is a name (line tries the
+// unit first)
+plainName: (WORD | TRIPLESTRENGTH | SUPPORT | COMBAT) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
+    | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)* (QUANTITY BRACKETED?)? ;
 // "omni mechs", "non-omni vehicles"
 omni: OMNI | NONOMNI ;
 // "ultra light", "medium or heavy", "light, medium, or heavy": a unit in any of them; "and" reads the
@@ -67,7 +69,10 @@ weightClasses: weightClass ((COMMA | COMMA? logicaloperator) weightClass)* ;
 weightClass: WORD+ ;
 // A motive type alone or before a vehicle word: "tracked", "tracked vehicles", "tracked vees", "hover
 // tanks"; "vtol vehicles" too. The first word decides (QueryVisitor.visitUnit).
-unit: GENERICUNIT | MECH | VEHICLE | VTOL VEHICLE? | TANK | (WHEELED | TRACKED | HOVERCRAFT) (VEHICLE | TANK)?
+// "support" / "combat" narrow a vehicle word to support or combat vehicles (user, 2026-11-15); without
+// either it means both
+unit: GENERICUNIT | MECH
+    | (SUPPORT | COMBAT)? (VEHICLE | VTOL VEHICLE? | TANK | (WHEELED | TRACKED | HOVERCRAFT) (VEHICLE | TANK)?)
     | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH ;
 comparator: ATLEAST | EQUAL | LESSTHANCOMPARATOR | GREATERTHANCOMPARATOR | NOMORE ;
 // "but" is "and": "with 2 ppc but no lasers"
@@ -132,6 +137,9 @@ QUADVEE: QUADVEEWORD S* ;
 QUAD: QUADWORD S* ;
 TRIPOD: TRIPODWORD S* ;
 LAM: LAMWORD S* ;
+// in front of a vehicle word: "support vehicles", "combat tanks"
+SUPPORT: S U P P O R T ;
+COMBAT: C O M B A T ;
 fragment MECHWORD: M E C H ;
 fragment VEHICLEWORD: V E H I C L E | V E E ;
 fragment VTOLWORD: V T O L | H E L I C O P T E R | H E L O ;

@@ -32,9 +32,9 @@ import lombok.extern.slf4j.Slf4j;
 public final class EquipmentNames {
   public static final String ALIASES = "/megamek/equipment-aliases.tsv";
 
-  // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret.
-  // Annotations that name a different item, like "(Vehicle)" or "(B-Pods)", are kept.
-  private static final Pattern MOUNTING = Pattern.compile("\\s*\\((r|os|i-os|ios|st)\\)", Pattern.CASE_INSENSITIVE);
+  // how a weapon is mounted, not what it is: rear-facing, one-shot, improved one-shot, sponson turret,
+  // pintle turret. Annotations that name a different item, like "(Vehicle)" or "(B-Pods)", are kept.
+  private static final Pattern MOUNTING = Pattern.compile("\\s*\\((r|os|i-os|ios|st|pt)\\)", Pattern.CASE_INSENSITIVE);
   // "Gauss Rifle Ammo [Clan]", "Ammo LRM-20 (Clan) Artemis-capable": a tech tag. The name drops it
   // (tech is stored separately).
   private static final Pattern TECH_SUFFIX = Pattern.compile("\\s*[\\[(](is|clan)[\\])]", Pattern.CASE_INSENSITIVE);
@@ -50,6 +50,12 @@ public final class EquipmentNames {
   }
 
   private static final AliasTable TABLE = loadAliases();
+
+  // MegaMek's infantry / battle armor versions a support vehicle mounts, stored as the vehicle weapon they
+  // match (user, 2026-11-15): "Machine Gun (Light)" is the Light Machine Gun, "Flamer (Heavy)" the Heavy Flamer
+  private static final Map<String, String> SAME_ITEM = Map.of(
+      "machinegun(light)", "lightmachinegun",
+      "flamer(heavy)", "heavyflamer");
 
   private EquipmentNames() {
   }
@@ -90,7 +96,10 @@ public final class EquipmentNames {
       // "ISAC20" as MegaMek writes it, prefix still on
       canonical = TABLE.aliases().get(slangKey(stripTechPrefix(unmounted)));
     }
-    return canonical != null ? canonical : normalize(name);
+    if (canonical == null) {
+      canonical = normalize(name);
+    }
+    return SAME_ITEM.getOrDefault(canonical, canonical);
   }
 
   /**

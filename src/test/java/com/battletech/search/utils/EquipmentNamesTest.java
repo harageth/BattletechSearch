@@ -43,6 +43,18 @@ class EquipmentNamesTest {
   }
 
   @Test
+  void supportVehicleVersionsAreTheVehicleWeapon() {
+    // MegaMek has its own infantry / battle armor items; they're stored as the vehicle weapon (user, 2026-11-15)
+    assertThat(EquipmentNames.canonical("Machine Gun (Light)")).isEqualTo("lightmachinegun");
+    assertThat(EquipmentNames.canonical("InfantryLMG")).isEqualTo("lightmachinegun");
+    assertThat(EquipmentNames.canonical("Flamer (Heavy)")).isEqualTo("heavyflamer");
+    assertThat(EquipmentNames.displayName("Machine Gun (Light)")).isEqualTo("Light Machine Gun");
+    assertThat(EquipmentNames.displayName("Flamer (Heavy)")).isEqualTo("Heavy Flamer");
+    // the other infantry machine guns stay their own items
+    assertThat(EquipmentNames.canonical("Machine Gun (Support)")).isEqualTo("machinegun(support)");
+  }
+
+  @Test
   void stripsTechSuffixesBeforeTheLookup() {
     assertThat(EquipmentNames.canonical("Gauss Rifle Ammo [Clan]")).isEqualTo("gaussrifleammo");
     assertThat(EquipmentNames.canonical("Anti-Missile System Ammo [IS]")).isEqualTo(EquipmentNames.canonical("IS Ammo AMS"));

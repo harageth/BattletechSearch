@@ -85,9 +85,7 @@ public final class ComponentNames {
     texts.forEach((kind, byType) -> {
       List<String> names = new ArrayList<>();
       byType.forEach((type, text) -> {
-        // BAR armor isn't searchable yet: no imported unit has it (nearly all are support vehicles,
-        // not imported), and "bar 2 armor" can't parse with a number mid-name. Planned as a rating
-        // like the engine's ("bar rating of at least 7")
+        // BAR armor is one name below: "bar 2 armor" can't parse with a number mid-name
         if (text.equalsIgnoreCase("none") || type.startsWith("BAR_")) {
           return;
         }
@@ -106,6 +104,13 @@ public final class ComponentNames {
           add(bare, component);
         }
       });
+      if (kind == Kind.ARMOR) {
+        // "bar armor" is any barrier armor (support vehicles); its rating is searched like the engine's
+        // ("a bar rating of at least 7", BarRatingFilter)
+        List<String> bars = byType.keySet().stream().filter(type -> type.startsWith("BAR_")).toList();
+        names.add("bar armor");
+        add("bar armor", new Component(kind, "bar armor", bars));
+      }
       NAMES.put(kind, List.copyOf(names));
     });
     // MegaMek's "Fusion" is the standard engine
