@@ -38,6 +38,33 @@ public class QueryParser {
     return (Unit) visitor.visitQuery(parser.query());
   }
 
+  /**
+   * Where the grammar first stops taking the query, as a character offset: the word it didn't expect, or the
+   * query's length if it ends too soon; -1 if the grammar takes it all. Autocorrect tries moving the words there.
+   * Nothing is looked up, so a name that isn't equipment still counts as taken.
+   */
+  public static int syntaxErrorAt(String query) {
+    int[] at = {-1};
+    BaseErrorListener first = new BaseErrorListener() {
+      @Override
+      public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
+          int charPositionInLine, String msg, RecognitionException e) {
+        if (at[0] < 0) {
+          at[0] = !(offendingSymbol instanceof Token token) ? charPositionInLine
+              : token.getType() == Token.EOF ? query.length() : token.getStartIndex();
+        }
+      }
+    };
+    BattletechLexer lexer = new BattletechLexer(CharStreams.fromString(query));
+    lexer.removeErrorListeners();
+    lexer.addErrorListener(first);
+    BattletechParser parser = new BattletechParser(new CommonTokenStream(lexer));
+    parser.removeErrorListeners();
+    parser.addErrorListener(first);
+    parser.query();
+    return at[0];
+  }
+
   /** Throws on the first error, translating ANTLR's message into something a user can act on. */
   static class ThrowingErrorListener extends BaseErrorListener {
     static final ThrowingErrorListener INSTANCE = new ThrowingErrorListener();

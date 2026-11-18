@@ -1,5 +1,6 @@
 package com.battletech.search.web;
 
+import com.battletech.search.autocorrect.Autocorrect;
 import com.battletech.search.model.dto.SearchResultsDTO;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.services.SearchService;
@@ -19,9 +20,11 @@ import org.springframework.web.servlet.ModelAndView;
 @RequestMapping("/")
 public class SearchController {
   private final SearchService searchService;
+  private final Autocorrect autocorrect;
 
-  public SearchController(SearchService searchService) {
+  public SearchController(SearchService searchService, Autocorrect autocorrect) {
     this.searchService = searchService;
+    this.autocorrect = autocorrect;
   }
 
   @GetMapping("/")
@@ -42,6 +45,11 @@ public class SearchController {
       }
     } catch (FailedParseException e) {
       modelAndView.addObject("error", e.getMessage());
+      // "Did you mean ...?", a link to search it; never searched for the user (user, 2026-11-18)
+      String suggestion = autocorrect.suggest(query).getQuery();
+      if (suggestion != null) {
+        modelAndView.addObject("suggestion", suggestion);
+      }
     }
 
     modelAndView.addObject("form", dto);

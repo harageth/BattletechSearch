@@ -6,10 +6,15 @@
 // The "+ unit" / "+ weapon" buttons add a section of blanks ("<comparator> <quantity> <weapon>"). Each
 // blank's list opens in turn, and the search runs once the last is filled. Escape, or searching early,
 // leaves the rest as their defaults.
-import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY, withDefaults } from './query-analysis.js';
+//
+// When you stop typing, a query that doesn't parse is sent to /api/suggestions (autocorrect, on the
+// server): a word it has spellings for is underlined, and its list offers them first.
+import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY, withDefaults } from './query-analysis.js';
 
 let vocabulary = EMPTY_VOCABULARY;
 const editors = [];
+// how long typing has to stop before asking for spellings
+const SUGGEST_AFTER_MS = 500;
 
 fetch('/api/vocabulary')
   .then(response => (response.ok ? response.json() : null))
@@ -29,6 +34,9 @@ class QueryEditor {
     this.menuToken = null;
     this.active = -1;
     this.composing = false;
+    // the server's spellings, for the text they were asked for
+    this.suggested = { text: null, words: [] };
+    this.suggestTimer = null;
 
     this.wrapper = document.createElement('div');
     this.wrapper.className = 'query-editor';
@@ -260,6 +268,35 @@ class QueryEditor {
     this.render(start + clean.length);
   }
 
+  // the misspelled words the server found in the text as it is now
+  misspelledWords() {
+    return this.suggested.text === this.text ? this.suggested.words : [];
+  }
+
+  /**
+   * Once typing stops, asks the server what a query that doesn't parse may have meant, and redraws with its
+   * misspelled words underlined. Not for blanks a template left ("<quantity>"), which aren't typos.
+   */
+  askForSpellings(text) {
+    clearTimeout(this.suggestTimer);
+    if (text.trim() === '' || text === this.suggested.text || /<[^>]*>/.test(text)) {
+      return;
+    }
+    this.suggestTimer = setTimeout(() => {
+      fetch(`/api/suggestions?query=${encodeURIComponent(text)}`)
+        .then(response => (response.ok ? response.json() : null))
+        .then(found => {
+          // only if the text hasn't changed since
+          if (found && this.text === text) {
+            this.suggested = { text, words: found.words ?? [] };
+            this.refresh();
+          }
+        })
+        // without them the box works as before
+        .catch(() => {});
+    }, SUGGEST_AFTER_MS);
+  }
+
   /**
    * Colors the query again with the word lists once they load, keeping the selection. Not while an
    * IME is composing: redrawing would drop the text not yet committed, and compositionend redraws.
@@ -280,6 +317,7 @@ class QueryEditor {
     const text = this.text;
     const { tokens, error } = analyze(text, vocabulary);
     this.tokens = tokens;
+    const misspelled = this.misspelledWords();
     const parts = [];
     let at = 0;
     tokens.forEach((token, index) => {
@@ -292,7 +330,9 @@ class QueryEditor {
       }
       const span = document.createElement('span');
       span.className = `tok tok-${token.role}`;
-      if (isQuantity(token) || alternatives(token, vocabulary).length > 0) {
+      if (suggestedAlternatives(token, text, misspelled).length > 0) {
+        span.classList.add('tok-misspelled', 'tok-swappable');
+      } else if (isQuantity(token) || alternatives(token, vocabulary).length > 0) {
         span.classList.add('tok-swappable');
       }
       span.dataset.index = String(index);
@@ -310,6 +350,7 @@ class QueryEditor {
     });
     // an incomplete query isn't wrong yet while you're still typing it, so only say so on hover
     this.field.title = error && text.trim() !== '' ? 'Not a complete search yet' : '';
+    this.askForSpellings(text);
     if (caret !== null && document.activeElement === this.field) {
       setCaret(this.field, caret);
     }
@@ -357,7 +398,10 @@ class QueryEditor {
       this.openNumberBox(token, span);
       return;
     }
-    const options = token ? alternatives(token, vocabulary) : [];
+    // a misspelled word's spellings first
+    const options = token
+      ? [...suggestedAlternatives(token, this.text, this.misspelledWords()), ...alternatives(token, vocabulary)]
+      : [];
     if (options.length === 0 || !span) {
       this.closeMenu();
       return;

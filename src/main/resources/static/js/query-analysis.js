@@ -419,6 +419,20 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
   }
 }
 
+/**
+ * The server's spellings (GET /api/suggestions, autocorrect) for the misspelled words inside a token, as
+ * options that replace just that word: in "mediun lasers", "medium" gives "medium lasers". Empty when the
+ * token holds no misspelled word.
+ */
+export function suggestedAlternatives(token, text, words = []) {
+  return words
+      .filter(word => word.start >= token.start && word.stop <= token.stop)
+      .flatMap(word => word.suggestions.map(suggestion => ({
+        label: suggestion,
+        text: text.slice(token.start, word.start) + suggestion + text.slice(word.stop, token.stop),
+      })));
+}
+
 // A name with no number starting a query with no unit has to start with a plain word, so "small cockpit"
 // can't become "tripod cockpit" (read as tripods): a swap starting with a unit word gets "any" ("any
 // tripod cockpit"), which still means at least one. After "with" it needn't (user, 2026-11-15).

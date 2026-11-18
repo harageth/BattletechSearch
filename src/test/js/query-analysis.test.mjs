@@ -2,7 +2,7 @@
 // scripts next to the parser it generates from the grammar.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, alternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY, withDefaults } from '../../../target/classes/static/js/query-analysis.js';
+import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY, withDefaults } from '../../../target/classes/static/js/query-analysis.js';
 
 // the shape GET /api/vocabulary returns, cut down
 const vocabulary = {
@@ -169,6 +169,25 @@ test('a leading tech word, then a fire control, then the equipment', () => {
   assert.deepEqual(roles('mechs with 2 artemis lrm ammo').slice(3), ['artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 clan artemis lrm ammo').slice(3), ['clan:tech', 'artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 artemis lrm ammos').slice(3), ['artemis lrm ammos:equipment']);
+});
+
+test("the server's spellings replace just the misspelled word in a token", () => {
+  // what GET /api/suggestions returns for the query (autocorrect)
+  const query = 'hevy mechs with 2 mediun lasers';
+  const words = [
+    { start: 0, stop: 4, text: 'hevy', suggestions: ['heavy'] },
+    { start: 18, stop: 24, text: 'mediun', suggestions: ['medium', 'median'] },
+  ];
+  const { tokens } = analyze(query, vocabulary);
+  const options = token => suggestedAlternatives(tokens.find(t => t.text === token), query, words);
+  assert.deepEqual(options('hevy'), [{ label: 'heavy', text: 'heavy' }]);
+  assert.deepEqual(options('mediun lasers'), [
+    { label: 'medium', text: 'medium lasers' },
+    { label: 'median', text: 'median lasers' },
+  ]);
+  assert.deepEqual(options('mechs'), []);
+  assert.equal(replaceToken(query, tokens.find(t => t.text === 'mediun lasers'), 'medium lasers').text,
+      'hevy mechs with 2 medium lasers');
 });
 
 test('a number before "ammo" is part of the name', () => {
