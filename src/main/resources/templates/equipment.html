@@ -192,6 +192,14 @@
                         <td class="guide-example"><code>mechs with an artemis lrm 20</code><br><code>mechs with clan artemis v srm 6</code></td>
                     </tr>
                     <tr>
+                        <td>Mount</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${turretMounts}" th:text="${word}">turret</code></span>
+                            <p class="hint">In front of the name, after any tech: only ones in a turret (a vehicle's, a VTOL's chin turret, a mech's head, shoulder or quad turret), on a sponson or on a pintle mount.</p>
+                        </td>
+                        <td class="guide-example"><code>tanks with a turret lrm 20</code><br><code>vehicles with at least 2 sponson machine guns</code><br><code>mechs with a clan turret er ppc</code></td>
+                    </tr>
+                    <tr>
                         <td>Group</td>
                         <td>
                             <ul class="guide-groups">

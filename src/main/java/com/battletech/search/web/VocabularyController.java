@@ -7,6 +7,7 @@ import com.battletech.search.entities.Slang;
 import com.battletech.search.model.FireControl;
 import com.battletech.search.model.SlangKind;
 import com.battletech.search.model.Tech;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.repositories.EquipmentGroupRepository;
 import com.battletech.search.repositories.EquipmentRepository;
 import com.battletech.search.repositories.SlangRepository;
@@ -24,6 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -60,12 +62,14 @@ public class VocabularyController {
    * @param omniWords "omni", "non-omni", in front of a unit word
    * @param components component kind ("engine") -> its types as typed ("xl engine", ...)
    * @param fireControlTerms terms that start with a fire control word, read whole ("artemis lrm ammo")
+   * @param turretMounts "turret", "sponson", "pintle", in front of a weapon
+   * @param turretMountTerms terms that start with a mount word, read whole ("sponson turret", "pintle mount")
    */
   public record Vocabulary(List<String> weightClasses, List<UnitWord> units,
       List<String> comparatorsBefore, List<String> comparatorsAfter, List<String> operators,
       List<String> withWords, Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
       Map<String, List<String>> equipment, List<String> omniWords, Map<String, List<String>> components,
-      List<String> fireControlTerms) {
+      List<String> fireControlTerms, List<String> turretMounts, List<String> turretMountTerms) {
   }
 
   @GetMapping("/api/vocabulary")
@@ -95,21 +99,23 @@ public class VocabularyController {
         searchable.forEach(member -> equipment.computeIfAbsent(member, k -> new ArrayList<>()).add(family.getTerm()));
       }
     }
+    // terms that start with a fire control or mount word but are looked up whole, as QueryVisitor does:
+    // "artemis lrm ammo" is a group of ammo bins (V3_20), not Artemis on "lrm ammo"; "sponson turret" is
+    // the Vehicular Sponson Turret, not a sponson-mounted "turret"
+    List<Slang> allTerms = slangRepo.findByKindIn(EnumSet.allOf(SlangKind.class));
     Vocabulary vocabulary = new Vocabulary(QueryVocabulary.weightClasses(), QueryVocabulary.units(),
         QueryVocabulary.comparatorsBefore(), QueryVocabulary.comparatorsAfter(),
         QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
-        families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components(), fireControlTerms());
+        families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components(),
+        startingWith(allTerms, lookup -> FireControl.fromSearch(lookup) != null),
+        QueryVocabulary.turretMounts(), startingWith(allTerms, lookup -> TurretMount.fromSearch(lookup) != null));
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);
   }
 
-  /**
-   * Terms that start with a fire control word but are looked up whole, as QueryVisitor does: "artemis
-   * lrm ammo" is a group of ammo bins (V3_20), not Artemis on "lrm ammo".
-   */
-  private List<String> fireControlTerms() {
-    return slangRepo.findByKindIn(EnumSet.allOf(SlangKind.class)).stream()
-        .filter(term -> FireControl.fromSearch(term.getLookup()) != null)
+  // the terms whose lookup starts with a prefix word, as typed
+  private static List<String> startingWith(List<Slang> terms, Predicate<String> prefixed) {
+    return terms.stream().filter(term -> prefixed.test(term.getLookup()))
         .map(Slang::getTerm).distinct().sorted().toList();
   }
 

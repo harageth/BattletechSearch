@@ -1,6 +1,6 @@
 ---
 name: pull-requests
-description: Use when opening, updating or merging a pull request for this repo, or replying to its review comments. Always request a Copilot review when opening a PR (user rule). Covers the order of git/gh commands, the PR body, and merging with a merge commit.
+description: Use when opening, updating or merging a pull request for this repo, or replying to its review comments. Review the diff yourself before opening a PR; don't request a Copilot review (user rule). Covers the order of git/gh commands, the PR body, and merging with a merge commit.
 ---
 
 # Pull requests
@@ -9,20 +9,13 @@ description: Use when opening, updating or merging a pull request for this repo,
 
 Only when the user asks to commit, push or open a PR. Work happens on a branch off `master`, never on `master` itself.
 
-1. **Run the whole suite first:** `./mvnw test` (Java and JS; the build fails on a JS failure). Say in the PR's test plan what ran and what was checked by hand.
-2. **Commit, push, and open the PR as separate commands.** Auto mode denies them chained into one command.
+1. **Review the whole diff yourself first** (user rule, 2026-11-17, replacing the Copilot review): read every changed line for bugs, server/search-box mismatches, migrations that don't match what the importer writes, wasted work and leftover comments. Fix what you find, and say in the PR body what the review found.
+2. **Run the whole suite:** `./mvnw test` (Java and JS; the build fails on a JS failure). Say in the PR's test plan what ran and what was checked by hand.
+3. **Commit, push, and open the PR as separate commands.** Auto mode denies them chained into one command.
    - `git add -A`, then check `git status --short` for stray files (scratch output belongs in the scratchpad, not the repo).
    - `git commit`, then `git push -u origin <branch>`.
    - `gh pr create --base master --head <branch> --title ... --body-file -`.
-3. **Always request a Copilot review** (user rule, 2026-10-31). It isn't automatic on this repo:
-   ```
-   gh pr edit <number> --add-reviewer @copilot
-   ```
-   - `gh pr view --json reviewRequests` and `pulls/<n>/requested_reviewers` don't list Copilot. To check the request went through, look at the timeline:
-     ```
-     gh api repos/harageth/BattletechSearch/issues/<n>/timeline --jq '.[] | select(.event=="review_requested") | .requested_reviewer.login'
-     ```
-     It should print `Copilot`.
+4. **Don't request a Copilot review** (user, 2026-11-17: "let's not request copilot review. You need to do that yourself"). PRs up to #26 had one; earlier review threads may still need the user to resolve them.
 
 ## The PR body
 

@@ -3,6 +3,7 @@ package com.battletech.search.entities;
 import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Location;
 import com.battletech.search.model.Searchable;
+import com.battletech.search.model.TurretMount;
 import java.util.UUID;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -29,7 +30,9 @@ public class UnitEquipment implements Searchable {
 
   boolean omniPod;
   boolean rearFacing;
-  boolean turretEquipped;
+  // a turret, sponson or pintle the item is mounted on; null for everything else
+  @Enumerated(EnumType.STRING)
+  TurretMount turretMount;
 
   // Artemis / Apollo on a missile launcher; null for everything else
   @Enumerated(EnumType.STRING)
@@ -41,7 +44,6 @@ public class UnitEquipment implements Searchable {
   Integer drones;
   // the operating theaters of MASH equipment; null for everything else
   Integer mashTheaters;
-  //boolean sponsonEquipped; // might be able to be handled by the turretEquipped
 
   public UnitEquipment() { }
 

@@ -84,6 +84,10 @@ public class EquipmentDecorator extends UnitEquipment implements UnitFilter {
               .collect(Collectors.joining(", ")))
           .append(")");
     }
+    if(getTurretMount() != null) {
+      // "turret lrm 20": only ones on that mount (the inherited turretMount); an enum name, not user text
+      builder.append(" AND turret_mount = '").append(getTurretMount().name()).append("'");
+    }
     builder.append(" GROUP BY unit_mech_equipment.unit_id HAVING COUNT(*) ");
     builder.append(comparison.getText() + " ");
     builder.append(quantity);

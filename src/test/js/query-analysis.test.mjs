@@ -42,6 +42,8 @@ const vocabulary = {
     cockpit: ['small cockpit', 'tripod cockpit'],
   },
   fireControlTerms: ['artemis lrm ammo'],
+  turretMounts: ['turret', 'sponson', 'pintle'],
+  turretMountTerms: ['Pintle Mount', 'PintleTurret', 'SponsonTurret'],
 };
 
 /** "text:role" for each token, to compare readably. */
@@ -167,6 +169,25 @@ test('a leading tech word, then a fire control, then the equipment', () => {
   assert.deepEqual(roles('mechs with 2 artemis lrm ammo').slice(3), ['artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 clan artemis lrm ammo').slice(3), ['clan:tech', 'artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 artemis lrm ammos').slice(3), ['artemis lrm ammos:equipment']);
+});
+
+test('a mount comes after any tech and before any fire control', () => {
+  assert.deepEqual(roles('tanks with a turret lrm 20').slice(3), ['turret:turret-mount', 'lrm 20:equipment']);
+  assert.deepEqual(roles('vehicles with at least 2 sponson machine guns').slice(4),
+      ['sponson:turret-mount', 'machine guns:equipment']);
+  assert.deepEqual(roles('mechs with 1 clan turret artemis lrm 20').slice(3),
+      ['clan:tech', 'turret:turret-mount', 'artemis:fire-control', 'lrm 20:equipment']);
+  // the mount alone, or an item whose name starts with a mount word, is the equipment
+  assert.deepEqual(roles('tanks with a sponson turret').slice(3), ['sponson turret:equipment']);
+  assert.deepEqual(roles('tanks with 2 pintle mounts').slice(3), ['pintle mounts:equipment']);
+  assert.deepEqual(roles('tanks with a turret').slice(3), ['turret:equipment']);
+});
+
+test('a mount swaps for the others, or for none', () => {
+  const query = 'tanks with a turret lrm 20';
+  const mount = analyze(query, vocabulary).tokens.find(token => token.role === 'turret-mount');
+  assert.deepEqual(alternatives(mount, vocabulary).map(option => option.label), ['sponson', 'pintle', 'any mount']);
+  assert.equal(replaceToken(query, mount, '').text, 'tanks with a lrm 20');
 });
 
 test('a tech word or fire control alone is the equipment', () => {

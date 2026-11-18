@@ -216,6 +216,31 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void searchesByTurretSponsonOrPintle() throws IOException {
+    // the Hanse MBT's sponson machine guns, the Limpet Half-Track's pintle auto-rifles and turret SRM, the Red
+    // Kite's chin-turret lasers, the Jaguar's turret ATM (user, 2026-11-17)
+    unitService.persistUnits(fixtures("turrets"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    unitService.persistUnits(fixtures("turrets"), ".mtf", ReadMegaMek::ReadMechMTF);
+    unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);
+    entityManager.flush();
+
+    assertThat(names("vehicles with 4 sponson light machine guns")).containsExactly("Hanse MBT");
+    assertThat(names("vehicles with at least 1 sponson light machine gun")).containsExactly("Hanse MBT");
+    assertThat(names("vehicles with at least 1 pintle auto-rifle")).containsExactly("Limpet Half-Track");
+    assertThat(names("vtols with 4 turret medium chemical lasers")).containsExactly("Red Kite Attack VTOL");
+    // a vehicle's turret and a mech's are both turrets
+    assertThat(names("units with at least 1 turret atm 6")).containsExactly("Jaguar");
+    assertThat(names("mechs with an atm 6")).containsExactly("Jaguar");
+    assertThat(names("mechs with a turret er medium laser")).isEmpty();
+    // the Bulldog's turret SRM 4s and its machine guns in front
+    assertThat(names("tanks with 2 turret srm 4")).contains("Bulldog Medium Tank");
+    assertThat(names("tanks with at least 1 turret machine gun")).doesNotContain("Bulldog Medium Tank");
+    // the mounts themselves are equipment
+    assertThat(names("vehicles with a sponson turret")).containsExactly("Hanse MBT");
+    assertThat(names("mechs with a quad turret")).containsExactly("Jaguar");
+  }
+
+  @Test
   void mechsAndVehiclesShareEquipmentNames() throws IOException {
     importMechs();
     unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);

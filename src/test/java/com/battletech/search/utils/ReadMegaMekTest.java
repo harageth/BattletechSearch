@@ -23,6 +23,7 @@ import com.battletech.search.model.Locomotion;
 import com.battletech.search.model.MotiveSystem;
 import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.ReadMegaMek.UnprefixedTech;
 import java.io.File;
@@ -805,12 +806,63 @@ class ReadMegaMekTest {
 
   @Test
   void turretMountNotesComeOffTheEndOnly() {
-    // sponson (ST) and pintle (PT) turrets; the bracket before the note is part of the name
+    // sponson (ST) and pintle (PT) turrets go on the item; the bracket before the note is part of the name
     assertThat(ReadMegaMek.convertToEquipment(List.of("Flamer (Vehicle)(ST)", "Machine Gun (Light)(PT):SIZE:1.0",
-            "InfantryAssaultRifle(PT):SIZE:10.0", "ISMGA(ST)"),
+            "InfantryAssaultRifle(PT):SIZE:10.0", "ISMGA(ST)", "Medium Laser"),
         new UnprefixedTech(Tech.INNER_SPHERE, false), Location.FRONT, problems()))
-        .extracting(equip -> equip.getEquipment().getName())
-        .containsExactly("flamer (vehicle)", "machine gun (light)", "infantryassaultrifle", "mga");
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTurretMount)
+        .containsExactly(tuple("flamer (vehicle)", TurretMount.SPONSON), tuple("machine gun (light)", TurretMount.PINTLE),
+            tuple("infantryassaultrifle", TurretMount.PINTLE), tuple("mga", TurretMount.SPONSON),
+            tuple("medium laser", null));
+  }
+
+  @Test
+  void eachWeaponKnowsItsTurretSponsonOrPintle() throws IOException {
+    // Hanse MBT: "Light Machine Gun(ST)" twice a side; the sponson turrets themselves are body equipment
+    Unit hanse = ReadMegaMek.ReadVehicleBlk(fixture("turrets/Hanse MBT.blk"));
+    assertThat(mounts(hanse)).containsExactlyInAnyOrder(
+        tuple(Location.FRONT, "plasmarifle", null), tuple(Location.FRONT, "plasmarifle", null),
+        tuple(Location.FRONT, "light auto cannon/5", null),
+        tuple(Location.RIGHT, "light machine gun", TurretMount.SPONSON), tuple(Location.RIGHT, "light machine gun", TurretMount.SPONSON),
+        tuple(Location.LEFT, "light machine gun", TurretMount.SPONSON), tuple(Location.LEFT, "light machine gun", TurretMount.SPONSON));
+    assertThat(at(hanse, Location.BODY)).extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTurretMount)
+        .contains(tuple("sponsonturret", null));
+    // Limpet Half-Track: an auto-rifle on a pintle each side, and an SRM launcher in its turret
+    Unit limpet = ReadMegaMek.ReadVehicleBlk(fixture("turrets/Limpet Half-Track.blk"));
+    assertThat(mounts(limpet)).contains(
+        tuple(Location.RIGHT, "infantryassaultrifle", TurretMount.PINTLE), tuple(Location.RIGHT, "pintleturret", null),
+        tuple(Location.LEFT, "infantryassaultrifle", TurretMount.PINTLE), tuple(Location.LEFT, "pintleturret", null),
+        tuple(Location.FRONTTURRET, "infantrystandardsrm", TurretMount.TURRET));
+    // a VTOL's chin turret is its turret too (user, 2026-11-17)
+    assertThat(at(ReadMegaMek.ReadVehicleBlk(fixture("turrets/Red Kite Attack VTOL.blk")), Location.FRONTTURRET))
+        .hasSize(4).allSatisfy(laser -> assertThat(laser.getTurretMount()).isEqualTo(TurretMount.TURRET));
+  }
+
+  @Test
+  void aMechsTurretWeaponsAreInItsTurret() throws IOException {
+    // Jaguar: "CLATM6 (T)" in the right torso, beside its ER medium lasers and SRM 2, and the "ISQuadTurret"
+    Mech jaguar = (Mech) ReadMegaMek.ReadMechMTF(fixture("turrets/Jaguar.mtf"));
+    assertThat(at(jaguar, Location.RIGHT_TORSO))
+        .filteredOn(equip -> !equip.getEquipment().getName().contains("ammo"))
+        .extracting(equip -> equip.getEquipment().getName(), UnitEquipment::getTurretMount)
+        .containsExactlyInAnyOrder(tuple("ermediumlaser", null), tuple("ermediumlaser", null), tuple("atm6", TurretMount.TURRET),
+            tuple("srm2", null), tuple("quadturret", null));
+    assertThat(at(jaguar, Location.LEFT_TORSO)).allSatisfy(equip -> assertThat(equip.getTurretMount()).isNull());
+  }
+
+  @Test
+  void aWeaponIsInTheTurretWhenItsSlotsSaySo() {
+    // Doom Courser Prime: "CLLRM20 (T) (OMNIPOD)"; Stiletto STO-6S: "ISERMediumLaser (T)"
+    assertThat(ReadMegaMek.inTurret(List.of("CLLRM20 (T) (OMNIPOD)", "CLLRM20 (T) (OMNIPOD)", "CLERPPC (T) (OMNIPOD)"), "LRM 20")).isTrue();
+    assertThat(ReadMegaMek.inTurret(List.of("ISERMediumLaser (T)", "ISShoulderTurret"), "ER Medium Laser")).isTrue();
+    assertThat(ReadMegaMek.inTurret(List.of("ISERMediumLaser", "CLLRM20 (T)"), "ER Medium Laser")).isFalse();
+    // the turret itself isn't in one
+    assertThat(ReadMegaMek.inTurret(List.of("ISQuadTurret", "CLATM6 (T)"), "ISQuadTurret")).isFalse();
+  }
+
+  private static List<Tuple> mounts(Unit unit) {
+    return unit.getMechEquipment().stream().filter(equip -> equip.getLocation() != Location.BODY)
+        .map(equip -> tuple(equip.getLocation(), equip.getEquipment().getName(), equip.getTurretMount())).toList();
   }
 
   @Test

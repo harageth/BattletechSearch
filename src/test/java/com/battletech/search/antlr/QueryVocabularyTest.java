@@ -3,6 +3,7 @@ package com.battletech.search.antlr;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.battletech.search.model.FireControl;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.EquipmentNames;
 import java.util.List;
@@ -98,6 +99,14 @@ class QueryVocabularyTest {
       FireControl.Filter filter = FireControl.fromSearch(EquipmentNames.normalize(fireControl + " lrm 20"));
       assertThat(filter).as(fireControl).isNotNull();
       assertThat(filter.launcher()).isEqualTo("lrm20");
+    }
+    assertThat(QueryVocabulary.turretMounts()).containsExactly("turret", "sponson", "pintle");
+    for (String mount : QueryVocabulary.turretMounts()) {
+      TurretMount.Filter filter = TurretMount.fromSearch(EquipmentNames.normalize(mount + " lrm 20"));
+      assertThat(filter).as(mount).isNotNull();
+      assertThat(filter.rest()).isEqualTo("lrm20");
+      // a plain word, so it parses in front of a weapon name
+      assertThat(QueryVocabulary.isTypeable(mount + " lrm 20")).as(mount).isTrue();
     }
   }
 

@@ -447,6 +447,7 @@ main a {
 .tok-comparator { color: var(--query-amount); }
 .tok-quantity { color: var(--query-amount); font-weight: bold; }
 .tok-tech { color: var(--query-equipment-prefix); }
+.tok-turret-mount { color: var(--query-equipment-prefix); }
 .tok-fire-control { color: var(--query-equipment-prefix); }
 .tok-equipment { color: var(--query-equipment); font-weight: bold; }
 .tok-unknown {
