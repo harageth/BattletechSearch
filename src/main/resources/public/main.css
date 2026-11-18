@@ -209,6 +209,15 @@ main a {
 	background: var(--error-background);
 	color: var(--error-text);
 }
+/* "Did you mean heavy mechs?" under the error */
+.suggestion {
+	flex-basis: 100%;
+	margin: 10px 0 0;
+	font-size: 110%;
+}
+.suggestion a {
+	font-weight: bold;
+}
 
 .result-count {
 	flex-basis: 100%;
@@ -455,6 +464,10 @@ main a {
 }
 .tok-error {
 	color: var(--query-error);
+	text-decoration: underline wavy var(--query-error-line);
+}
+/* a word the server has a spelling for (autocorrect); its list offers it */
+.tok-misspelled {
 	text-decoration: underline wavy var(--query-error-line);
 }
 /* a blank a template left, "<quantity>": a dashed pill until it's filled in */

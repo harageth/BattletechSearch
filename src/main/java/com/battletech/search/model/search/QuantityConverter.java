@@ -1,6 +1,7 @@
 package com.battletech.search.model.search;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts a QUANTITY token (digits or a number word from the grammar) into an integer.
@@ -24,6 +25,11 @@ public class QuantityConverter {
       Map.entry("eight", 8),
       Map.entry("nine", 9),
       Map.entry("ten", 10));
+
+  /** The number words a quantity can be ("a", "two", "triple"), for autocorrect. */
+  public static Set<String> numberWords() {
+    return NUMBER_WORDS.keySet();
+  }
 
   public static int toInt(String quantity) {
     Integer value = NUMBER_WORDS.get(quantity.toLowerCase());

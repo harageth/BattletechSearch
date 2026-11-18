@@ -65,6 +65,20 @@ public final class QueryVocabulary {
   static final List<String> OPERATORS = List.of("and", "or");
   // between the unit and the weapons; all the same STOPWORD token
   static final List<String> WITH_WORDS = List.of("with", "having", "that have", "which have", "carrying", "armed with");
+  // every other spelling a keyword token takes, as typed (QueryVocabularyTest checks each is one keyword
+  // token), so autocorrect knows them all and not only the ones the search box offers
+  static final List<String> KEYWORDS = List.of(
+      "vee", "vees", "helicopter", "helicopters", "helo", "helos", "hover", "hovertank", "hovertanks",
+      "omnimek", "omnimeks", "omnis", "non-mech", "non-vehicle", "non-tank", "non-vtol", "non-lam", "non-quad",
+      "non-biped", "non-tripod", "non-quadvee", "support", "combat",
+      "without", "lacking", "that don't have", "that do not have", "which don't have", "which do not have",
+      "no", "except", "that aren't", "that are not", "which aren't", "which are not", "but not", "but",
+      "rating", "rating of", "no more", "equal", "multiple", "any", "triple strength", "ammo", "ammos");
+
+  /** Every keyword spelling the grammar takes, as typed: unit words, comparators, with words, ... */
+  public static List<String> keywords() {
+    return KEYWORDS;
+  }
 
   private QueryVocabulary() {
   }

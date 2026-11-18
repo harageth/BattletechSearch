@@ -2,16 +2,20 @@ package com.battletech.search.web;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.battletech.search.autocorrect.Autocorrect;
+import com.battletech.search.autocorrect.Suggestions;
 import com.battletech.search.model.search.FailedParseException;
 import com.battletech.search.services.SearchService;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -25,6 +29,14 @@ class SearchControllerTest {
 
   @MockitoBean
   SearchService searchService;
+
+  @MockitoBean
+  Autocorrect autocorrect;
+
+  @BeforeEach
+  void noSuggestions() {
+    when(autocorrect.suggest(anyString())).thenReturn(Suggestions.NONE);
+  }
 
   @Test
   void bothPagesGetTheSearchBox() throws Exception {
@@ -78,6 +90,20 @@ class SearchControllerTest {
         .andExpect(content().string(containsString("Unable to parse query at position 10")))
         .andExpect(content().string(containsString("value=\"mechs with\"")))
         // a query that didn't parse found nothing; it wasn't searched
+        .andExpect(content().string(not(containsString("found"))))
+        .andExpect(content().string(not(containsString("Did you mean"))));
+  }
+
+  @Test
+  void offersWhatAMisspelledSearchMayHaveMeant() throws Exception {
+    when(searchService.performQuery("hevy mechs")).thenThrow(new FailedParseException("Unknown weight class: hevy"));
+    when(autocorrect.suggest("hevy mechs")).thenReturn(new Suggestions("heavy mechs", List.of()));
+
+    // a link to search it; never searched for you (user, 2026-11-18)
+    mvc.perform(get("/search/").param("query", "hevy mechs"))
+        .andExpect(content().string(containsString("Unknown weight class: hevy")))
+        .andExpect(content().string(containsString(
+            "Did you mean <a href=\"/search/?query=heavy%20mechs\">heavy mechs</a>?")))
         .andExpect(content().string(not(containsString("found"))));
   }
 }

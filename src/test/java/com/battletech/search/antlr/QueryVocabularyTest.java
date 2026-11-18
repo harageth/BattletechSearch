@@ -29,6 +29,14 @@ class QueryVocabularyTest {
   }
 
   @Test
+  void keywordsAreEachOneKeywordToken() {
+    // autocorrect knows every spelling the grammar takes, so each must really be one keyword, not a word
+    for (String keyword : QueryVocabulary.keywords()) {
+      assertThat(tokenTypes(keyword)).as(keyword).hasSize(1).noneMatch(type -> type == BattletechLexer.WORD);
+    }
+  }
+
+  @Test
   void comparatorsAreOneComparatorToken() {
     for (String comparator : QueryVocabulary.comparatorsBefore()) {
       assertThat(tokenTypes(comparator)).as(comparator).hasSize(1).allMatch(COMPARATORS::contains);

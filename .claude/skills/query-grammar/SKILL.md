@@ -50,6 +50,8 @@ A search like `light mechs with at least 2 ppc and a srm6` is parsed by ANTLR in
 - Unit and weight class SQL is built from enums. Equipment is matched by id after a repository lookup. Keep user text out of the SQL string.
 
 
+- **Misspellings** get "Did you mean …?" (2026-11-18): the `autocorrect` skill. A new keyword spelling in the lexer goes in `QueryVocabulary.keywords()` too, so autocorrect knows it.
+
 ## The search box (browser side)
 
 The search box colors the query as you type and offers swaps on hover. It parses **in the browser** with JavaScript generated from the same grammar: a second `antlr4-maven-plugin` execution (`-Dlanguage=JavaScript`) writes `BattletechLexer.js` / `BattletechParser.js` to `target/classes/static/js/grammar/me/`, served as `/js/grammar/me/...`. The ANTLR runtime is vendored at `static/vendor/antlr4/antlr4.web.js` (antlr4@4.13.2 `dist/antlr4.web.mjs`, renamed `.js` so it's served as JavaScript; module scripts need a JavaScript MIME type). It **must stay the same version as `antlr4.version`** in the pom. The import map in `templates/fragments/search-form.html` points the generated code's bare `antlr4` import at it.

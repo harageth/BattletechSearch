@@ -517,7 +517,7 @@ public class QueryVisitor implements BattletechVisitor {
       realDecorator.setTurretMount(mount == null ? null : mount.mount());
     }
     if(realDecorator == null) {
-      throw new FailedParseException("Unable to parse: " + equip);
+      throw new FailedParseException("Unable to parse: " + equip, equip);
     }
     realDecorator.setMatchesNothing(noneInTech);
     return realDecorator;
