@@ -19,6 +19,7 @@ import com.battletech.search.model.ComponentFilter;
 import com.battletech.search.model.EngineRatingFilter;
 import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.model.FireControl;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.model.Locomotion;
 import com.battletech.search.utils.ComponentNames;
 import com.battletech.search.model.Tech;
@@ -47,10 +48,10 @@ class QueryVisitorTest {
     equipRepo = mock(EquipmentRepository.class);
     // Every non-empty equipment name resolves to a single matching row by default, like the real data.
     // Like the slang tables, MegaMek's names find the display name ("ac 20" -> "ac/20"). Nothing is named
-    // with a fire control in front ("artemislrm20"), so that's looked up as the launcher.
+    // with a fire control or mount in front ("artemislrm20", "turretlrm20"), so that's looked up as the weapon.
     when(equipRepo.findAllByNameOrSlang(anyString(), anyString())).thenAnswer(invocation -> {
       String name = invocation.getArgument(0);
-      return name.isEmpty() || FireControl.fromSearch(name) != null
+      return name.isEmpty() || FireControl.fromSearch(name) != null || TurretMount.fromSearch(name) != null
           ? List.of() : List.of(equipment(EquipmentNames.canonical(name), Tech.INNER_SPHERE));
     });
   }
@@ -346,6 +347,34 @@ class QueryVisitorTest {
     assertThat(ammo.getEquipment()).isSameAs(artemisAmmo);
     assertThat(ammo.getFireControls()).isNull();
     assertThat(ammo.getQuery()).doesNotContain("fire_control");
+  }
+
+  @Test
+  void aMountNarrowsAWeapon() {
+    EquipmentDecorator turret = chunk(parse("tanks with a turret lrm 20"), 0);
+    assertThat(turret.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(turret.getTurretMount()).isEqualTo(TurretMount.TURRET);
+    assertThat(turret.getQuery()).contains("AND turret_mount = 'TURRET'");
+    assertThat(chunk(parse("vehicles with at least 2 sponson machine guns"), 0).getTurretMount()).isEqualTo(TurretMount.SPONSON);
+    assertThat(chunk(parse("vehicles with a pintle auto-rifle"), 0).getTurretMount()).isEqualTo(TurretMount.PINTLE);
+
+    // tech first, then the mount, then any fire control
+    EquipmentDecorator all = chunk(parse("mechs with an is turret artemis lrm 20"), 0);
+    assertThat(all.getEquipment().getName()).isEqualTo("lrm20");
+    assertThat(all.getTurretMount()).isEqualTo(TurretMount.TURRET);
+    assertThat(all.getFireControls()).containsExactlyInAnyOrder(FireControl.ARTEMIS_IV, FireControl.ARTEMIS_V);
+    assertThat(all.getQuery()).contains("AND fire_control IN ('ARTEMIS_IV', 'ARTEMIS_V')").contains("AND turret_mount = 'TURRET'");
+
+    EquipmentDecorator plain = chunk(parse("tanks with a lrm 20"), 0);
+    assertThat(plain.getTurretMount()).isNull();
+    assertThat(plain.getQuery()).doesNotContain("turret_mount");
+
+    // an item whose name starts with a mount word is looked up whole: the sponson turret is the mount itself
+    Equipment sponsonTurret = equipment("vehicularsponsonturret", Tech.INNER_SPHERE);
+    when(equipRepo.findAllByNameOrSlang(eq("sponsonturret"), anyString())).thenReturn(List.of(sponsonTurret));
+    EquipmentDecorator mount = chunk(parse("tanks with a sponson turret"), 0);
+    assertThat(mount.getEquipment()).isSameAs(sponsonTurret);
+    assertThat(mount.getTurretMount()).isNull();
   }
 
   @Test

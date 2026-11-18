@@ -31,6 +31,7 @@ public class EquipmentController {
     page.addObject("comparatorsAfter", QueryVocabulary.comparatorsAfter());
     page.addObject("techWords", List.copyOf(QueryVocabulary.techs().keySet()));
     page.addObject("fireControls", QueryVocabulary.fireControls());
+    page.addObject("turretMounts", QueryVocabulary.turretMounts());
     page.addObject("components", QueryVocabulary.components());
     return page;
   }

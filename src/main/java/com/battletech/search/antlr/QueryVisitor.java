@@ -6,6 +6,7 @@ import com.battletech.search.model.BarRatingFilter;
 import com.battletech.search.model.EngineRatingFilter;
 import com.battletech.search.model.EquipmentDecorator;
 import com.battletech.search.model.FireControl;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.entities.Unit;
 import com.battletech.search.model.Tech;
 import com.battletech.search.model.UnitDecorator;
@@ -487,6 +488,13 @@ public class QueryVisitor implements BattletechVisitor {
     // MegaMek name with its tech built in ("cllrm20") only that tech
     String lookup = EquipmentNames.normalize(named);
     List<Equipment> found = findEquipmentOrPlural(lookup);
+    // "turret lrm 20", "sponson machine guns": only count ones on that mount; not when the whole name is
+    // an item ("sponson turret" is the Vehicular Sponson Turret, "pintle mount" the mount itself)
+    TurretMount.Filter mount = found.isEmpty() ? TurretMount.fromSearch(lookup) : null;
+    if(mount != null) {
+      lookup = mount.rest();
+      found = findEquipmentOrPlural(lookup);
+    }
     // "artemis lrm 20": look up the launcher, and only count ones with that fire control; not when the
     // whole name is a term itself ("artemis lrm ammo", a group of ammo bins, V3_20)
     FireControl.Filter fireControl = found.isEmpty() ? FireControl.fromSearch(lookup) : null;
@@ -506,6 +514,7 @@ public class QueryVisitor implements BattletechVisitor {
       realDecorator = new EquipmentDecorator(realDecorator);
       realDecorator.setEquipment(thing);
       realDecorator.setFireControls(fireControl == null ? null : fireControl.fireControls());
+      realDecorator.setTurretMount(mount == null ? null : mount.mount());
     }
     if(realDecorator == null) {
       throw new FailedParseException("Unable to parse: " + equip);

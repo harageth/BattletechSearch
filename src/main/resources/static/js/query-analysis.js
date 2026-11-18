@@ -3,8 +3,9 @@
 //
 // Parses with the JavaScript the build generates from the same grammar as the server
 // (src/main/antlr4/me/Battletech.g4), and splits equipment names the way QueryVisitor does: a
-// leading tech word ("clan"), then a fire control ("artemis"), then the equipment. Keep the two in
-// step. The word lists come from GET /api/vocabulary (QueryVocabulary on the server).
+// leading tech word ("clan"), then a mount ("turret"), then a fire control ("artemis"), then the
+// equipment. Keep the two in step. The word lists come from GET /api/vocabulary (QueryVocabulary on
+// the server).
 import { CommonTokenStream, ErrorListener, InputStream } from 'antlr4';
 import BattletechLexer from './grammar/me/BattletechLexer.js';
 import BattletechParser from './grammar/me/BattletechParser.js';
@@ -13,6 +14,7 @@ import BattletechParser from './grammar/me/BattletechParser.js';
 export const EMPTY_VOCABULARY = Object.freeze({
   weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [], withWords: [],
   techs: {}, fireControls: [], families: {}, equipment: {}, omniWords: [], components: {}, fireControlTerms: [],
+  turretMounts: [], turretMountTerms: [],
 });
 
 /**
@@ -41,8 +43,8 @@ class RecordingErrorListener extends ErrorListener {
 
 /**
  * The query's words with their roles: weight-class, unit, with, comparator, quantity, tech,
- * fire-control, equipment, operator, comma (between weight classes), unknown (a weight class that
- * isn't one), error, or slot (a blank a template left, "<quantity>", with its name in slot).
+ * turret-mount, fire-control, equipment, operator, comma (between weight classes), unknown (a weight
+ * class that isn't one), error, or slot (a blank a template left, "<quantity>", with its name in slot).
  * Multi-word phrases ("at least", "ultra light", "lrm 20") are one token. Positions are character
  * offsets into text, stop exclusive.
  *
@@ -84,7 +86,7 @@ export function analyze(text, vocabulary = EMPTY_VOCABULARY) {
     if (token.role === 'without') {
       // "with no ppcs": swapping the "no" for "with" only has to take it out (see alternatives)
       token.afterWith = tokens[index - 1]?.role === 'with';
-    } else if (token.bare && (token.role === 'tech' || token.role === 'fire-control')) {
+    } else if (token.bare && ['tech', 'turret-mount', 'fire-control'].includes(token.role)) {
       // "is vehicle flamer" starting a query: taking out the tech leaves "vehicle flamer" there
       token.exposesUnitWord = next !== undefined && !startsWithWord(next.text);
     }
@@ -300,14 +302,16 @@ function terminal(node, context, tokens, text) {
   tokens.push(span([node], text, role));
 }
 
-// "clan artemis iv lrm 20" -> tech "clan", fire control "artemis iv", equipment "lrm 20". plainName: no
-// number in front, starting a query with no unit ("endo steel"), so it starts with a plain word
+// "clan turret artemis iv lrm 20" -> tech "clan", mount "turret", fire control "artemis iv", equipment
+// "lrm 20". plainName: no number in front, starting a query with no unit ("endo steel"), so it starts
+// with a plain word
 function equipmentName(words, tokens, text, vocabulary, plainName) {
   if (words.length === 0) {
     return;
   }
   const nameStart = words[0].symbol.start;
   let hasTech = false;
+  let hasMount = false;
   let hasFireControl = false;
   // tech: whole leading words ("inner sphere"), longest first, only if a name follows
   const techs = Object.keys(vocabulary.techs).sort((a, b) => b.split(' ').length - a.split(' ').length);
@@ -320,6 +324,15 @@ function equipmentName(words, tokens, text, vocabulary, plainName) {
       break;
     }
   }
+  // mount: like TurretMount.fromSearch, a whole leading word, only if a name follows; not when the whole
+  // name is a term looked up whole ("sponson turret", "pintle mount"), its plural too
+  const named = key(words.map(word => word.getText()).join(''));
+  const isMountTerm = vocabulary.turretMountTerms.some(term => key(term) === named || `${key(term)}s` === named);
+  if (words.length > 1 && !isMountTerm && vocabulary.turretMounts.includes(words[0].getText().toLowerCase())) {
+    tokens.push({ ...span(words.slice(0, 1), text, 'turret-mount'), bare: plainName && !hasTech });
+    words = words.slice(1);
+    hasMount = true;
+  }
   // fire control: like FireControl.fromSearch, on letters and digits, so "artemisiv lrm 20" too;
   // not when the whole name is the system itself ("artemis iv"), or a term looked up whole, as
   // QueryVisitor does ("artemis lrm ammo", a group of ammo bins), its plural too ("artemis lrm ammos")
@@ -331,7 +344,7 @@ function equipmentName(words, tokens, text, vocabulary, plainName) {
     found: for (const fireControl of fireControls) {
       for (let length = 1; length < words.length; length++) {
         if (key(words.slice(0, length).map(word => word.getText()).join('')) === key(fireControl)) {
-          tokens.push({ ...span(words.slice(0, length), text, 'fire-control'), bare: plainName && !hasTech });
+          tokens.push({ ...span(words.slice(0, length), text, 'fire-control'), bare: plainName && !hasTech && !hasMount });
           words = words.slice(length);
           hasFireControl = true;
           break found;
@@ -342,8 +355,8 @@ function equipmentName(words, tokens, text, vocabulary, plainName) {
   // the whole name too, prefixes and all, for adding a tech in front of it
   const equipment = span(words, text, 'equipment');
   // bare: the name starts the chunk, so whatever replaces it has to start with a plain word too
-  const bare = plainName && !hasTech && !hasFireControl;
-  tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasFireControl, bare });
+  const bare = plainName && !hasTech && !hasMount && !hasFireControl;
+  tokens.push({ ...equipment, nameStart, name: text.slice(nameStart, equipment.stop), hasTech, hasMount, hasFireControl, bare });
 }
 
 /**
@@ -393,6 +406,8 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
       const current = Object.entries(vocabulary.techs).find(([word]) => word === typed)?.[1];
       return [...techWords(vocabulary, current).map(word => ({ label: word, text: word })), { label: 'any tech', text: orAny(token) }];
     }
+    case 'turret-mount':
+      return [...others(vocabulary.turretMounts), { label: 'any mount', text: orAny(token) }];
     case 'fire-control':
       return [...others(vocabulary.fireControls), { label: 'any fire control', text: orAny(token) }];
     case 'equipment':

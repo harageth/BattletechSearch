@@ -20,6 +20,7 @@ import com.battletech.search.entities.Mech;
 import com.battletech.search.model.Movement;
 import com.battletech.search.model.StructureType;
 import com.battletech.search.model.Tech;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.entities.Unit;
 import java.io.BufferedReader;
 import java.io.File;
@@ -150,6 +151,10 @@ public class ReadMegaMek {
       UnitEquipment value = new UnitEquipment();
       value.setEquipment(new Equipment());
       value.setLocation(location);
+      // everything in a turret section turns with it, a VTOL's chin turret too
+      if(location == Location.FRONTTURRET || location == Location.REARTURRET) {
+        value.setTurretMount(TurretMount.TURRET);
+      }
       // as written, for the display name (UnitService)
       value.getEquipment().setDisplayName(equip);
       equip = equip.toLowerCase();
@@ -173,9 +178,13 @@ public class ReadMegaMek {
         value.getEquipment().setDisplayName("Dumper");
         equip = "dumper";
       }
-      // sponson (ST) and pintle (PT) turret mounts: only the note goes, so "flamer (vehicle)(st)" stays the
+      // sponson (ST) and pintle (PT) turret mounts go on the item, so "flamer (vehicle)(st)" stays the
       // vehicle flamer and "machine gun (light)(pt)" the light machine gun
-      equip = TURRET_MOUNT.matcher(equip).replaceAll("").strip();
+      Matcher mount = TURRET_MOUNT.matcher(equip);
+      if(mount.find()) {
+        value.setTurretMount(mount.group(1).equals("st") ? TurretMount.SPONSON : TurretMount.PINTLE);
+        equip = equip.substring(0, mount.start()).strip();
+      }
       if(equip.contains("(i-os)") || equip.contains("(os)")) {
 
         equip = equip.split("\\(")[0].strip();
@@ -564,7 +573,11 @@ public class ReadMegaMek {
               .iterator()).next();
           Equipment equipment = new Equipment(EquipmentNames.normalize(name), tech);
           equipment.setDisplayName(name);
-          weapons.add(new UnitEquipment(equipment, location));
+          UnitEquipment item = new UnitEquipment(equipment, location);
+          if(inTurret(slots.getOrDefault(location.toLowerCase(), List.of()), name)) {
+            item.setTurretMount(TurretMount.TURRET);
+          }
+          weapons.add(item);
           reportUnknownLocation(location, name, problems);
         }
         return weapons;
@@ -606,6 +619,7 @@ public class ReadMegaMek {
 
   // How a slot is mounted, not what's in it; (T) is turret-mounted
   private static final Pattern SLOT_MOUNTING = Pattern.compile("\\s*\\((omnipod|r|t|armored)\\)", Pattern.CASE_INSENSITIVE);
+  private static final Pattern TURRET_SLOT = Pattern.compile("\\s*\\(t\\)", Pattern.CASE_INSENSITIVE);
   // A vehicle weapon on a sponson (ST) or pintle (PT) turret, MegaMek's BLKFile; at the end of the name
   private static final Pattern TURRET_MOUNT = Pattern.compile("\\s*\\((st|pt)\\)\\s*$", Pattern.CASE_INSENSITIVE);
   // A dumper says which way it dumps, "Dumper (Rear)", "Dumper (Right):OMNI": all are the Dumper, and
@@ -671,24 +685,25 @@ public class ReadMegaMek {
   }
 
   /**
-   * A slot name split into its IS/Clan prefix (null if none), the rest, and the size of a
-   * variable-size item (null if it isn't one).
+   * A slot name split into its IS/Clan prefix (null if none), the rest, the size of a variable-size
+   * item (null if it isn't one), and whether it's in a turret ("CLATM6 (T)").
    */
-  record SlotName(Tech tech, String name, Double size) {
+  record SlotName(Tech tech, String name, Double size, boolean turret) {
     static SlotName of(String slot) {
       // a slot holding two half tons of ammo lists both, "CLRotaryAC5 Ammo|CLRotaryAC5 Ammo (OMNIPOD)"
       String first = slot.split("\\|")[0];
       Double size = sizeOf(first);
+      boolean turret = TURRET_SLOT.matcher(first).find();
       String cleaned = SIZE.matcher(SLOT_MOUNTING.matcher(first).replaceAll("")).replaceAll("").trim();
       // "Clan Gauss Ammo" and "ClanImprovedLRM20Ammo"
       if(cleaned.startsWith("Clan")) {
-        return new SlotName(Tech.CLAN, cleaned.substring(4).strip(), size);
+        return new SlotName(Tech.CLAN, cleaned.substring(4).strip(), size, turret);
       } else if(cleaned.startsWith("CL")) {
-        return new SlotName(Tech.CLAN, cleaned.substring(2), size);
+        return new SlotName(Tech.CLAN, cleaned.substring(2), size, turret);
       } else if(cleaned.startsWith("IS")) {
-        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2), size);
+        return new SlotName(Tech.INNER_SPHERE, cleaned.substring(2), size, turret);
       }
-      return new SlotName(null, cleaned, size);
+      return new SlotName(null, cleaned, size, turret);
     }
   }
 
@@ -725,8 +740,7 @@ public class ReadMegaMek {
     Map<Tech, Integer> slotsPerTech = new LinkedHashMap<>();
     for(String slot : slots) {
       SlotName name = SlotName.of(slot);
-      // "ISC3MasterUnit" for "C3 Computer (Master)": the alias table knows both
-      if(comparable(name.name()).equals(wanted) || EquipmentNames.canonical(name.name()).equals(canonical)) {
+      if(namesWeapon(name, wanted, canonical)) {
         slotsPerTech.merge(name.tech() != null ? name.tech() : unprefixed.of(name.name()), 1, Integer::sum);
       }
     }
@@ -746,6 +760,22 @@ public class ReadMegaMek {
       perWeapon.addAll(Collections.nCopies(splits.get(0).get(i), techs.get(i)));
     }
     return perWeapon;
+  }
+
+  // "ISC3MasterUnit" for "C3 Computer (Master)": the alias table knows both
+  private static boolean namesWeapon(SlotName slot, String wanted, String canonical) {
+    return comparable(slot.name()).equals(wanted) || EquipmentNames.canonical(slot.name()).equals(canonical);
+  }
+
+  /**
+   * Whether the weapons with this name in one location are in its turret: their slots there say "(T)".
+   * At the pinned commit no mech has one of a weapon in a turret and another of it beside the turret in
+   * the same location, so it's all of them or none.
+   */
+  static boolean inTurret(List<String> slots, String weapon) {
+    String wanted = comparable(weapon);
+    String canonical = EquipmentNames.canonical(weapon);
+    return slots.stream().map(SlotName::of).anyMatch(slot -> slot.turret() && namesWeapon(slot, wanted, canonical));
   }
 
   // every way to make `count` weapons out of these slot counts, one weapon size per count: the number
@@ -792,7 +822,9 @@ public class ReadMegaMek {
       // not the RISC hyper laser or point defense system, which are weapons
       + "|riscviraljammer.*|risclaserpulsemodule|riscemergencycoolantsystem"
       + "|boobytrap|bombbay|mechanicaljumpbooster|communicationsequipment|groundmobilehpg"
-      + "|paramedicequipment|reconcamera)$");
+      + "|paramedicequipment|reconcamera"
+      // the turret itself; the weapons in it are TURRET (inTurret)
+      + "|(head|shoulder|quad)turret)$");
 
   /**
    * Artemis / Apollo slots upgrade a launcher instead of being equipment of their own. MegaMek puts
@@ -892,7 +924,7 @@ public class ReadMegaMek {
         String comparable = comparable(name.name());
         Matcher dumper = DUMPER.matcher(name.name());
         if(dumper.matches()) {
-          SlotName dumperName = new SlotName(name.tech(), "Dumper", null);
+          SlotName dumperName = new SlotName(name.tech(), "Dumper", null, false);
           UnitEquipment item = new UnitEquipment(
               slotEquipment(dumperName, name.tech() != null ? name.tech() : unprefixed.of("Dumper")), location);
           item.setRearFacing(dumper.group(1).equalsIgnoreCase("rear"));

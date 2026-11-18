@@ -2,6 +2,7 @@ package com.battletech.search.antlr;
 
 import com.battletech.search.model.FireControl;
 import com.battletech.search.model.Tech;
+import com.battletech.search.model.TurretMount;
 import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.ComponentNames;
 import com.battletech.search.utils.EquipmentNames;
@@ -98,6 +99,11 @@ public final class QueryVocabulary {
 
   public static List<String> fireControls() {
     return FireControl.searchWords();
+  }
+
+  /** "turret", "sponson", "pintle", in front of a weapon. */
+  public static List<String> turretMounts() {
+    return Arrays.stream(TurretMount.values()).map(TurretMount::getWord).toList();
   }
 
   public static List<String> omniWords() {
