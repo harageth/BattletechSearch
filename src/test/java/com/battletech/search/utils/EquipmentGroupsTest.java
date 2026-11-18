@@ -58,9 +58,16 @@ class EquipmentGroupsTest {
     assertThat(groupsOf("hatchet")).containsExactly("physical weapons");
     assertThat(ROWS.keySet().stream().filter(name -> name.contains("ammo")))
         .isNotEmpty().allSatisfy(ammo -> assertThat(groupsOf(ammo)).as(ammo).endsWith("ammo"));
-    // ammo with its size in the middle is typed without it, by its group (V3_20, user 2026-11-14), and
+    // ammo is in a group for its weapon's ammo, every size (V3_20, user 2026-11-14; V3_28, 2026-11-17), and
     // Artemis- and Narc-capable bins have groups of their own under it
-    assertThat(groupsOf("ac/20ammo")).containsExactly("ammo");
+    assertThat(groupsOf("ac/20ammo")).containsExactly("standard ac ammo", "ac ammo", "ammo");
+    assertThat(groupsOf("lb10-xclusterammo")).containsExactly("lb-x ac ammo", "ac ammo", "ammo");
+    assertThat(groupsOf("standardiatm/12ammo")).containsExactly("improved atm ammo", "atm ammo", "ammo");
+    assertThat(groupsOf("hyper-assaultgaussrifle/20ammo")).containsExactly("gauss ammo", "ammo");
+    assertThat(groupsOf("arrowivhomingammo")).containsExactly("artillery ammo", "ammo");
+    assertThat(groupsOf("inarcpods")).containsExactly("narc ammo", "ammo");
+    // the fluid gun, nail/rivet gun and taser ammo have no group of their own
+    assertThat(groupsOf("taserammo")).containsExactly("ammo");
     assertThat(groupsOf("lrm20ammo")).containsExactly("lrm ammo", "ammo");
     assertThat(groupsOf("streaksrm6ammo")).containsExactly("streak srm ammo", "srm ammo", "ammo");
     assertThat(groupsOf("ammolrm-20artemisv-capable")).containsExactly("artemis lrm ammo", "lrm ammo", "ammo");

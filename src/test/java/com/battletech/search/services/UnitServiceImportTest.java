@@ -319,6 +319,13 @@ class UnitServiceImportTest {
     assertThat(search("mechs with exactly 4 laser and exactly 1 lrm")).contains("Atlas AS7-D");
     assertThat(search("mechs with exactly 5 laser")).isEqualTo(search("mechs with exactly 5 lasers"));
     assertThat(search("mechs with at least 1 ppc")).doesNotContain("Atlas AS7-D");
+    // ammo by its weapon's group, every size, or with its size (user, 2026-11-17): the Atlas carries two bins
+    // of AC/20 ammo, two of LRM 20 and one of SRM 6
+    assertThat(search("mechs with exactly 2 ac ammo and exactly 2 standard ac ammo")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 2 lrm 20 ammo and exactly 1 srm 6 ammo")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 2 ac 20 ammo")).contains("Atlas AS7-D");
+    // the Mad Cat Prime's machine gun ammo is in "mg ammo"; the Atlas has none
+    assertThat(search("mechs with exactly 1 mg ammo")).contains("Mad Cat Prime").doesNotContain("Atlas AS7-D");
   }
 
   @Test
