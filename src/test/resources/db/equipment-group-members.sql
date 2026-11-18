@@ -452,14 +452,14 @@ SELECT g.id, e.id FROM (VALUES
     ('atm ammo', 'standardatm/6ammo'),
     ('atm ammo', 'standardatm/9ammo'),
     ('atm ammo', 'standardatm/12ammo'),
-    ('atm ammo', 'extended-rangeatm/3ammo'),
-    ('atm ammo', 'extended-rangeatm/6ammo'),
-    ('atm ammo', 'extended-rangeatm/9ammo'),
-    ('atm ammo', 'extended-rangeatm/12ammo'),
-    ('atm ammo', 'high-explosiveatm/3ammo'),
-    ('atm ammo', 'high-explosiveatm/6ammo'),
-    ('atm ammo', 'high-explosiveatm/9ammo'),
-    ('atm ammo', 'high-explosiveatm/12ammo'),
+    ('er atm ammo', 'extended-rangeatm/3ammo'),
+    ('er atm ammo', 'extended-rangeatm/6ammo'),
+    ('er atm ammo', 'extended-rangeatm/9ammo'),
+    ('er atm ammo', 'extended-rangeatm/12ammo'),
+    ('he atm ammo', 'high-explosiveatm/3ammo'),
+    ('he atm ammo', 'high-explosiveatm/6ammo'),
+    ('he atm ammo', 'high-explosiveatm/9ammo'),
+    ('he atm ammo', 'high-explosiveatm/12ammo'),
     ('improved atm ammo', 'standardiatm/3ammo'),
     ('improved atm ammo', 'standardiatm/9ammo'),
     ('improved atm ammo', 'standardiatm/12ammo'),
@@ -502,7 +502,12 @@ SELECT g.id, e.id FROM (VALUES
     ('ams ammo', 'anti-missilesystemammo'),
     ('ams ammo', 'riscadvancedpointdefensesystemammo'),
     ('narc ammo', 'narcpods'),
-    ('narc ammo', 'inarcpods')
+    ('narc ammo', 'inarcpods'),
+    ('cluster ammo', 'lb2-xclusterammo'),
+    ('cluster ammo', 'lb5-xclusterammo'),
+    ('cluster ammo', 'lb10-xclusterammo'),
+    ('cluster ammo', 'lb20-xclusterammo'),
+    ('cluster ammo', 'arrowivclusterammo')
 ) AS v (group_name, equipment_name)
 JOIN equipment_group g ON g.name = v.group_name
 JOIN equipment e ON e.name = v.equipment_name

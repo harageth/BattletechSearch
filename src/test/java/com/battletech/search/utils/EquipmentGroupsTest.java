@@ -61,17 +61,24 @@ class EquipmentGroupsTest {
     // ammo is in a group for its weapon's ammo, every size (V3_20, user 2026-11-14; V3_28, 2026-11-17), and
     // Artemis- and Narc-capable bins have groups of their own under it
     assertThat(groupsOf("ac/20ammo")).containsExactly("standard ac ammo", "ac ammo", "ammo");
-    assertThat(groupsOf("lb10-xclusterammo")).containsExactly("lb-x ac ammo", "ac ammo", "ammo");
+    assertThat(groupsOf("lb10-xclusterammo")).containsExactlyInAnyOrder("lb-x ac ammo", "ac ammo", "ammo", "cluster ammo");
     assertThat(groupsOf("standardiatm/12ammo")).containsExactly("improved atm ammo", "atm ammo", "ammo");
     assertThat(groupsOf("hyper-assaultgaussrifle/20ammo")).containsExactly("gauss ammo", "ammo");
     assertThat(groupsOf("arrowivhomingammo")).containsExactly("artillery ammo", "ammo");
+    // and by kind across weapons (user, 2026-11-18): cluster, Artemis- and Narc-capable, ER and HE ATM
+    assertThat(groupsOf("arrowivclusterammo")).containsExactlyInAnyOrder("artillery ammo", "cluster ammo", "ammo");
+    assertThat(groupsOf("extended-rangeatm/6ammo")).containsExactly("er atm ammo", "atm ammo", "ammo");
+    assertThat(groupsOf("high-explosiveatm/6ammo")).containsExactly("he atm ammo", "atm ammo", "ammo");
+    assertThat(groupsOf("standardatm/6ammo")).containsExactly("atm ammo", "ammo");
     assertThat(groupsOf("inarcpods")).containsExactly("narc ammo", "ammo");
     // the fluid gun, nail/rivet gun and taser ammo have no group of their own
     assertThat(groupsOf("taserammo")).containsExactly("ammo");
     assertThat(groupsOf("lrm20ammo")).containsExactly("lrm ammo", "ammo");
     assertThat(groupsOf("streaksrm6ammo")).containsExactly("streak srm ammo", "srm ammo", "ammo");
-    assertThat(groupsOf("ammolrm-20artemisv-capable")).containsExactly("artemis lrm ammo", "lrm ammo", "ammo");
-    assertThat(groupsOf("ammomml-7srmnarc-capable")).containsExactly("narc mml ammo", "mml ammo", "ammo");
+    assertThat(groupsOf("ammolrm-20artemisv-capable"))
+        .containsExactlyInAnyOrder("artemis lrm ammo", "lrm ammo", "artemis ammo", "ammo");
+    assertThat(groupsOf("ammomml-7srmnarc-capable"))
+        .containsExactlyInAnyOrder("narc mml ammo", "mml ammo", "narc-capable ammo", "ammo");
     assertThat(groupsOf("shapedchargemortar4ammo")).containsExactly("mortar ammo", "ammo");
     // and what has ECM built in (user, 2026-11-01)
     for (String ecm : List.of("ecmsuite", "ecmsuite(guardian)", "angelecmsuite", "watchdogcompositeelectronicwarfaresystem(cews)",
