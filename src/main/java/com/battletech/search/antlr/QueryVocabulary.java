@@ -138,7 +138,7 @@ public final class QueryVocabulary {
   private static final Pattern COMMA = Pattern.compile(",\\s*");
   // "CommsGear:5": a size after a colon
   private static final Pattern SIZE = Pattern.compile(":(\\d+)$");
-  // "ELRM 10 Ammo": a number with a word after it would start the next chunk
+  // "MML 7 LRM Ammo": a number with a word after it would start the next chunk ("ammo" doesn't)
   private static final Pattern MIDDLE_NUMBER = Pattern.compile("(?<=\\S) (\\d+)(?= \\S)");
   private static final Pattern PLAIN_WORD = Pattern.compile("[A-Za-z]+");
 

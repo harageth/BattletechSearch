@@ -46,21 +46,23 @@ negation: WITHOUT | NO | EXCEPT ;
 // "an engine rating of at least 300", "engine rating 300 or more"; the word must be "engine"
 ratingChunk: QUANTITY? WORD RATING (comparator? QUANTITY | QUANTITY comparator) ;
 // "lrm 20", "streak srm 6": a name can end in one number. A number followed by another word starts
-// the next chunk instead, so "2 ppc 3 srm6" is still two chunks. Unit words can be part of a name
+// the next chunk instead, so "2 ppc 3 srm6" is still two chunks, except "ammo": "lrm 20 ammo" is the
+// LRM 20's ammo, not an LRM and 20 bins of ammo (user, 2026-11-17). Unit words can be part of a name
 // ("vehicle flamer", "superheavy tripod cockpit"): in a chunk they can't mean anything else. A
 // bracketed part is one word ("flamer (vehicle)", "machine gun ammo [half]", "lrm 20 (os)"), and so is
 // "triple strength" (TSM; "triple" is a number otherwise).
-equipmentName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
-    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY BRACKETED?)? ;
+equipmentName: (WORD | AMMO | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY AMMO? BRACKETED?)? ;
 // A name with no number in front, after "with", "and" or "or": past the unit, so it can start with a
 // unit word too ("units with vehicle flamer", user 2026-11-15)
-bareName: (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
-    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY BRACKETED?)? ;
+bareName: (WORD | AMMO | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK | WHEELED | TRACKED
+    | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)+ (QUANTITY AMMO? BRACKETED?)? ;
 // ...and starting a query with no unit, where it starts with a plain word (openingChunks); "support" and
 // "combat" are only a unit with a vehicle word after them, so "support laser" is a name (line tries the
 // unit first)
-plainName: (WORD | TRIPLESTRENGTH | SUPPORT | COMBAT) (WORD | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE | VTOL | TANK
-    | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)* (QUANTITY BRACKETED?)? ;
+plainName: (WORD | AMMO | TRIPLESTRENGTH | SUPPORT | COMBAT) (WORD | AMMO | BRACKETED | TRIPLESTRENGTH | GENERICUNIT | MECH | VEHICLE
+    | VTOL | TANK | WHEELED | TRACKED | HOVERCRAFT | BIPED | QUAD | TRIPOD | LAM | QUADVEE | OMNIMECH | SUPPORT | COMBAT)*
+    (QUANTITY AMMO? BRACKETED?)? ;
 // "omni mechs", "non-omni vehicles"
 omni: OMNI | NONOMNI ;
 // "ultra light", "medium or heavy", "light, medium, or heavy": a unit in any of them; "and" reads the
@@ -254,6 +256,8 @@ NEWLINE             : ('\r'? '\n' | '\r')+ ;
 BRACKETED: '(' ~[(),\r\n]* ')' | '[' ~[\],\r\n]* ']' ;
 // "triple strength myomer": the longer match keeps "triple" from being a number
 TRIPLESTRENGTH: T R I P L E GAP S T R E N G T H ;
+// a word of a name ("lrm ammo"), and the one word a name's number can come before ("lrm 20 ammo")
+AMMO: A M M O S? ;
 // an apostrophe is part of a word and dropped from names ("'mech mortar 1", "ppc's")
 WORD: [a-zA-Z0-9\-/']+ ;
 WHITESPACE : [ \t]+ -> skip ;

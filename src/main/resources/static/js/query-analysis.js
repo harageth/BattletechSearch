@@ -441,7 +441,7 @@ function startsWithWord(text) {
   const lexer = new BattletechLexer(new InputStream(text, false));
   lexer.removeErrorListeners();
   const type = lexer.nextToken().type;
-  return type === BattletechLexer.WORD || type === BattletechLexer.TRIPLESTRENGTH;
+  return type === BattletechLexer.WORD || type === BattletechLexer.AMMO || type === BattletechLexer.TRIPLESTRENGTH;
 }
 
 /** One word for each tech but the one given: "inner sphere" and "clan", not "is" too. */

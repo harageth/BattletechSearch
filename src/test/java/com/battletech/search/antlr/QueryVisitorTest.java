@@ -391,6 +391,23 @@ class QueryVisitorTest {
   }
 
   @Test
+  void aNumberBeforeAmmoIsPartOfTheName() {
+    // "lrm 20 ammo" is the LRM 20's ammo, not an LRM and 20 bins of ammo (user, 2026-11-17)
+    UnitDecorator lrmAmmo = parse("mechs with 2 lrm 20 ammo");
+    assertThat(names(lrmAmmo)).containsExactly("lrm20ammo");
+    assertThat(chunk(lrmAmmo, 0).getQuantity()).isEqualTo(2);
+    assertThat(names(parse("mechs with at least 1 ac 10 ammo"))).containsExactly("ac/10ammo");
+    assertThat(names(parse("mechs with 2 Streak SRM 6 Ammo"))).containsExactly("streaksrm6ammo");
+    assertThat(names(parse("mechs with 1 machine gun ammo [half]"))).containsExactly("machinegunammo[half]");
+    assertThat(names(parse("mechs with 2 lrm 20 ammo and 1 ppc"))).containsExactly("lrm20ammo", "ppc");
+    // "ammo" is still a word of any name, and alone
+    assertThat(names(parse("mechs with 2 lrm ammo"))).containsExactly("lrmammo");
+    assertThat(names(parse("ammo"))).containsExactly("ammo");
+    // another word after the number still starts the next chunk
+    assertThat(names(parse("mechs with 2 ppc 3 lrm ammo"))).containsExactly("ppc", "lrmammo");
+  }
+
+  @Test
   void guideNamesTypeAsListed() {
     // a bracketed part is a word of the name, anywhere in it (2026-11-01)
     assertThat(names(parse("mechs with a flamer (vehicle)"))).containsExactly("flamer(vehicle)");

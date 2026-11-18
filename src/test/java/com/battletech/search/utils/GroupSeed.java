@@ -23,13 +23,14 @@ import java.util.stream.Collectors;
 /**
  * The equipment group tree as the migrations write it, for tests without a database: its groups,
  * parents and (group, equipment name) members, read from the migration files. V3_17 writes the tree;
- * V3_20 and V3_23 add groups to it (the ammo groups, environmental sealing, infantry weapons, transport bays), add items
- * to groups and move items out of the group above into them, statement by statement.
+ * V3_20, V3_23 and V3_28 add groups to it (the ammo groups, environmental sealing, infantry weapons, transport
+ * bays, more ammo groups), add items to groups and move items out of the group above into them, statement by
+ * statement.
  */
 public final class GroupSeed {
   static final String MIGRATION = "/db/migration/V3_17__equipment_group_rows.sql";
   static final List<String> GROUPS_MIGRATIONS = List.of("/db/migration/V3_20__ammo_groups.sql",
-      "/db/migration/V3_23__support_vehicle_groups.sql");
+      "/db/migration/V3_23__support_vehicle_groups.sql", "/db/migration/V3_28__more_ammo_groups.sql");
   static final String TEST_MEMBERS = "/db/equipment-group-members.sql";
 
   private static final Pattern GROUP = Pattern.compile("\\(gen_random_uuid\\(\\), '((?:[^']|'')*)', (?:NULL|'(\\w+)'), (\\d+)\\)");

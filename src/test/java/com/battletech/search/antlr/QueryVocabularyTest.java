@@ -122,8 +122,9 @@ class QueryVocabularyTest {
     assertThat(QueryVocabulary.isTypeable("industrial triple strength myomer")).isTrue();
     // but a bracket can't hold a comma (user, 2026-11-14): commas separate lists
     assertThat(QueryVocabulary.isTypeable("rifle (cannon, heavy)")).isFalse();
-    // the number ends the name, so "ammo" would start another chunk
-    assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isFalse();
+    // a number before "ammo" stays in the name (user, 2026-11-17); before another word it ends it
+    assertThat(QueryVocabulary.isTypeable("lrm 20 ammo")).isTrue();
+    assertThat(QueryVocabulary.isTypeable("mml 7 lrm ammo")).isFalse();
     assertThat(QueryVocabulary.isTypeable("")).isFalse();
   }
 
@@ -139,8 +140,9 @@ class QueryVocabularyTest {
       assertThat(EquipmentNames.canonical(QueryVocabulary.typedName(name))).as(name)
           .isEqualTo(EquipmentNames.normalize(name));
     }
-    // a number in the middle can't: "lrm ammo" is the group of every LRM ammo
-    assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isNull();
+    // a number in the middle can before "ammo" (user, 2026-11-17), but not before another word
+    assertThat(QueryVocabulary.typedName("lrm 20 ammo")).isEqualTo("lrm 20 ammo");
+    assertThat(QueryVocabulary.typedName("mml 7 lrm ammo")).isNull();
   }
 
   @Test
@@ -148,7 +150,7 @@ class QueryVocabularyTest {
     // MegaMek's other names that can't be typed as written; the guide lists them respelled (2026-11-14)
     Map<String, String> respelled = Map.of(
         "Rifle (Cannon, Heavy)", "Rifle (Cannon Heavy)",
-        "ELRM 10 Ammo", "ELRM10 Ammo",
+        "MML 7 LRM Ammo", "MML7 LRM Ammo",
         "CommsGear:5", "CommsGear 5",
         "C3 Master Boosted System with TAG", "C3 Master Boosted System with-TAG");
     respelled.forEach((term, shown) -> {
@@ -158,5 +160,7 @@ class QueryVocabularyTest {
       assertThat(EquipmentNames.slangKey(shown)).isEqualTo(EquipmentNames.slangKey(term));
     });
     assertThat(QueryVocabulary.typeableSpelling("Flamer (Vehicle)")).isEqualTo("Flamer (Vehicle)");
+    // a number before "ammo" is typed as it is (user, 2026-11-17)
+    assertThat(QueryVocabulary.typeableSpelling("ELRM 10 Ammo")).isEqualTo("ELRM 10 Ammo");
   }
 }

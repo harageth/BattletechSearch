@@ -171,6 +171,16 @@ test('a leading tech word, then a fire control, then the equipment', () => {
   assert.deepEqual(roles('mechs with 2 artemis lrm ammos').slice(3), ['artemis lrm ammos:equipment']);
 });
 
+test('a number before "ammo" is part of the name', () => {
+  assert.deepEqual(roles('mechs with 2 lrm 20 ammo').slice(3), ['lrm 20 ammo:equipment']);
+  assert.deepEqual(roles('mechs with at least 1 clan streak srm 6 ammo').slice(4), ['clan:tech', 'streak srm 6 ammo:equipment']);
+  assert.deepEqual(roles('ammo'), ['ammo:equipment']);
+  // another word after the number still starts the next chunk
+  assert.deepEqual(roles('mechs with 2 ppc 3 lrm ammo').slice(3),
+      ['ppc:equipment', '3:quantity', 'lrm ammo:equipment']);
+  assert.equal(analyze('mechs with 2 lrm 20 ammo and 1 ppc', vocabulary).error, null);
+});
+
 test('a mount comes after any tech and before any fire control', () => {
   assert.deepEqual(roles('tanks with a turret lrm 20').slice(3), ['turret:turret-mount', 'lrm 20:equipment']);
   assert.deepEqual(roles('vehicles with at least 2 sponson machine guns').slice(4),

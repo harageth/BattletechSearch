@@ -319,6 +319,22 @@ class UnitServiceImportTest {
     assertThat(search("mechs with exactly 4 laser and exactly 1 lrm")).contains("Atlas AS7-D");
     assertThat(search("mechs with exactly 5 laser")).isEqualTo(search("mechs with exactly 5 lasers"));
     assertThat(search("mechs with at least 1 ppc")).doesNotContain("Atlas AS7-D");
+    // ammo by its weapon's group, every size, or with its size (user, 2026-11-17): the Atlas carries two bins
+    // of AC/20 ammo, two of LRM 20 and one of SRM 6
+    assertThat(search("mechs with exactly 2 ac ammo and exactly 2 standard ac ammo")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 2 lrm 20 ammo and exactly 1 srm 6 ammo")).contains("Atlas AS7-D");
+    assertThat(search("mechs with exactly 2 ac 20 ammo")).contains("Atlas AS7-D");
+    // the Mad Cat Prime's machine gun ammo is in "mg ammo"; the Atlas has none
+    assertThat(search("mechs with exactly 1 mg ammo")).contains("Mad Cat Prime").doesNotContain("Atlas AS7-D");
+    // and by kind across weapons (user, 2026-11-18): the Champion's SRM 6 bin is Artemis-capable, the Viking
+    // IIC's seven LRM bins Artemis V-capable, the DI Morgan's eight LRM 20 bins Artemis-capable
+    assertThat(search("units with at least 1 artemis ammo"))
+        .contains("Champion CHP-1N2", "Viking IIC Viking IIC prime", "DI Morgan Assault Tank (LRM)")
+        .doesNotContain("Atlas AS7-D");
+    assertThat(search("mechs with exactly 7 artemis ammo")).contains("Viking IIC Viking IIC prime");
+    // the Champion's and the Akuma's LB 10-X cluster bins; the Atlas's AC/20 ammo isn't cluster
+    assertThat(search("mechs with exactly 1 cluster ammo")).contains("Champion CHP-1N2", "Akuma AKU-2X")
+        .doesNotContain("Atlas AS7-D");
   }
 
   @Test
