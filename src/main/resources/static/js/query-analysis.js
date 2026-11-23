@@ -519,6 +519,61 @@ function slotAlternatives(slot, vocabulary) {
   }
 }
 
+// What can come next (nextWord): the query with the ending has to read without an error, with a word of the role
+// where the ending starts, after a word of one of the roles. An unfinished query's own roles can't be used: the
+// parser gives up on "mechs with 2 " and "heavy " could be a name.
+const NEXT_WORDS = [
+  { ending: 'units', role: 'unit', after: ['weight-class', 'tech', 'omni'], slot: 'unit', text: SLOT_DEFAULTS.unit },
+  // "heavy or ": a weight class, but which one isn't known
+  { ending: 'light units', role: 'weight-class', after: ['operator', 'comma'] },
+  // "mechs except ": a unit or a weapon
+  { ending: 'units', role: 'unit', after: ['except'] },
+  { ending: 'with lasers', role: 'with', after: ['unit'], slot: 'with', text: 'with' },
+  { ending: 'at least 1 laser', role: 'comparator', after: ['with', 'operator'], slot: 'comparator',
+    text: `${SLOT_DEFAULTS.comparator} ${SLOT_DEFAULTS.quantity}` },
+  { ending: '1 laser', role: 'quantity', after: ['comparator'], slot: 'quantity', text: SLOT_DEFAULTS.quantity },
+  // no one weapon is likelier than the rest, so there's only its list; not after "lrm 20", where the number is the
+  // name's and nothing is missing
+  { ending: 'lasers', role: 'equipment', after: ['quantity', 'comparator', 'without'], slot: 'weapon', text: null,
+    unfinished: true },
+  { ending: 'and lasers', role: 'operator', after: ['equipment', 'quantity'], slot: 'and/or', text: SLOT_DEFAULTS['and/or'],
+    needsComplete: true },
+];
+
+/**
+ * The word that comes next after a query ending in a space, when it's reasonably known (user, 2026-11-22):
+ * "heavy " -> units, "mechs " -> with, "mechs with " -> at least 1. Its slot says what its list holds (nextOptions).
+ * A null text has only the list ("mechs with 2 ": some weapon). With needsComplete it's only next if the query so
+ * far is a whole search, which the server knows ("2 medium " isn't a name yet). Null when it isn't known.
+ *
+ * @returns {?{text: ?string, slot: string, needsComplete: boolean}}
+ */
+export function nextWord(text, vocabulary = EMPTY_VOCABULARY) {
+  if (text.trim() === '' || !text.endsWith(' ') || findSlots(text).length > 0) {
+    return null;
+  }
+  const unfinished = analyze(text, vocabulary).error !== null;
+  for (const next of NEXT_WORDS) {
+    if (next.unfinished && !unfinished) {
+      continue;
+    }
+    const { tokens, error } = analyze(text + next.ending, vocabulary);
+    const index = tokens.findIndex(token => token.start === text.length);
+    if (error || index < 1 || tokens[index].role !== next.role || tokens.some(token => token.role === 'unknown')
+        || !next.after.includes(tokens[index - 1].role)) {
+      continue;
+    }
+    return next.slot ? { text: next.text, slot: next.slot, needsComplete: next.needsComplete === true } : null;
+  }
+  return null;
+}
+
+/** What else the next word could be, to pick from; none for a number, which is typed into a box. */
+export function nextOptions(next, vocabulary = EMPTY_VOCABULARY) {
+  return next.slot === 'with' ? vocabulary.withWords.map(word => ({ label: word, text: word }))
+    : slotAlternatives(next.slot, vocabulary);
+}
+
 // the families whose launchers take Artemis (Streaks don't); MRMs take Apollo
 const ARTEMIS_FAMILIES = ['lrms', 'srms', 'mmls'];
 

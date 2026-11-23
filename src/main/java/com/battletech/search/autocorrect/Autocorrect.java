@@ -1,15 +1,9 @@
 package com.battletech.search.autocorrect;
 
 import com.battletech.search.antlr.QueryParser;
-import com.battletech.search.antlr.QueryVocabulary;
-import com.battletech.search.entities.Equipment;
-import com.battletech.search.entities.Slang;
 import com.battletech.search.model.search.FailedParseException;
-import com.battletech.search.model.search.QuantityConverter;
 import com.battletech.search.repositories.EquipmentRepository;
-import com.battletech.search.repositories.SlangRepository;
 import com.battletech.search.utils.EquipmentNames;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -41,20 +35,16 @@ public class Autocorrect {
   private static final int MAX_TRIES = 100;
   // the most words moved together ("or more", "at least 2")
   private static final int MAX_MOVED = 3;
-  // new imports show up within a minute
-  private static final Duration WORDS_KEPT = Duration.ofMinutes(1);
   // a word between spaces; brackets and numbers are never misspelled
   private static final Pattern WORD = Pattern.compile("\\S+");
   private static final Pattern NOT_A_WORD = Pattern.compile(".*[()\\[\\]].*|[^a-zA-Z]*");
 
   private final EquipmentRepository equipRepo;
-  private final SlangRepository slangRepo;
-  private volatile SearchWords words;
-  private volatile long wordsLoadedAt;
+  private final SearchWordsLoader loader;
 
-  public Autocorrect(EquipmentRepository equipRepo, SlangRepository slangRepo) {
+  public Autocorrect(EquipmentRepository equipRepo, SearchWordsLoader loader) {
     this.equipRepo = equipRepo;
-    this.slangRepo = slangRepo;
+    this.loader = loader;
   }
 
   /** A typed word that isn't a known one, and the known words to try in its place, closest first. */
@@ -95,7 +85,7 @@ public class Autocorrect {
 
   // each misspelled word's closest known words, tried together through the parser
   private Suggestions spellings(String query) {
-    SearchWords known = words();
+    SearchWords known = loader.words();
     List<Typo> typos = new ArrayList<>();
     Matcher word = WORD.matcher(query);
     while (word.find() && typos.size() < MAX_WORDS) {
@@ -270,47 +260,5 @@ public class Autocorrect {
     } catch (FailedParseException e) {
       return e;
     }
-  }
-
-  private SearchWords words() {
-    if (words == null || System.nanoTime() - wordsLoadedAt > WORDS_KEPT.toNanos()) {
-      words = load();
-      wordsLoadedAt = System.nanoTime();
-    }
-    return words;
-  }
-
-  // the grammar's words, and every equipment name and slang term the search looks up
-  private SearchWords load() {
-    List<String> fixed = new ArrayList<>();
-    fixed.addAll(QueryVocabulary.weightClasses());
-    QueryVocabulary.units().forEach(unit -> {
-      fixed.add(unit.singular());
-      fixed.add(unit.plural());
-    });
-    fixed.addAll(QueryVocabulary.comparatorsBefore());
-    fixed.addAll(QueryVocabulary.comparatorsAfter());
-    fixed.addAll(QueryVocabulary.operators());
-    fixed.addAll(QueryVocabulary.withWords());
-    fixed.addAll(QueryVocabulary.techs().keySet());
-    fixed.addAll(QueryVocabulary.unitTechs().keySet());
-    fixed.addAll(QueryVocabulary.fireControls());
-    fixed.addAll(QueryVocabulary.turretMounts());
-    fixed.addAll(QueryVocabulary.omniWords());
-    QueryVocabulary.components().values().forEach(fixed::addAll);
-    fixed.addAll(QueryVocabulary.keywords());
-    fixed.addAll(QuantityConverter.numberWords());
-    List<String> equipment = new ArrayList<>();
-    // the display name first, so a whole name is shown as typed ("medium laser"), not as stored ("mediumlaser")
-    for (Equipment item : equipRepo.findAll()) {
-      if (item.getDisplayName() != null) {
-        equipment.add(EquipmentNames.typed(item.getDisplayName()));
-      }
-      equipment.add(item.getName());
-    }
-    for (Slang term : slangRepo.findAll()) {
-      equipment.add(term.getTerm());
-    }
-    return SearchWords.of(fixed, equipment);
   }
 }

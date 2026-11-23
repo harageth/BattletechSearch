@@ -1,6 +1,6 @@
 ---
 name: autocorrect
-description: Use when changing spelling suggestions for search queries ("Did you mean heavy mechs?"), the /api/suggestions endpoint, the search box's underlined misspelled words, or the word index (SearchWords) that autocomplete is meant to reuse. Holds the user's decisions, how it works, and the future improvements (popularity ranking).
+description: Use when changing spelling suggestions for search queries ("Did you mean heavy mechs?"), autocomplete in the search box (the list as you type, the gray next word), the /api/suggestions and /api/completions endpoints, the search box's underlined misspelled words, or the word index (SearchWords) they share. Holds the user's decisions, how it works, and the future improvements (popularity ranking).
 ---
 
 # Autocorrect
@@ -29,9 +29,30 @@ Built 2026-11-18 (branch `autocorrect`). A search that doesn't parse gets "Did y
 - Search box: `query-input.js` asks 500 ms after typing stops (not for template blanks), keeps the answer for that text, underlines a token holding a misspelled word (`.tok-misspelled`) and puts its spellings first in the list (`query-analysis.js` `suggestedAlternatives`, which swaps just that word inside the token).
 - Tests: `TypoMatcherTest`, `AutocorrectTest` (a table of misspelled queries on the fixtures, the endpoint's JSON), `SearchControllerTest` (the link), JS `suggestedAlternatives`.
 
+## Autocomplete
+
+Built 2026-11-22 (branch `autocomplete`).
+
+**Decided** (user, 2026-11-22):
+- A list while typing, from the second letter, up to 8. Words of the grammar, then groups, then single items, alphabetical in each (the grammar's other spellings, `helo` and singular unit words, come last). Tab, a click, or Enter after arrowing to one takes it; Enter alone searches.
+- After a space, the next word in gray when it's reasonably known, with a default (`units`; `at least 1` after `with`); hovering it opens its list. No weapon is known, so that gray word has only its list.
+- After a space that ends a whole search, the gray word and the longer names of the last term show together (user, 2026-11-22: `2 lrm ` shows *and* and lists `lrm 20`), **the gray word first in the list** (user: the list was confusing without it), then the names; Tab takes the gray word unless an option was arrowed to.
+- Taking a suggestion never searches. Escape puts it away, and then Tab leaves the box.
+- Added while building (2026-11-22, tell the user before changing): when the query is already a whole search, Tab takes from the list only after arrowing, so tabbing to Search can't turn `2 ppc` into `2 ppc capacitor`.
+
+**How it works:**
+- `SearchWordsLoader` holds the one index both use, read again once a minute. `SearchWords.phrases` are whole phrases with a `Kind`, whose order is the order offered; MegaMek `ALIAS` terms aren't in it. Autocorrect uses the per-word entries as before.
+- `Autocomplete.complete(query, caret)`: the last 1 to 6 words before the caret are matched as the start of a phrase's key, and **the parser decides what fits** (as in autocorrect). A name has to parse as it is; a word of the grammar with one of a few endings added (`ENDINGS`; a weight class only with `units`, or `2 medium` + `lasers` would offer `medium` as equipment). Names come only from the longest text that begins one, words of the grammar from every start (`heavy me`: `mechs` and `heavy medium laser`), so **each option has its own start**. Up to 40 candidates; under 75 ms on full data. Mid-query, the whole query has to parse.
+- `GET /api/completions?query=&caret=`: `{stop, options: [{start, text}], complete}`. `complete` (it parses) is what lets the box show `and` after a finished name.
+- `nextWord` / `nextOptions` in `query-analysis.js`: adds each likely ending (`NEXT_WORDS`) and reads the role where it starts. An unfinished query's own roles can't be used: the parser's recovery labels them `error` or `equipment`.
+- `query-input.js`: the gray word is an element beside the field, never in it. A redraw under a mouse that isn't moving isn't a hover (`mouseMoved`). `menuKind` says whether a pick is a swap (searches) or a completion (goes on typing).
+- **A redraw moves the caret** (`refresh`, when spellings or word lists arrive late), so nothing may decide from the caret until it's put back (`redrawing`), or the open list and number box close by themselves.
+- **Check changes on the full data, not only the fixtures:** the first version passed every test and still offered `medium` after `2`, because the fixtures have no `heavy lasers`.
+
 ## Future improvements (not built)
+
+- **Alphabetical order hides common items** until enough is typed: `2 me` lists mech mortars, and `medium laser` comes at `2 med`. Popularity ranking (below) would fix it.
 
 - **Ranking by popularity** (user, 2026-11-18: documented, not built, to avoid more database work now): standard spell-checkers break ties by frequency. Here that would be how many units have an item, so a typo equally close to two items suggests the more common one first.
 - **Keyboard-neighbor typos:** a wrong letter next to the intended key counted as a smaller typo. Most systems skip it.
-- **Autocomplete** (the next PR): `SearchWords` keeps every phrase with whether it's fixed or equipment, and `/api/suggestions` is the place to return completions. Autocomplete needs prefix matching and what the grammar allows at the cursor (ANTLR's expected tokens, already used by `QueryParser.ThrowingErrorListener`).
 - The error message itself still names where the word landed ("Unknown weight class: mehcs"); the suggestion says what was meant.
