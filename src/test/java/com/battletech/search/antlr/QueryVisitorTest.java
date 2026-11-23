@@ -128,6 +128,83 @@ class QueryVisitorTest {
   }
 
   @Test
+  void aUnitsTechGoesWithItsWeightClass() {
+    // "clan mechs with 2 lrm 20" is a search as written (user, 2026-11-18)
+    UnitDecorator clan = parse("clan mechs with 2 lrm 20");
+    assertThat(clan.getTechFilter()).isEqualTo(Tech.CLAN);
+    assertThat(clan.getWeightClasses()).isEmpty();
+    assertThat(clan.getQuery()).contains("AND tech = 'CLAN'");
+    // before or after the weight class, any case
+    for (String query : new String[] {"clan heavy mechs", "heavy clan mechs", "Clan Heavy Mechs"}) {
+      assertThat(parse(query).getTechFilter()).as(query).isEqualTo(Tech.CLAN);
+      assertThat(parse(query).getWeightClasses()).as(query).containsExactly(WeightClass.HEAVY);
+    }
+    assertThat(parse("inner sphere ultra heavy mechs").getTechFilter()).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(parse("inner sphere ultra heavy mechs").getWeightClasses()).containsExactly(WeightClass.ULTRA_HEAVY);
+    assertThat(parse("is mechs").getTechFilter()).isEqualTo(Tech.INNER_SPHERE);
+    // exactly the unit's tech: a mixed-tech unit is its own
+    assertThat(parse("mixed tech units").getTechFilter()).isEqualTo(Tech.MIXED_TECH);
+    assertThat(parse("mixed mechs").getTechFilter()).isEqualTo(Tech.MIXED_TECH);
+    // with several weight classes, omni words, and no unit word
+    UnitDecorator several = parse("clan light or medium omni mechs");
+    assertThat(several.getTechFilter()).isEqualTo(Tech.CLAN);
+    assertThat(several.getWeightClasses()).containsExactly(WeightClass.LIGHT, WeightClass.MEDIUM);
+    assertThat(several.getOmniFilter()).isTrue();
+    assertThat(parse("clan with 2 ppc").getTechFilter()).isEqualTo(Tech.CLAN);
+    assertThat(parse("heavy mechs").getTechFilter()).isNull();
+    assertThat(parse("heavy mechs").getQuery()).doesNotContain("tech =");
+    // one tech of unit per search
+    assertThatThrownBy(() -> parse("clan light or is heavy mechs")).isInstanceOf(FailedParseException.class)
+        .hasMessage("A search can only ask for one tech of unit: clan or is");
+    assertThatThrownBy(() -> parse("is light clan mechs")).isInstanceOf(FailedParseException.class)
+        .hasMessage("A search can only ask for one tech of unit: clan or is");
+    // the same one twice is fine, however it's spelled
+    assertThat(parse("is light or inner sphere heavy mechs").getTechFilter()).isEqualTo(Tech.INNER_SPHERE);
+    assertThat(parse("is light or inner sphere heavy mechs").getWeightClasses())
+        .containsExactly(WeightClass.LIGHT, WeightClass.HEAVY);
+    assertThat(parse("clan heavy or clan mechs").getTechFilter()).isEqualTo(Tech.CLAN);
+    // and the equipment's tech is still its own: Clan mechs with Inner Sphere PPCs
+    UnitDecorator both = parse("clan mechs with 2 is ppc");
+    assertThat(both.getTechFilter()).isEqualTo(Tech.CLAN);
+    assertThat(chunk(both, 0).getEquipment().getTech()).isEqualTo(Tech.INNER_SPHERE);
+  }
+
+  @Test
+  void aTechByItselfAfterOrIsAChoiceOfItsOwn() {
+    // heavy mechs, and Clan mechs of any weight class (user, 2026-11-22)
+    for (String query : new String[] {"heavy or clan mechs", "clan or heavy mechs"}) {
+      UnitDecorator unit = parse(query + " with 2 ppc");
+      assertThat(unit.getOrTech()).as(query).isEqualTo(Tech.CLAN);
+      assertThat(unit.getTechFilter()).as(query).isNull();
+      // the choice in brackets, so the rest of the search applies to both sides of it
+      assertThat(unit.getQuery()).as(query).startsWith(
+          "SELECT name, designation FROM unit WHERE dtype = 'Mech'  AND ((weight_class IN ('HEAVY')) OR tech = 'CLAN') AND (");
+    }
+    assertThat(parse("light, medium, or inner sphere mechs").getQuery())
+        .contains("AND ((weight_class IN ('LIGHT', 'MEDIUM')) OR tech = 'INNER_SPHERE') ");
+    // a comma reads as the operator its list ends with
+    assertThat(parse("light, clan or medium mechs").getOrTech()).isEqualTo(Tech.CLAN);
+    assertThat(parse("heavy, or mixed tech mechs").getOrTech()).isEqualTo(Tech.MIXED_TECH);
+    // "and" or a comma alone still narrows, and so does a tech right next to a weight class
+    for (String query : new String[] {"heavy and clan mechs", "heavy, clan mechs", "clan heavy mechs"}) {
+      assertThat(parse(query).getOrTech()).as(query).isNull();
+      assertThat(parse(query).getQuery()).as(query).contains("AND weight_class IN ('HEAVY') AND tech = 'CLAN' ");
+    }
+    assertThat(parse("clan light or medium mechs").getQuery())
+        .contains("AND weight_class IN ('LIGHT', 'MEDIUM') AND tech = 'CLAN' ");
+    // both: a Clan mech of any weight class
+    assertThat(parse("clan heavy or clan mechs").getQuery())
+        .contains("AND ((weight_class IN ('HEAVY') AND tech = 'CLAN') OR tech = 'CLAN') ");
+    // "or" with no weight class in the search, and omni words stay outside the choice
+    assertThat(parse("clan or clan mechs").getQuery()).contains("AND tech = 'CLAN' ");
+    assertThat(parse("heavy or clan omni mechs").getQuery())
+        .contains("AND omni = true  AND ((weight_class IN ('HEAVY')) OR tech = 'CLAN') ");
+    // still one tech of unit per search
+    assertThatThrownBy(() -> parse("clan or is mechs")).isInstanceOf(FailedParseException.class)
+        .hasMessage("A search can only ask for one tech of unit: clan or is");
+  }
+
+  @Test
   void aMotiveTypeCanComeBeforeAVehicleWord() {
     for (String unit : new String[] {"tracked vehicles", "tracked vees", "tracked tanks", "Tracked Vehicle"}) {
       assertThat(tank(unit + " with at least 1 ppc").getMotiveSystem()).as(unit).isEqualTo(MotiveSystem.Tracked);

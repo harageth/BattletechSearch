@@ -241,6 +241,27 @@ class UnitServiceImportTest {
   }
 
   @Test
+  void searchesUnitsByTheirTech() throws IOException {
+    importMechs();
+    entityManager.flush();
+
+    // the Mad Cat and Viking IIC are Clan, the Atlas Inner Sphere, the Kodiak (Cale) and Black Knight mixed tech
+    assertThat(names("clan mechs")).contains("Mad Cat", "Viking IIC").doesNotContain("Atlas", "Kodiak", "Black Knight");
+    assertThat(names("inner sphere mechs")).contains("Atlas").doesNotContain("Mad Cat", "Kodiak");
+    assertThat(names("is assault mechs")).contains("Atlas").doesNotContain("Mad Cat");
+    // a mixed-tech unit is mixed tech, even on a Clan chassis (user, 2026-11-18)
+    assertThat(names("mixed tech mechs")).contains("Kodiak", "Black Knight").doesNotContain("Mad Cat", "Atlas");
+    // "clan mechs with 2 lrm 20" as written: the Mad Cat Prime has two
+    assertThat(search("clan mechs with exactly 2 lrm 20")).contains("Mad Cat Prime");
+    // assault mechs, and Clan mechs of any weight class (user, 2026-11-22): the Mad Cat is heavy
+    assertThat(names("assault mechs")).doesNotContain("Mad Cat");
+    assertThat(names("assault or clan mechs")).contains("Atlas", "Mad Cat", "Viking IIC").doesNotContain("Black Knight");
+    // the weapons are asked of both
+    assertThat(search("assault or clan mechs with exactly 2 lrm 20")).contains("Mad Cat Prime");
+    assertThat(names("assault or clan mechs with exactly 2 lrm 20")).doesNotContain("Atlas");
+  }
+
+  @Test
   void mechsAndVehiclesShareEquipmentNames() throws IOException {
     importMechs();
     unitService.persistUnits(fixtures("vehicles"), ".blk", ReadMegaMek::ReadVehicleBlk);

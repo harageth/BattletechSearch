@@ -293,6 +293,7 @@ public class Autocorrect {
     fixed.addAll(QueryVocabulary.operators());
     fixed.addAll(QueryVocabulary.withWords());
     fixed.addAll(QueryVocabulary.techs().keySet());
+    fixed.addAll(QueryVocabulary.unitTechs().keySet());
     fixed.addAll(QueryVocabulary.fireControls());
     fixed.addAll(QueryVocabulary.turretMounts());
     fixed.addAll(QueryVocabulary.omniWords());

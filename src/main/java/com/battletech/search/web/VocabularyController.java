@@ -64,12 +64,14 @@ public class VocabularyController {
    * @param fireControlTerms terms that start with a fire control word, read whole ("artemis lrm ammo")
    * @param turretMounts "turret", "sponson", "pintle", in front of a weapon
    * @param turretMountTerms terms that start with a mount word, read whole ("sponson turret", "pintle mount")
+   * @param unitTechs "clan", "inner sphere", "mixed tech" before the unit word, and the tech each means
    */
   public record Vocabulary(List<String> weightClasses, List<UnitWord> units,
       List<String> comparatorsBefore, List<String> comparatorsAfter, List<String> operators,
       List<String> withWords, Map<String, Tech> techs, List<String> fireControls, Map<String, List<String>> families,
       Map<String, List<String>> equipment, List<String> omniWords, Map<String, List<String>> components,
-      List<String> fireControlTerms, List<String> turretMounts, List<String> turretMountTerms) {
+      List<String> fireControlTerms, List<String> turretMounts, List<String> turretMountTerms,
+      Map<String, Tech> unitTechs) {
   }
 
   @GetMapping("/api/vocabulary")
@@ -108,7 +110,8 @@ public class VocabularyController {
         QueryVocabulary.operators(), QueryVocabulary.withWords(), QueryVocabulary.techs(), QueryVocabulary.fireControls(),
         families, equipment, QueryVocabulary.omniWords(), QueryVocabulary.components(),
         startingWith(allTerms, lookup -> FireControl.fromSearch(lookup) != null),
-        QueryVocabulary.turretMounts(), startingWith(allTerms, lookup -> TurretMount.fromSearch(lookup) != null));
+        QueryVocabulary.turretMounts(), startingWith(allTerms, lookup -> TurretMount.fromSearch(lookup) != null),
+        QueryVocabulary.unitTechs());
     // new imports show up within the hour
     return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1))).body(vocabulary);
   }

@@ -74,7 +74,7 @@ class AutocorrectTest {
     assertThat(autocorrect.suggest("mechs with 2 lrm 20s")).isEqualTo(Suggestions.NONE);
     // nothing close
     assertThat(autocorrect.suggest("mechs with 2 zzzzzzzz").getQuery()).isNull();
-    // a real query, even before units can be searched by tech: never rewritten into another (user, 2026-11-18)
+    // a real query, never rewritten into another (user, 2026-11-18): Clan mechs with two LRM 20s
     assertThat(autocorrect.suggest("clan mechs with 2 lrm 20").getQuery()).isNull();
     assertThat(autocorrect.suggest("")).isEqualTo(Suggestions.NONE);
   }
