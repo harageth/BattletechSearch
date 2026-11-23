@@ -166,6 +166,7 @@ class QueryEditor {
     // the gray word is only for the end of the text
     document.addEventListener('selectionchange', () => {
       if (document.activeElement === this.field) {
+        this.closeStaleCompletions();
         this.showNext();
       }
     });
@@ -345,7 +346,8 @@ class QueryEditor {
   openCompletions() {
     const { options, stop, text, complete } = this.completed;
     if (options.length === 0 || this.dismissed === text || document.activeElement !== this.field
-        || (this.next && !complete) || (this.menuKind === 'next' && !this.menu.hidden)) {
+        // a list opened since (a word's swaps, the number box, the gray word's) is what you're looking at
+        || (this.next && !complete) || (!this.menu.hidden && this.menuKind !== 'complete')) {
       return;
     }
     // under the last of the words replaced; each option says where its own start
@@ -355,6 +357,21 @@ class QueryEditor {
       listed.unshift({ label: this.next.text, text: this.next.text, start: stop });
     }
     this.openList({ start, stop }, listed, rangeBox(this.field, start, stop), 'complete');
+  }
+
+  /**
+   * The list of completions is for where the caret was: once it moves (Home, the arrow keys, a click), the list
+   * goes, or Tab would still put an option in back there (Codex review, 2026-11-22). Not while a redraw puts the
+   * caret back.
+   */
+  closeStaleCompletions() {
+    if (this.menuKind !== 'complete' || this.menu.hidden || this.redrawing) {
+      return;
+    }
+    const selection = selectionOffsets(this.field);
+    if (!selection || selection[0] !== selection[1] || selection[1] !== this.completed.caret) {
+      this.closeMenu();
+    }
   }
 
   /** Shows the next word in gray at the end of the text, if it's known and the caret is there. */
@@ -450,9 +467,10 @@ class QueryEditor {
     }
     const clean = typed.replace(/\s+/g, ' ');
     this.input.value = this.text.slice(0, start) + clean + this.text.slice(stop);
-    // like typing: an open menu would point at where its word used to be
+    // like typing: an open menu would point at where its word used to be, and the word may be completed
     this.closeMenu();
     this.render(start + clean.length);
+    this.askForCompletions();
   }
 
   // the misspelled words the server found in the text as it is now

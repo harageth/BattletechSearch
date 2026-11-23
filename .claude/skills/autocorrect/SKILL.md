@@ -36,7 +36,8 @@ Built 2026-11-22 (branch `autocomplete`).
 **Decided** (user, 2026-11-22):
 - A list while typing, from the second letter, up to 8. Words of the grammar, then groups, then single items, alphabetical in each (the grammar's other spellings, `helo` and singular unit words, come last). Tab, a click, or Enter after arrowing to one takes it; Enter alone searches.
 - After a space, the next word in gray when it's reasonably known, with a default (`units`; `at least 1` after `with`); hovering it opens its list. No weapon is known, so that gray word has only its list.
-- After a space that ends a whole search, the gray word and the longer names of the last term show together (user, 2026-11-22: `2 lrm ` shows *and* and lists `lrm 20`), **the gray word first in the list** (user: the list was confusing without it), then the names; Tab takes the gray word unless an option was arrowed to.
+- After a space that ends a whole search, the gray word and the longer names of the last term show together (user, 2026-11-22: `2 lrm ` shows *and* and lists `lrm 20`), **the gray word first in the list** (user: the list was confusing without it), then the names; Tab takes the gray word unless an option was arrowed to. So that list can hold 9: the gray word plus 8 names, by design (user, 2026-11-22, on a Codex finding).
+- Moving the caret (Home, the arrow keys, a click) closes the list of completions, which was for where the caret was (Codex finding, user 2026-11-22: fix).
 - Taking a suggestion never searches. Escape puts it away, and then Tab leaves the box.
 - Added while building (2026-11-22, tell the user before changing): when the query is already a whole search, Tab takes from the list only after arrowing, so tabbing to Search can't turn `2 ppc` into `2 ppc capacitor`.
 
@@ -48,6 +49,14 @@ Built 2026-11-22 (branch `autocomplete`).
 - `query-input.js`: the gray word is an element beside the field, never in it. A redraw under a mouse that isn't moving isn't a hover (`mouseMoved`). `menuKind` says whether a pick is a swap (searches) or a completion (goes on typing).
 - **A redraw moves the caret** (`refresh`, when spellings or word lists arrive late), so nothing may decide from the caret until it's put back (`redrawing`), or the open list and number box close by themselves.
 - **Check changes on the full data, not only the fixtures:** the first version passed every test and still offered `medium` after `2`, because the fixtures have no `heavy lasers`.
+
+## Production hardening (before the site is public)
+
+Found by a Sonnet review of PR #31 (2026-11-22); the user chose to document this rather than fix it now.
+
+- **Cost per completion request.** `/api/completions` is unauthenticated and asked after almost every pause in typing. One request can run up to about 280 parses (`MAX_TRIES` 40 candidates, up to 7 `ENDINGS` each, plus the query itself), and a parse looks up each equipment name in the database (`QueryVisitor` → `EquipmentRepository.findAllByNameOrSlang`). Typical prefixes took under 75 ms on the full data; a hostile 500-character query has not been timed. To do: cap total parses per request (not candidates), time the worst case, and add a rate limit per client, for `/api/completions`, `/api/suggestions` and `/search` alike (none have one; likely at the proxy or with a filter).
+
+Fixed in the same PR (user, 2026-11-22): **reloading the word index.** When it expired each minute, every request at that moment reloaded it from the database, and a failed reload left nothing. Now (`SearchWordsLoader.words`) the words and their load time are one value, one request reloads while the others keep their copy, and a failed reload keeps the old copy and is tried again after `RETRY_AFTER`. Only the very first load makes requests wait. `SearchWordsLoaderTest` covers it with a clock it moves.
 
 ## Future improvements (not built)
 
