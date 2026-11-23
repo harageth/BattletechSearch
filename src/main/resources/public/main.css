@@ -478,6 +478,31 @@ main a {
 	border-radius: 3px;
 	padding: 0 2px;
 }
+/* the next word, shown after the text until it's taken (autocomplete) */
+.query-ghost {
+	position: absolute;
+	color: var(--query-placeholder);
+	font-size: 110%;
+	white-space: nowrap;
+	cursor: pointer;
+	border-radius: 2px;
+}
+.query-ghost[hidden] {
+	display: none;
+}
+.query-ghost:hover {
+	color: var(--query-filler);
+	background: var(--query-hover);
+}
+/* read by screen readers only */
+.query-announcer {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
 .tok-swappable {
 	border-radius: 2px;
 }

@@ -2,7 +2,7 @@
 // scripts next to the parser it generates from the grammar.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, EMPTY_VOCABULARY, withDefaults } from '../../../target/classes/static/js/query-analysis.js';
+import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, nextWord, nextOptions, EMPTY_VOCABULARY, withDefaults } from '../../../target/classes/static/js/query-analysis.js';
 
 // the shape GET /api/vocabulary returns, cut down
 const vocabulary = {
@@ -190,6 +190,54 @@ test('a unit tech is its own word next to the weight class', () => {
   }
   const attached = analyze('clan light or heavy mechs', vocabulary).tokens[0];
   assert.deepEqual(alternatives(attached, vocabulary).at(-1), { label: 'any tech', text: '' });
+});
+
+test('the next word after a space, when it is known', () => {
+  const next = query => nextWord(query, vocabulary);
+  const known = {
+    'heavy ': 'units', 'clan ': 'units', 'clan heavy ': 'units', 'omni ': 'units', 'heavy or light ': 'units',
+    'mechs ': 'with', 'heavy mechs ': 'with', 'mechs except lams ': 'with',
+    'mechs with ': 'at least 1', 'mechs with 2 ppc and ': 'at least 1',
+    'mechs with at least ': '1',
+    'mechs with 2 ppc ': 'and', 'mechs with ppcs ': 'and', 'mechs with 2 lrm 20 ': 'and',
+    // and on after a whole search
+    'mechs with 2 ppc or ': 'at least 1', 'mechs with 2 ppc and at least ': '1', 'mechs with 2 ppc and 3 lrm 20 ': 'and',
+    'heavy mechs with 2 ppc and 3 lrm 20 or 1 ppc ': 'and',
+    'mechs with an engine rating of 300 ': 'and',
+  };
+  for (const [query, word] of Object.entries(known)) {
+    assert.equal(next(query)?.text, word, query);
+    // and it reads on from there
+    const { error } = analyze(query + word + ' ', vocabulary);
+    assert.ok(error === null || error.start >= (query + word).length, query);
+  }
+  // some weapon: only its list
+  for (const query of ['mechs with 2 ', 'mechs with 2 or more ', 'mechs with at least 2 ', 'mechs without ',
+    'mechs with 2 ppc and 3 ', 'mechs with 2 ppc and without ']) {
+    assert.deepEqual(next(query), { text: null, slot: 'weapon', needsComplete: false }, query);
+  }
+  // "2 medium " reads as a name too: the server says whether it's one
+  assert.equal(next('mechs with 2 ppc ').needsComplete, true);
+  assert.equal(next('mechs with 2 medium ').needsComplete, true);
+  assert.equal(next('hevy ').needsComplete, true);
+  assert.equal(next('mechs ').needsComplete, false);
+  // not known: nothing typed, no space, a weight class after "or", which unit to leave out, a rating, a typo, blanks
+  for (const query of ['', ' ', 'heavy', 'mechs with 2 ppc', 'heavy or ', 'heavy, ', 'mechs except ',
+    'mechs with an engine rating of ', 'mechs with an engine rating of at least ', 'mechs that ',
+    'units with <comparator> ']) {
+    assert.equal(next(query), null, query);
+  }
+});
+
+test("the next word's list", () => {
+  const options = query => nextOptions(nextWord(query, vocabulary), vocabulary).map(option => option.text);
+  assert.deepEqual(options('heavy '), vocabulary.units.map(unit => unit.plural));
+  assert.deepEqual(options('mechs '), vocabulary.withWords);
+  assert.deepEqual(options('mechs with '), vocabulary.comparatorsBefore);
+  assert.deepEqual(options('mechs with 2 ppc '), vocabulary.operators);
+  assert.deepEqual(options('mechs with 2 '), Object.keys(vocabulary.families));
+  // typed into a box
+  assert.deepEqual(options('mechs with at least '), []);
 });
 
 test("the server's spellings replace just the misspelled word in a token", () => {

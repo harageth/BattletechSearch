@@ -1,10 +1,11 @@
 {
   "name": "battletech-search",
   "private": true,
-  "description": "Only for the JavaScript tests; Maven installs Node and runs them (./mvnw test)",
+  "description": "Only for the JavaScript tests; Maven installs Node and runs them (./mvnw test). test:browser drives the running app in Chrome, on request (src/test/browser)",
   "type": "module",
   "scripts": {
-    "test": "node --test \"src/test/js/**/*.test.mjs\""
+    "test": "node --test \"src/test/js/**/*.test.mjs\"",
+    "test:browser": "node src/test/browser/search-box.browser.mjs"
   },
   "devDependencies": {
     "antlr4": "4.13.2"

@@ -7,14 +7,20 @@
 // blank's list opens in turn, and the search runs once the last is filled. Escape, or searching early,
 // leaves the rest as their defaults.
 //
+// As you type, /api/completions (autocomplete, on the server) lists what the word may become, and after a space
+// the next word shows in gray when it's known: Tab or a click takes either, and hovering the gray word opens its
+// list. Neither runs the search, and the gray word is never part of the query.
+//
 // When you stop typing, a query that doesn't parse is sent to /api/suggestions (autocorrect, on the
 // server): a word it has spellings for is underlined, and its list offers them first.
-import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, SLOT_DEFAULTS, EMPTY_VOCABULARY, withDefaults } from './query-analysis.js';
+import { analyze, alternatives, suggestedAlternatives, isQuantity, quantityText, replaceToken, templates, addTemplate, fillSlots, nextWord, nextOptions, SLOT_DEFAULTS, EMPTY_VOCABULARY, withDefaults } from './query-analysis.js';
 
 let vocabulary = EMPTY_VOCABULARY;
 const editors = [];
 // how long typing has to stop before asking for spellings
 const SUGGEST_AFTER_MS = 500;
+// ... and before asking what the word may become
+const COMPLETE_AFTER_MS = 150;
 
 fetch('/api/vocabulary')
   .then(response => (response.ok ? response.json() : null))
@@ -34,9 +40,21 @@ class QueryEditor {
     this.menuToken = null;
     this.active = -1;
     this.composing = false;
+    this.redrawing = false;
     // the server's spellings, for the text they were asked for
     this.suggested = { text: null, words: [] };
     this.suggestTimer = null;
+    // the server's completions, for the text and caret they were asked for
+    this.completed = { text: null, caret: null, options: [], complete: false };
+    this.completeTimer = null;
+    this.completeRequest = null;
+    // the gray word shown, and the text Escape put it (and the list) away for
+    this.next = null;
+    this.dismissed = null;
+    // which list is open: the swaps for a word, what the word typed may become, or the gray word's
+    this.menuKind = 'swap';
+    // where the mouse last was, and whether something was typed since it moved
+    this.mouse = null;
 
     this.wrapper = document.createElement('div');
     this.wrapper.className = 'query-editor';
@@ -47,6 +65,7 @@ class QueryEditor {
     this.field.setAttribute('role', 'textbox');
     this.field.setAttribute('aria-label', input.getAttribute('aria-label') || 'Search query');
     this.field.setAttribute('aria-haspopup', 'listbox');
+    this.field.setAttribute('aria-autocomplete', 'list');
     this.field.setAttribute('autocapitalize', 'off');
     this.field.dataset.placeholder = input.placeholder || '';
     this.menu = document.createElement('ul');
@@ -55,6 +74,15 @@ class QueryEditor {
     this.menu.setAttribute('role', 'listbox');
     this.menu.hidden = true;
     this.field.setAttribute('aria-controls', this.menu.id);
+
+    // beside the field, not in it: never part of the query, the caret's offsets or what's copied
+    this.ghost = document.createElement('span');
+    this.ghost.className = 'query-ghost';
+    this.ghost.setAttribute('aria-hidden', 'true');
+    this.ghost.hidden = true;
+    this.announcer = document.createElement('span');
+    this.announcer.className = 'query-announcer';
+    this.announcer.setAttribute('aria-live', 'polite');
 
     this.templateButtons = document.createElement('div');
     this.templateButtons.className = 'query-templates';
@@ -68,7 +96,7 @@ class QueryEditor {
 
     input.type = 'hidden';
     input.after(this.wrapper);
-    this.wrapper.append(this.field, this.menu, this.templateButtons);
+    this.wrapper.append(this.field, this.ghost, this.menu, this.templateButtons, this.announcer);
     this.addThemeSwitch();
     this.listen();
     this.render();
@@ -114,6 +142,9 @@ class QueryEditor {
     });
     field.addEventListener('compositionstart', () => {
       this.composing = true;
+      // a list or gray word for the text before it
+      this.closeMenu();
+      this.hideNext();
     });
     field.addEventListener('compositionend', () => {
       this.composing = false;
@@ -129,14 +160,31 @@ class QueryEditor {
       // not when the focus goes to the number box
       if (!this.menu.contains(event.relatedTarget)) {
         this.closeMenu();
+        this.hideNext();
       }
     });
+    // the gray word is only for the end of the text
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === this.field) {
+        this.closeStaleCompletions();
+        this.showNext();
+      }
+    });
+    window.addEventListener('resize', () => this.showNext());
+    this.ghost.addEventListener('mousedown', event => event.preventDefault());
+    this.ghost.addEventListener('mouseenter', event => {
+      if (this.mouseMoved(event)) {
+        this.openNext();
+      }
+    });
+    this.ghost.addEventListener('click', () => this.takeNext());
 
     // hover a word, or tap it, for its alternatives
     field.addEventListener('mouseover', event => {
       const span = event.target.closest?.('.tok');
-      // the mouse passing over the query doesn't take away a number box being typed in
-      if (span && !this.menu.contains(document.activeElement)) {
+      // the mouse passing over the query doesn't take away a number box being typed in; redrawing under a mouse
+      // that isn't moving isn't hovering
+      if (this.mouseMoved(event) && span && !this.menu.contains(document.activeElement)) {
         this.openMenu(Number(span.dataset.index), span);
       }
     });
@@ -146,9 +194,10 @@ class QueryEditor {
         this.openMenu(Number(span.dataset.index), span);
       }
     });
+    this.wrapper.addEventListener('mousemove', event => this.mouseMoved(event));
     this.wrapper.addEventListener('mouseleave', () => {
-      // a number box being typed in stays open
-      if (!this.menu.contains(document.activeElement)) {
+      // a number box being typed in stays open, and so does what the word being typed may become
+      if (!this.menu.contains(document.activeElement) && this.menuKind !== 'complete') {
         this.closeMenu();
       }
     });
@@ -246,12 +295,167 @@ class QueryEditor {
     return this.tokens.some(token => token.role === 'slot');
   }
 
+  // whether the mouse is somewhere else than it last was
+  mouseMoved(event) {
+    const moved = this.mouse === null || this.mouse.x !== event.clientX || this.mouse.y !== event.clientY;
+    this.mouse = { x: event.clientX, y: event.clientY };
+    return moved;
+  }
+
   /** Reads what was typed, then colors it again. */
   changed() {
     const caret = caretOffset(this.field);
     this.input.value = readText(this.field);
+    this.dismissed = null;
     this.closeMenu();
     this.render(caret);
+    this.askForCompletions();
+  }
+
+  /** Once typing stops, asks the server what the word at the caret may become. Not for a template's blanks. */
+  askForCompletions() {
+    clearTimeout(this.completeTimer);
+    this.completeRequest?.abort();
+    const text = this.text;
+    const caret = caretOffset(this.field);
+    if (text.trim() === '' || caret === null || this.composing || this.hasSlots()) {
+      return;
+    }
+    this.completeTimer = setTimeout(() => {
+      this.completeRequest = new AbortController();
+      fetch(`/api/completions?query=${encodeURIComponent(text)}&caret=${caret}`, { signal: this.completeRequest.signal })
+        .then(response => (response.ok ? response.json() : null))
+        .then(found => {
+          // only if nothing has changed since
+          if (found && this.text === text && caretOffset(this.field) === caret && !this.composing) {
+            this.completed = { ...found, text, caret };
+            this.showNext();
+            this.openCompletions();
+          }
+        })
+        // without them the box works as before
+        .catch(() => {});
+    }, COMPLETE_AFTER_MS);
+  }
+
+  /**
+   * The list of what the word at the caret may become. Beside the gray word only after a whole search, with the
+   * gray word first (user, 2026-11-22): "2 lrm " lists "and", then "lrm 5", "lrm 10", ...; Tab takes the first.
+   * "clan " shows "units" alone.
+   */
+  openCompletions() {
+    const { options, stop, text, complete } = this.completed;
+    if (options.length === 0 || this.dismissed === text || document.activeElement !== this.field
+        // a list opened since (a word's swaps, the number box, the gray word's) is what you're looking at
+        || (this.next && !complete) || (!this.menu.hidden && this.menuKind !== 'complete')) {
+      return;
+    }
+    // under the last of the words replaced; each option says where its own start
+    const start = Math.max(...options.map(option => option.start));
+    const listed = options.map(option => ({ label: option.text, text: option.text, start: option.start }));
+    if (this.next?.text) {
+      listed.unshift({ label: this.next.text, text: this.next.text, start: stop });
+    }
+    this.openList({ start, stop }, listed, rangeBox(this.field, start, stop), 'complete');
+  }
+
+  /**
+   * The list of completions is for where the caret was: once it moves (Home, the arrow keys, a click), the list
+   * goes, or Tab would still put an option in back there (Codex review, 2026-11-22). Not while a redraw puts the
+   * caret back.
+   */
+  closeStaleCompletions() {
+    if (this.menuKind !== 'complete' || this.menu.hidden || this.redrawing) {
+      return;
+    }
+    const selection = selectionOffsets(this.field);
+    if (!selection || selection[0] !== selection[1] || selection[1] !== this.completed.caret) {
+      this.closeMenu();
+    }
+  }
+
+  /** Shows the next word in gray at the end of the text, if it's known and the caret is there. */
+  showNext() {
+    // the caret isn't back yet, or the gray number's box is being typed in
+    if (this.redrawing || this.menu.contains(document.activeElement)) {
+      return;
+    }
+    const text = this.text;
+    const selection = selectionOffsets(this.field);
+    const atEnd = document.activeElement === this.field && selection !== null
+        && selection[0] === text.length && selection[1] === text.length;
+    const next = atEnd && !this.composing && this.dismissed !== text ? nextWord(text, vocabulary) : null;
+    const complete = this.completed.text === text && this.completed.complete;
+    if (!next || (next.needsComplete && !complete)) {
+      this.hideNext();
+      return;
+    }
+    const label = next.text ?? 'weapon';
+    this.ghost.textContent = label;
+    this.ghost.hidden = false;
+    const end = rangeBox(this.field, text.length - 1, text.length);
+    this.ghost.style.left = `${end.offsetLeft + end.offsetWidth}px`;
+    this.ghost.style.top = `${end.offsetTop}px`;
+    // the letters' own height, so it sits on the text's line
+    this.ghost.style.lineHeight = `${end.offsetHeight}px`;
+    // no room left on the line
+    if (end.offsetLeft + end.offsetWidth + this.ghost.offsetWidth > this.field.clientWidth) {
+      this.hideNext();
+      return;
+    }
+    const said = next.text ? `Tab for ${label}` : 'Tab for the weapons';
+    if (this.announcer.textContent !== said) {
+      this.announcer.textContent = said;
+    }
+    this.next = next;
+  }
+
+  hideNext() {
+    this.next = null;
+    this.ghost.hidden = true;
+    this.announcer.textContent = '';
+    if (this.menuKind === 'next') {
+      this.closeMenu();
+    }
+  }
+
+  /** The gray word's list, or the box for a number. */
+  openNext() {
+    if (!this.next || (this.menuKind === 'next' && !this.menu.hidden)) {
+      return;
+    }
+    const end = this.text.length;
+    if (this.next.slot === 'quantity') {
+      // an empty box with the default as its hint, like a blank's
+      this.openNumberBox({ start: end, stop: end, text: '', role: 'slot', slot: 'quantity' }, this.ghost, 'next');
+    } else {
+      this.openList({ start: end, stop: end }, nextOptions(this.next, vocabulary), this.ghost, 'next');
+    }
+  }
+
+  /** Takes the gray word; one that's only a list (the weapon) opens it. */
+  takeNext() {
+    if (!this.next) {
+      return;
+    }
+    if (this.next.text === null) {
+      this.openNext();
+      this.enterMenu();
+    } else {
+      this.insertNext({ start: this.text.length, stop: this.text.length }, this.next.text);
+    }
+  }
+
+  /** Puts a completion or the next word in, with a space after it at the end, and goes on from there. */
+  insertNext(range, replacement) {
+    const atEnd = range.stop === this.text.length;
+    const { text, caret } = replaceToken(this.text, range, atEnd ? `${replacement} ` : replacement);
+    this.input.value = text;
+    this.dismissed = null;
+    this.closeMenu();
+    this.field.focus();
+    this.render(caret);
+    this.askForCompletions();
   }
 
   insert(typed) {
@@ -263,9 +467,10 @@ class QueryEditor {
     }
     const clean = typed.replace(/\s+/g, ' ');
     this.input.value = this.text.slice(0, start) + clean + this.text.slice(stop);
-    // like typing: an open menu would point at where its word used to be
+    // like typing: an open menu would point at where its word used to be, and the word may be completed
     this.closeMenu();
     this.render(start + clean.length);
+    this.askForCompletions();
   }
 
   // the misspelled words the server found in the text as it is now
@@ -306,10 +511,13 @@ class QueryEditor {
       return;
     }
     const selection = selectionOffsets(this.field);
+    this.redrawing = true;
     this.render();
     if (selection && document.activeElement === this.field) {
       setSelection(this.field, ...selection);
     }
+    this.redrawing = false;
+    this.showNext();
   }
 
   /** Redraws the field as colored words; puts the caret back at that offset if given. */
@@ -354,6 +562,7 @@ class QueryEditor {
     if (caret !== null && document.activeElement === this.field) {
       setCaret(this.field, caret);
     }
+    this.showNext();
   }
 
   keydown(event) {
@@ -372,9 +581,34 @@ class QueryEditor {
     } else if (event.key === 'Escape' && this.hasSlots()) {
       event.preventDefault();
       this.finishSlots();
-    } else if (event.key === 'Escape' && open) {
+    } else if (event.key === 'Escape' && (open || this.next)) {
       event.preventDefault();
+      // put away until something is typed, so Tab leaves the box again
+      this.dismissed = this.text;
       this.closeMenu();
+      this.hideNext();
+    } else if (event.key === 'Tab' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+        && open && this.menuKind !== 'swap' && this.options.length > 0) {
+      // the gray word, first in the list beside it, unless another option was arrowed to
+      if (this.menuKind === 'complete' && this.active < 0 && this.next) {
+        event.preventDefault();
+        this.takeNext();
+        return;
+      }
+      // a whole search ("mechs with 2 ppc") is left as it is, not made "ppc capacitor" on the way out of the box
+      if (this.menuKind === 'complete' && this.active < 0 && this.completed.complete) {
+        return;
+      }
+      event.preventDefault();
+      // hovering the gray word opens its list without choosing from it
+      if (this.menuKind === 'next' && this.active < 0) {
+        this.takeNext();
+      } else {
+        this.pick(Math.max(0, this.active));
+      }
+    } else if (event.key === 'Tab' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && this.next) {
+      event.preventDefault();
+      this.takeNext();
     } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.altKey && open && this.options.length > 0) {
       event.preventDefault();
       const count = this.menu.children.length;
@@ -406,10 +640,16 @@ class QueryEditor {
       this.closeMenu();
       return;
     }
+    this.openList(token, options, span, 'swap');
+  }
+
+  /** Opens a list of options for part of the query, under that element or box. */
+  openList(token, options, anchor, kind) {
     if (this.menuToken === token && !this.menu.hidden) {
       return;
     }
     this.menuToken = token;
+    this.menuKind = kind;
     this.options = options;
     this.active = -1;
     this.menu.setAttribute('role', 'listbox');
@@ -424,15 +664,16 @@ class QueryEditor {
       }
       return item;
     }));
-    this.showMenu(span);
+    this.showMenu(anchor);
   }
 
   /** For a number: a box to type it in, Enter to use it. */
-  openNumberBox(token, span) {
+  openNumberBox(token, span, kind = 'swap') {
     if (this.menuToken === token && !this.menu.hidden) {
       return;
     }
     this.menuToken = token;
+    this.menuKind = kind;
     this.options = [];
     this.active = -1;
     this.menu.setAttribute('role', 'group');
@@ -462,7 +703,7 @@ class QueryEditor {
         if (number === null) {
           box.setAttribute('aria-invalid', 'true');
         } else {
-          this.choose(this.menuToken, number);
+          this.use(this.menuToken, number);
         }
       } else if (event.key === 'Escape') {
         event.preventDefault();
@@ -511,7 +752,16 @@ class QueryEditor {
       return;
     }
     // "clan only" replaces the whole equipment name, from in front of its fire control
-    this.choose(option.start === undefined ? this.menuToken : { ...this.menuToken, start: option.start }, option.text);
+    this.use(option.start === undefined ? this.menuToken : { ...this.menuToken, start: option.start }, option.text);
+  }
+
+  // a swap searches right away; a completion or the next word goes on typing
+  use(range, replacement) {
+    if (this.menuKind === 'swap') {
+      this.choose(range, replacement);
+    } else {
+      this.insertNext(range, replacement);
+    }
   }
 
   /** Puts the replacement over that part of the query, then fills the next blank or searches. */
@@ -532,6 +782,7 @@ class QueryEditor {
     // empty, so nothing left in it (a number box) takes part in the form
     this.menu.replaceChildren();
     this.menuToken = null;
+    this.menuKind = 'swap';
     this.active = -1;
     this.field.setAttribute('aria-expanded', 'false');
     this.field.removeAttribute('aria-activedescendant');
@@ -580,6 +831,17 @@ function selectionOffsets(field) {
 
 function setCaret(field, offset) {
   setSelection(field, offset, offset);
+}
+
+/** Where part of the text is, measured like an element's offsets in the search box; on the line it ends on. */
+function rangeBox(field, start, stop) {
+  const range = document.createRange();
+  range.setStart(...position(field, start));
+  range.setEnd(...position(field, stop));
+  const rects = range.getClientRects();
+  const rect = rects[rects.length - 1] ?? field.getBoundingClientRect();
+  const box = field.offsetParent.getBoundingClientRect();
+  return { offsetLeft: rect.left - box.left, offsetTop: rect.top - box.top, offsetWidth: rect.width, offsetHeight: rect.height };
 }
 
 /** Selects from one character offset to another (the same offset for a caret). */
