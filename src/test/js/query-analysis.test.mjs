@@ -44,6 +44,7 @@ const vocabulary = {
   fireControlTerms: ['artemis lrm ammo'],
   turretMounts: ['turret', 'sponson', 'pintle'],
   turretMountTerms: ['Pintle Mount', 'PintleTurret', 'SponsonTurret'],
+  unitTechs: { 'inner sphere': 'INNER_SPHERE', 'mixed tech': 'MIXED_TECH', clan: 'CLAN', is: 'INNER_SPHERE', mixed: 'MIXED_TECH' },
 };
 
 /** "text:role" for each token, to compare readably. */
@@ -169,6 +170,26 @@ test('a leading tech word, then a fire control, then the equipment', () => {
   assert.deepEqual(roles('mechs with 2 artemis lrm ammo').slice(3), ['artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 clan artemis lrm ammo').slice(3), ['clan:tech', 'artemis lrm ammo:equipment']);
   assert.deepEqual(roles('mechs with 2 artemis lrm ammos').slice(3), ['artemis lrm ammos:equipment']);
+});
+
+test('a unit tech is its own word next to the weight class', () => {
+  assert.deepEqual(roles('clan heavy mechs'), ['clan:tech', 'heavy:weight-class', 'mechs:unit']);
+  assert.deepEqual(roles('heavy clan mechs'), ['heavy:weight-class', 'clan:tech', 'mechs:unit']);
+  assert.deepEqual(roles('inner sphere mechs with 2 ppc').slice(0, 2), ['inner sphere:tech', 'mechs:unit']);
+  assert.deepEqual(roles('mixed tech units').slice(0, 2), ['mixed tech:tech', 'units:unit']);
+  // one at each end, though the server takes only one tech of unit
+  assert.deepEqual(roles('is light clan mechs'), ['is:tech', 'light:weight-class', 'clan:tech', 'mechs:unit']);
+  const tech = analyze('clan mechs', vocabulary).tokens[0];
+  // the other techs of a unit, mixed tech too, one word each; or none
+  assert.deepEqual(alternatives(tech, vocabulary).map(option => option.label), ['inner sphere', 'mixed tech', 'any tech']);
+  assert.equal(replaceToken('clan mechs', tech, '').text, 'mechs');
+  // by itself in a list it can be swapped but not taken out, which would leave "heavy or mechs"
+  for (const query of ['heavy or clan mechs', 'clan or heavy mechs', 'light, clan or heavy mechs']) {
+    const listed = analyze(query, vocabulary).tokens.find(token => token.role === 'tech');
+    assert.deepEqual(alternatives(listed, vocabulary).map(option => option.label), ['inner sphere', 'mixed tech'], query);
+  }
+  const attached = analyze('clan light or heavy mechs', vocabulary).tokens[0];
+  assert.deepEqual(alternatives(attached, vocabulary).at(-1), { label: 'any tech', text: '' });
 });
 
 test("the server's spellings replace just the misspelled word in a token", () => {

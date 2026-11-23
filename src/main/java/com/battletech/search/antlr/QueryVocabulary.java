@@ -7,6 +7,7 @@ import com.battletech.search.model.WeightClass;
 import com.battletech.search.utils.ComponentNames;
 import com.battletech.search.utils.EquipmentNames;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,25 @@ public final class QueryVocabulary {
       "without", "lacking", "that don't have", "that do not have", "which don't have", "which do not have",
       "no", "except", "that aren't", "that are not", "which aren't", "which are not", "but not", "but",
       "rating", "rating of", "no more", "equal", "multiple", "any", "triple strength", "ammo", "ammos");
+
+  // in front of the unit word, with any weight class: "clan heavy mechs" (user, 2026-11-18). The unit's own
+  // tech, exactly: a mixed-tech unit is only "mixed tech", even on a Clan chassis. Longest first, so "inner
+  // sphere" and "mixed tech" are read whole
+  static final Map<String, Tech> UNIT_TECHS;
+  static {
+    Map<String, Tech> techs = new LinkedHashMap<>();
+    techs.put("inner sphere", Tech.INNER_SPHERE);
+    techs.put("mixed tech", Tech.MIXED_TECH);
+    techs.put("clan", Tech.CLAN);
+    techs.put("is", Tech.INNER_SPHERE);
+    techs.put("mixed", Tech.MIXED_TECH);
+    UNIT_TECHS = Collections.unmodifiableMap(techs);
+  }
+
+  /** The words for a unit's tech, as typed ("clan", "inner sphere", "mixed tech"), and their tech. */
+  public static Map<String, Tech> unitTechs() {
+    return UNIT_TECHS;
+  }
 
   /** Every keyword spelling the grammar takes, as typed: unit words, comparators, with words, ... */
   public static List<String> keywords() {

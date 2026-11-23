@@ -26,6 +26,7 @@ public class EquipmentController {
     page.addObject("equipment", equipmentService.equipmentTree());
     page.addObject("weightClasses", QueryVocabulary.weightClasses());
     page.addObject("omniWords", QueryVocabulary.omniWords());
+    page.addObject("unitTechs", List.copyOf(QueryVocabulary.unitTechs().keySet()));
     page.addObject("withWords", QueryVocabulary.withWords());
     page.addObject("comparatorsBefore", QueryVocabulary.comparatorsBefore());
     page.addObject("comparatorsAfter", QueryVocabulary.comparatorsAfter());

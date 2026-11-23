@@ -14,7 +14,7 @@ import BattletechParser from './grammar/me/BattletechParser.js';
 export const EMPTY_VOCABULARY = Object.freeze({
   weightClasses: [], units: [], comparatorsBefore: [], comparatorsAfter: [], operators: [], withWords: [],
   techs: {}, fireControls: [], families: {}, equipment: {}, omniWords: [], components: {}, fireControlTerms: [],
-  turretMounts: [], turretMountTerms: [],
+  turretMounts: [], turretMountTerms: [], unitTechs: {},
 });
 
 /**
@@ -235,8 +235,35 @@ function visit(context, tokens, text, vocabulary) {
     return;
   }
   if (context.ruleIndex === BattletechParser.RULE_weightClass) {
-    // one weight class, "ultra light" as one; "medium or heavy" is two of these
-    const words = children.filter(child => isTerminal(child) && !isError(child));
+    // one weight class, "ultra light" as one; "medium or heavy" is two of these. A unit tech before or after
+    // it ("clan heavy", "heavy clan") is its own word, as QueryVisitor.withoutUnitTech reads it
+    let words = children.filter(child => isTerminal(child) && !isError(child));
+    const unitTechs = Object.keys(vocabulary.unitTechs).sort((a, b) => b.split(' ').length - a.split(' ').length);
+    const firstToken = tokens.length;
+    let peeled = true;
+    while (peeled && words.length > 0) {
+      peeled = false;
+      for (const tech of unitTechs) {
+        const length = tech.split(' ').length;
+        const typed = part => part.map(word => word.getText().toLowerCase()).join(' ');
+        if (length <= words.length && typed(words.slice(0, length)) === tech) {
+          tokens.push({ ...span(words.slice(0, length), text, 'tech'), unitTech: true });
+          words = words.slice(length);
+        } else if (length <= words.length && typed(words.slice(words.length - length)) === tech) {
+          tokens.push({ ...span(words.slice(words.length - length), text, 'tech'), unitTech: true });
+          words = words.slice(0, words.length - length);
+        } else {
+          continue;
+        }
+        peeled = true;
+        break;
+      }
+    }
+    const siblings = context.parentCtx.children.filter(child => child.ruleIndex === BattletechParser.RULE_weightClass);
+    if (words.length === 0 && siblings.length > 1) {
+      // "heavy or clan mechs": taking the tech out would leave the "or" with nothing to join
+      tokens.slice(firstToken).forEach(token => { token.joined = true; });
+    }
     if (words.length > 0) {
       const weightClass = span(words, text, 'weight-class');
       // as WeightClass.fromString reads it: any case, but "ultralight" and "ultra-light" aren't one
@@ -402,9 +429,11 @@ export function alternatives(token, vocabulary = EMPTY_VOCABULARY) {
     case 'omni':
       return [...others(vocabulary.omniWords), { label: 'omni or not', text: '' }];
     case 'tech': {
-      // one word per other tech: "clan" offers "inner sphere", not "is" too
-      const current = Object.entries(vocabulary.techs).find(([word]) => word === typed)?.[1];
-      return [...techWords(vocabulary, current).map(word => ({ label: word, text: word })), { label: 'any tech', text: orAny(token) }];
+      // one word per other tech: "clan" offers "inner sphere", not "is" too; a unit's tech has "mixed tech" too
+      const techs = token.unitTech ? vocabulary.unitTechs : vocabulary.techs;
+      const current = Object.entries(techs).find(([word]) => word === typed)?.[1];
+      const swaps = techWords(techs, current).map(word => ({ label: word, text: word }));
+      return token.joined ? swaps : [...swaps, { label: 'any tech', text: orAny(token) }];
     }
     case 'turret-mount':
       return [...others(vocabulary.turretMounts), { label: 'any mount', text: orAny(token) }];
@@ -459,10 +488,10 @@ function startsWithWord(text) {
 }
 
 /** One word for each tech but the one given: "inner sphere" and "clan", not "is" too. */
-function techWords(vocabulary, except = undefined) {
+function techWords(techs, except = undefined) {
   const seen = new Set([except]);
   const words = [];
-  for (const [word, tech] of Object.entries(vocabulary.techs)) {
+  for (const [word, tech] of Object.entries(techs)) {
     if (!seen.has(tech)) {
       seen.add(tech);
       words.push(word);
@@ -497,7 +526,7 @@ const ARTEMIS_FAMILIES = ['lrms', 'srms', 'mmls'];
 function prefixAlternatives(token, families, vocabulary) {
   const options = [];
   if (!token.hasTech) {
-    techWords(vocabulary).forEach(word =>
+    techWords(vocabulary.techs).forEach(word =>
       options.push({ label: `${word} only`, text: `${word} ${token.name}`, start: token.nameStart }));
   }
   if (!token.hasFireControl && !families.includes('streaks')) {

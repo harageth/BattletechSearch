@@ -88,6 +88,14 @@
                         <td class="guide-example"><code>omni vehicles</code><br><code>non-omni assault mechs</code></td>
                     </tr>
                     <tr>
+                        <td>Tech</td>
+                        <td>
+                            <span class="guide-words"><code th:each="word : ${unitTechs}" th:text="${word}">clan</code></span>
+                            <p class="hint">Before the unit, with any weight class: units built with that tech. A mixed-tech unit is only <code>mixed tech</code>, whichever side its chassis is. By itself after <code>or</code> it's a choice of its own: <code>heavy or clan mechs</code> is heavy mechs, and Clan mechs of any weight class.</p>
+                        </td>
+                        <td class="guide-example"><code>clan mechs with 2 lrm 20</code><br><code>inner sphere heavy mechs</code><br><code>mixed tech units</code><br><code>heavy or clan mechs</code></td>
+                    </tr>
+                    <tr>
                         <td>Leaving units out</td>
                         <td>
                             <code>non-</code> in front of a unit word, or after the unit:

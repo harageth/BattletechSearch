@@ -22,8 +22,13 @@ import com.battletech.search.utils.ComponentNames;
 import com.battletech.search.utils.EquipmentNames;
 import com.battletech.search.utils.UnitBuilder;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import lombok.Value;
 import me.BattletechLexer;
 import me.BattletechParser;
 import me.BattletechParser.BareChunkContext;
@@ -76,24 +81,113 @@ public class QueryVisitor implements BattletechVisitor {
     return visitLine(ctx.line());
   }
 
-  /** "medium or heavy": each weight class named, in order. */
+  /** "medium or heavy": each weight class named, in order; none for a unit tech alone ("clan mechs"). */
   @Override
   public List<WeightClass> visitWeightClasses(WeightClassesContext ctx) {
-    return ctx.weightClass().stream().map(this::visitWeightClass).distinct().toList();
+    return ctx.weightClass().stream().map(this::visitWeightClass).filter(Objects::nonNull).distinct().toList();
   }
 
   /**
-   * Weight classes can be more than one word, e.g. "ultra light". A word that isn't one ("hevy",
+   * Weight classes can be more than one word, e.g. "ultra light", with a unit tech before or after them
+   * ("clan heavy", "heavy clan"; see setUnitTech); null for the tech alone. A word that isn't one ("hevy",
    * "non-omnimech") fails the search instead of being left out, which would search every weight class.
    */
   @Override
   public WeightClass visitWeightClass(WeightClassContext ctx) {
-    String typed = ctx.WORD().stream().map(TerminalNode::getText).collect(Collectors.joining(" "));
+    List<String> words = withoutUnitTech(ctx).getRest();
+    if (words.isEmpty()) {
+      return null;
+    }
+    String typed = String.join(" ", words);
     WeightClass weightClass = WeightClass.fromString(typed);
     if (weightClass == null) {
       throw new FailedParseException("Unknown weight class: " + typed);
     }
     return weightClass;
+  }
+
+  /** A weight class's words split into the unit tech around them, if any (as typed), and the rest. */
+  @Value
+  private static class UnitTechWords {
+    Tech tech;
+    String typed;
+    List<String> rest;
+  }
+
+  /**
+   * Sets the unit's tech named with the weight classes (user, 2026-11-18): "clan mechs", "inner sphere heavy
+   * mechs", "light clan or medium mechs". Exactly the unit's tech: "mixed tech" is its own. Two different ones
+   * fail the search. A tech by itself joined with "or" is a choice of its own (user, 2026-11-22): "heavy or clan
+   * mechs" is heavy mechs, and Clan mechs of any weight class.
+   */
+  private static void setUnitTech(UnitDecorator unit, WeightClassesContext ctx) {
+    Map<Tech, String> techs = new LinkedHashMap<>();
+    for (int i = 0; i < ctx.weightClass().size(); i++) {
+      UnitTechWords words = withoutUnitTech(ctx.weightClass(i));
+      if (words.getTech() == null) {
+        continue;
+      }
+      techs.putIfAbsent(words.getTech(), words.getTyped());
+      if (words.getRest().isEmpty() && joinedWithOr(ctx, i)) {
+        unit.setOrTech(words.getTech());
+      } else {
+        unit.setTechFilter(words.getTech());
+      }
+    }
+    if (techs.size() > 1) {
+      throw new FailedParseException("A search can only ask for one tech of unit: "
+          + String.join(" or ", techs.values()));
+    }
+  }
+
+  // whether "or" joins the weight class at the index to the one before it (the first, to the one after it); a
+  // comma means the operator its list ends with ("light, clan or heavy")
+  private static boolean joinedWithOr(WeightClassesContext ctx, int index) {
+    int next = Math.max(index, 1);
+    int weightClass = 0;
+    for (ParseTree child : ctx.children) {
+      if (child instanceof WeightClassContext) {
+        weightClass++;
+      } else if (weightClass >= next && child instanceof LogicaloperatorContext operator) {
+        return operator.OR() != null;
+      }
+    }
+    return false;
+  }
+
+  // the unit tech words at the start or end of a weight class's words, longest first ("inner sphere")
+  private static UnitTechWords withoutUnitTech(WeightClassContext ctx) {
+    List<String> rest = ctx.WORD().stream().map(TerminalNode::getText).toList();
+    Tech found = null;
+    String typed = null;
+    boolean peeled = true;
+    while (peeled && !rest.isEmpty()) {
+      peeled = false;
+      for (Map.Entry<String, Tech> unitTech : QueryVocabulary.unitTechs().entrySet()) {
+        List<String> tech = List.of(unitTech.getKey().split(" "));
+        if (tech.size() > rest.size()) {
+          continue;
+        }
+        boolean atStart = lowercase(rest.subList(0, tech.size())).equals(tech);
+        boolean atEnd = !atStart && lowercase(rest.subList(rest.size() - tech.size(), rest.size())).equals(tech);
+        if (atStart || atEnd) {
+          if (found != null && found != unitTech.getValue()) {
+            throw new FailedParseException("A search can only ask for one tech of unit: " + typed + " or "
+                + unitTech.getKey());
+          }
+          found = unitTech.getValue();
+          typed = unitTech.getKey();
+          rest = atStart ? rest.subList(tech.size(), rest.size()) : rest.subList(0, rest.size() - tech.size());
+          peeled = true;
+          break;
+        }
+      }
+    }
+    return new UnitTechWords(found, typed, rest);
+  }
+
+  private static List<String> lowercase(List<String> words) {
+    return words.stream().map(word -> word.toLowerCase(Locale.ROOT)).toList();
   }
 
   /** The name as typed, words separated by spaces ("lrm 20"); normalized before the lookup. */
@@ -129,6 +223,7 @@ public class QueryVisitor implements BattletechVisitor {
       if(child instanceof OmniContext omni) {
         unit.setOmniFilter(visitOmni(omni));
       }else if(child instanceof WeightClassesContext weightClasses) {
+        setUnitTech(unit, weightClasses);
         unit.setWeightClasses(visitWeightClasses(weightClasses));
       }else if(child instanceof TerminalNode word && word.getSymbol().getType() == BattletechParser.NONUNIT) {
         exclusions.add(nonUnit(word.getText()));

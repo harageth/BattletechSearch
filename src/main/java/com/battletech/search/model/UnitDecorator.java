@@ -22,6 +22,10 @@ public class UnitDecorator extends Unit {
   Locomotion locomotion;
   // "omni mechs" true, "non-omni mechs" false, null for either
   Boolean omniFilter;
+  // "clan mechs": the unit's own tech; null for any
+  Tech techFilter;
+  // "heavy or clan mechs": units of that tech too, whatever their weight class; null for none
+  Tech orTech;
   // "support vehicles", "combat tanks"; null for both
   VehicleClass vehicleClass;
   // the chunks after "with": equipment, components, engine rating
@@ -40,11 +44,23 @@ public class UnitDecorator extends Unit {
     StringBuilder builder = new StringBuilder("SELECT name, designation FROM unit WHERE ");
     builder.append(unitCondition());
 
+    // built from the enums, not user text
+    List<String> choices = new ArrayList<>();
     if(!weightClasses.isEmpty()) {
-      // built from the enum, not user text
-      builder.append(" AND weight_class IN (")
-          .append(weightClasses.stream().map(weightClass -> "'" + weightClass.name() + "'").collect(Collectors.joining(", ")))
-          .append(") ");
+      choices.add("weight_class IN ("
+          + weightClasses.stream().map(weightClass -> "'" + weightClass.name() + "'").collect(Collectors.joining(", "))
+          + ")");
+    }
+    if(techFilter != null) {
+      choices.add("tech = '" + techFilter.name() + "'");
+    }
+    String chosen = String.join(" AND ", choices);
+    if(orTech != null) {
+      String tech = "tech = '" + orTech.name() + "'";
+      chosen = choices.isEmpty() ? tech : "((" + chosen + ") OR " + tech + ")";
+    }
+    if(!chosen.isEmpty()) {
+      builder.append(" AND ").append(chosen).append(" ");
     }
     for(UnitDecorator excluded : exclusions) {
       // a NULL column (a vehicle's locomotion, a missing motive type) doesn't count as a match
